@@ -1,0 +1,425 @@
+import express from "express";
+import { dbQuery } from "../db/connection.js";
+import shopify from "../shopify.js";
+
+const router = express.Router();
+
+// Helper to sync active rules to Shopify as a metafield on the validation customization
+async function syncRulesToShopify(session) {
+  const shop = session.shop;
+  console.log(`Syncing validation rules for ${shop} to Shopify...`);
+  
+  try {
+    // 1. Fetch active rules
+    const result = await dbQuery(
+      "SELECT * FROM rules WHERE shop = $1 AND status = 'active' ORDER BY priority DESC, id DESC",
+      [shop]
+    );
+    const activeRules = result.rows || [];
+    const rulesJson = JSON.stringify(activeRules);
+
+    // 2. Client for GraphQL Admin API
+    const client = new shopify.api.clients.Graphql({ session });
+
+    // 3. Find if there's an existing validation customization
+    const findQuery = `
+      query {
+        validations(first: 10) {
+          nodes {
+            id
+            title
+          }
+        }
+      }
+    `;
+    const findRes = await client.request(findQuery);
+    const validations = findRes.data?.validations?.nodes || [];
+    
+    // We look for a validation matching our app title or keep the first one
+    let validationId = null;
+    const targetValidation = validations.find(v => v.title === "Cart & Checkout Validation");
+    
+    if (targetValidation) {
+      validationId = targetValidation.id;
+    } else if (validations.length > 0) {
+      validationId = validations[0].id;
+    }
+
+    // 4. If no validation customization exists, create one
+    if (!validationId) {
+      // We need the function ID. We can get it from shopify.config or env
+      // Usually, we query the extensions / app to find the function ID, or we can hardcode the handle/ID
+      // For now, let's query the app's functions
+      const appQuery = `
+        query {
+          shopifyFunctions(first: 20) {
+            nodes {
+              id
+              title
+              apiType
+            }
+          }
+        }
+      `;
+      const appRes = await client.request(appQuery);
+      const functions = appRes.data?.shopifyFunctions?.nodes || [];
+      const func = functions.find(f => f.apiType === "cart_checkout_validation" || f.title.toLowerCase().includes("validation"));
+      
+      if (func) {
+        const createMutation = `
+          mutation validationCreate($input: ValidationInput!) {
+            validationCreate(validation: $input) {
+              validation {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
+        const createRes = await client.request(createMutation, {
+          variables: {
+            input: {
+              title: "Cart & Checkout Validation",
+              functionId: func.id,
+              status: "ACTIVE"
+            }
+          }
+        });
+        validationId = createRes.data?.validationCreate?.validation?.id;
+      }
+    }
+
+    if (!validationId) {
+      console.warn("Could not locate or create a Validation customization. Skipping Shopify metafield sync.");
+      return;
+    }
+
+    // 5. Update metafield on the validation customization
+    const metafieldMutation = `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const setRes = await client.request(metafieldMutation, {
+      variables: {
+        metafields: [
+          {
+            ownerId: validationId,
+            namespace: "cart-validation",
+            key: "rules",
+            value: rulesJson,
+            type: "json"
+          }
+        ]
+      }
+    });
+
+    const errors = setRes.data?.metafieldsSet?.userErrors || [];
+    if (errors.length > 0) {
+      console.error("Shopify metafield set errors:", errors);
+    } else {
+      console.log("Successfully synced rules to Shopify metafield.");
+    }
+  } catch (error) {
+    console.error("Failed to sync rules to Shopify metafields (likely mock/offline session):", error.message);
+  }
+}
+
+// Debug sync status
+router.get("/debug-sync", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+    const findQuery = `
+      query {
+        validations(first: 10) {
+          nodes {
+            id
+            title
+            metafields(first: 5) {
+              nodes {
+                id
+                namespace
+                key
+                value
+              }
+            }
+          }
+        }
+      }
+    `;
+    const findRes = await client.request(findQuery);
+    res.json(findRes.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/rules/customer-tags -> Fetch unique customer tags
+router.get("/customer-tags", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+    const query = `
+      query {
+        customers(first: 250) {
+          edges {
+            node {
+              tags
+            }
+          }
+        }
+      }
+    `;
+    const checkRes = await client.request(query);
+    const edges = checkRes.data?.customers?.edges || [];
+    const allTags = new Set();
+    for (const edge of edges) {
+      const tags = edge.node?.tags || [];
+      for (const tag of tags) {
+        allTags.add(tag);
+      }
+    }
+    res.json(Array.from(allTags));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 1. GET /api/rules -> Get all rules
+router.get("/", async (req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    const result = await dbQuery(
+      "SELECT * FROM rules WHERE shop = $1 ORDER BY priority DESC, id DESC",
+      [shop]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. GET /api/rules/:id -> Get single rule
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shop = res.locals.shopify.session.shop;
+    const result = await dbQuery(
+      "SELECT * FROM rules WHERE id = $1 AND shop = $2",
+      [id, shop]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. POST /api/rules -> Create rule
+router.post("/", async (req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    const { title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end } = req.body;
+    
+    // Insert rule
+    const ruleRes = await dbQuery(
+      `INSERT INTO rules (shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [shop, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null]
+    );
+    const newRule = ruleRes.rows[0];
+
+    // Create version 1
+    await dbQuery(
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [newRule.id, 1, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target]
+    );
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.status(201).json(newRule);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. PUT /api/rules/:id -> Update rule (generates new version)
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shop = res.locals.shopify.session.shop;
+    const { title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end } = req.body;
+
+    // Check if exists
+    const checkRes = await dbQuery("SELECT * FROM rules WHERE id = $1 AND shop = $2", [id, shop]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
+
+    // Get max version to increment
+    const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
+    const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
+
+    // Update rule
+    const ruleRes = await dbQuery(
+      `UPDATE rules 
+       SET title = $1, status = $2, priority = $3, conditions_operator = $4, conditions = $5, error_message = $6, error_target = $7, schedule_start = $8, schedule_end = $9, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $10 AND shop = $11 RETURNING *`,
+      [title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, id, shop]
+    );
+    const updatedRule = ruleRes.rows[0];
+
+    // Insert version history
+    await dbQuery(
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, nextVersion, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target]
+    );
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.json(updatedRule);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. DELETE /api/rules/:id -> Delete rule
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shop = res.locals.shopify.session.shop;
+
+    const result = await dbQuery("DELETE FROM rules WHERE id = $1 AND shop = $2 RETURNING *", [id, shop]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.json({ success: true, message: "Rule deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. POST /api/rules/bulk-toggle -> Bulk toggle status
+router.post("/bulk-toggle", async (req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    const { ids, status } = req.body; // ids: array of IDs, status: 'active'/'inactive'
+
+    await dbQuery(
+      "UPDATE rules SET status = $1 WHERE id = ANY($2) AND shop = $3",
+      [status, ids, shop]
+    );
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.json({ success: true, message: `Bulk updated ${ids.length} rules to ${status}` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. POST /api/rules/bulk-delete -> Bulk delete
+router.post("/bulk-delete", async (req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    const { ids } = req.body;
+
+    await dbQuery(
+      "DELETE FROM rules WHERE id = ANY($1) AND shop = $2",
+      [ids, shop]
+    );
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.json({ success: true, message: `Bulk deleted ${ids.length} rules` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8. GET /api/rules/:id/versions -> Get version history
+router.get("/:id/versions", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await dbQuery(
+      "SELECT * FROM rule_versions WHERE rule_id = $1 ORDER BY version DESC",
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 9. POST /api/rules/:id/rollback -> Rollback to version
+router.post("/:id/rollback", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { version } = req.body;
+    const shop = res.locals.shopify.session.shop;
+
+    // Get specific version
+    const versionRes = await dbQuery(
+      "SELECT * FROM rule_versions WHERE rule_id = $1 AND version = $2",
+      [id, version]
+    );
+    if (versionRes.rows.length === 0) {
+      return res.status(404).json({ error: "Version not found" });
+    }
+    const ver = versionRes.rows[0];
+
+    // Update main rule
+    const ruleRes = await dbQuery(
+      `UPDATE rules 
+       SET title = $1, priority = $2, conditions_operator = $3, conditions = $4, error_message = $5, error_target = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7 AND shop = $8 RETURNING *`,
+      [ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, id, shop]
+    );
+
+    // Insert new version history step
+    const maxVerRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
+    const nextVersion = (maxVerRes.rows[0]?.max || 0) + 1;
+
+    await dbQuery(
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, nextVersion, ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target]
+    );
+
+    // Sync to Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
+    res.json(ruleRes.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
+export { syncRulesToShopify };

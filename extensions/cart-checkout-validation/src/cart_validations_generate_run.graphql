@@ -1,0 +1,59 @@
+query CartValidationsGenerateRunInput {
+  validation {
+    metafield(namespace: "cart-validation", key: "rules") {
+      value
+    }
+  }
+  cart {
+    cost {
+      subtotalAmount {
+        amount
+      }
+    }
+    buyerIdentity {
+      isAuthenticated
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+      customer {
+        id
+        metafield(namespace: "cart-validation", key: "metadata") {
+          value
+        }
+      }
+    }
+    deliveryGroups {
+      deliveryAddress {
+        address1
+        address2
+        provinceCode
+        countryCode
+        zip
+      }
+    }
+    lines {
+      quantity
+      sellingPlanAllocation {
+        sellingPlan {
+          id
+        }
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          sku
+          weight
+          product {
+            id
+            vendor
+            metafield(namespace: "cart-validation", key: "metadata") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}
