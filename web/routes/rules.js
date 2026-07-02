@@ -12,11 +12,32 @@ async function syncRulesToShopify(session) {
   try {
     // 1. Fetch active rules
     const result = await dbQuery(
-      "SELECT * FROM rules WHERE shop = $1 AND status = 'active' ORDER BY priority DESC, id DESC",
+      `SELECT * FROM rules 
+       WHERE shop = $1 
+         AND status = 'active'
+         AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
+         AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
+       ORDER BY priority DESC, id DESC`,
       [shop]
     );
     const activeRules = result.rows || [];
-    const rulesJson = JSON.stringify(activeRules);
+    
+    // Automatically sanitize old or invalid target paths to valid leaf paths
+    const sanitizedRules = activeRules.map(rule => {
+      let target = rule.error_target;
+      if (target === "$.cart.deliveryGroups[0].deliveryAddress") {
+        target = "$.cart.deliveryGroups[0].deliveryAddress.address1";
+      }
+      if (target === "$.cart.lines[0]") {
+        target = "$.cart.lines[0].quantity";
+      }
+      return {
+        ...rule,
+        error_target: target
+      };
+    });
+    
+    const rulesJson = JSON.stringify(sanitizedRules);
 
     // 2. Client for GraphQL Admin API
     const client = new shopify.api.clients.Graphql({ session });
@@ -67,7 +88,7 @@ async function syncRulesToShopify(session) {
       
       if (func) {
         const createMutation = `
-          mutation validationCreate($input: ValidationInput!) {
+          mutation validationCreate($input: ValidationCreateInput!) {
             validationCreate(validation: $input) {
               validation {
                 id
@@ -84,7 +105,7 @@ async function syncRulesToShopify(session) {
             input: {
               title: "Cart & Checkout Validation",
               functionId: func.id,
-              status: "ACTIVE"
+              enable: true
             }
           }
         });
@@ -203,8 +224,17 @@ router.get("/customer-tags", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
+    
+    // Auto-deactivate expired rules
+    const updateRes = await dbQuery(
+      "UPDATE rules SET status = 'inactive' WHERE shop = $1 AND status = 'active' AND schedule_end IS NOT NULL AND schedule_end < CURRENT_TIMESTAMP RETURNING id",
+      [shop]
+    );
+    // Sync existing rules to guarantee that target paths are sanitized to valid leaves in Shopify
+    await syncRulesToShopify(res.locals.shopify.session);
+
     const result = await dbQuery(
-      "SELECT * FROM rules WHERE shop = $1 ORDER BY priority DESC, id DESC",
+      "SELECT * FROM rules WHERE shop = $1 AND status != 'deleted' ORDER BY priority DESC, id DESC",
       [shop]
     );
     res.json(result.rows);
@@ -219,7 +249,7 @@ router.get("/:id", async (req, res) => {
     const { id } = req.params;
     const shop = res.locals.shopify.session.shop;
     const result = await dbQuery(
-      "SELECT * FROM rules WHERE id = $1 AND shop = $2",
+      "SELECT * FROM rules WHERE id = $1 AND shop = $2 AND status != 'deleted'",
       [id, shop]
     );
     if (result.rows.length === 0) {
@@ -274,6 +304,11 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Rule not found" });
     }
 
+    // Block activation if schedule_end is in the past
+    if (status === "active" && schedule_end && new Date(schedule_end) < new Date()) {
+      return res.status(400).json({ error: "Cannot activate a rule with an expired end date." });
+    }
+
     // Get max version to increment
     const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
     const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
@@ -303,13 +338,16 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// 5. DELETE /api/rules/:id -> Delete rule
+// 5. DELETE /api/rules/:id -> Delete rule (Soft delete)
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const shop = res.locals.shopify.session.shop;
 
-    const result = await dbQuery("DELETE FROM rules WHERE id = $1 AND shop = $2 RETURNING *", [id, shop]);
+    const result = await dbQuery(
+      "UPDATE rules SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND shop = $2 RETURNING *",
+      [id, shop]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Rule not found" });
     }
@@ -317,7 +355,7 @@ router.delete("/:id", async (req, res) => {
     // Sync to Shopify
     await syncRulesToShopify(res.locals.shopify.session);
 
-    res.json({ success: true, message: "Rule deleted successfully" });
+    res.json({ success: true, message: "Rule soft-deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -329,8 +367,19 @@ router.post("/bulk-toggle", async (req, res) => {
     const shop = res.locals.shopify.session.shop;
     const { ids, status } = req.body; // ids: array of IDs, status: 'active'/'inactive'
 
+    if (status === "active") {
+      const expiredRes = await dbQuery(
+        "SELECT id, title FROM rules WHERE id = ANY($1) AND shop = $2 AND schedule_end IS NOT NULL AND schedule_end < CURRENT_TIMESTAMP AND status != 'deleted'",
+        [ids, shop]
+      );
+      if (expiredRes.rows.length > 0) {
+        const titles = expiredRes.rows.map(r => `"${r.title}"`).join(", ");
+        return res.status(400).json({ error: `Cannot activate expired rules: ${titles}` });
+      }
+    }
+
     await dbQuery(
-      "UPDATE rules SET status = $1 WHERE id = ANY($2) AND shop = $3",
+      "UPDATE rules SET status = $1 WHERE id = ANY($2) AND shop = $3 AND status != 'deleted'",
       [status, ids, shop]
     );
 
@@ -343,21 +392,21 @@ router.post("/bulk-toggle", async (req, res) => {
   }
 });
 
-// 7. POST /api/rules/bulk-delete -> Bulk delete
+// 7. POST /api/rules/bulk-delete -> Bulk delete (Soft delete)
 router.post("/bulk-delete", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
     const { ids } = req.body;
 
     await dbQuery(
-      "DELETE FROM rules WHERE id = ANY($1) AND shop = $2",
+      "UPDATE rules SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1) AND shop = $2",
       [ids, shop]
     );
 
     // Sync to Shopify
     await syncRulesToShopify(res.locals.shopify.session);
 
-    res.json({ success: true, message: `Bulk deleted ${ids.length} rules` });
+    res.json({ success: true, message: `Bulk soft-deleted ${ids.length} rules` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

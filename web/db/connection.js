@@ -30,7 +30,7 @@ function initFallbackDB() {
           description: "Prevents customers from shipping to Post Office Boxes.",
           conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
           error_message: "We cannot ship to PO Box addresses. Please provide a physical shipping address.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress"
+          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
         },
         {
           id: 2,
@@ -57,7 +57,7 @@ function initFallbackDB() {
           description: "Blocks checkout for specific states/provinces (e.g., AK, HI).",
           conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
           error_message: "We currently do not ship to Alaska or Hawaii.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress"
+          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
         },
         {
           id: 5,
@@ -66,7 +66,7 @@ function initFallbackDB() {
           description: "Blocks checkout for specific country codes.",
           conditions: [{ type: "block_countries", operator: "in_countries", value: "KP,IR,SY" }],
           error_message: "We do not ship to the selected country.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress"
+          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
         },
         {
           id: 6,
@@ -144,7 +144,7 @@ function initFallbackDB() {
           description: "Blocks checkout for selected ZIP/Postal codes.",
           conditions: [{ type: "block_zipcodes", operator: "in_zips", value: "90210,10001" }],
           error_message: "We do not offer shipping to your ZIP code.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress"
+          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
         },
         {
           id: 14,
@@ -153,7 +153,7 @@ function initFallbackDB() {
           description: "Enforces correct formatting using regex to block invalid entries.",
           conditions: [{ type: "address_regex", operator: "matches_regex", value: "^[a-zA-Z0-9\\s,.-]+$" }],
           error_message: "Please avoid special characters in your shipping address.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress"
+          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
         },
         {
           id: 15,
@@ -274,8 +274,19 @@ if (pool && !useFallback) {
               console.error("Failed to run schema.sql on database initialization:", sqlErr.message);
             } else {
               console.log("PostgreSQL database tables verified/created successfully.");
+              client.query(
+                `UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
+                 UPDATE rules SET error_target = '$.cart.lines[0].quantity' WHERE error_target = '$.cart.lines[0]';`,
+                (migErr) => {
+                  if (migErr) {
+                    console.error("Migration error updating old targets:", migErr.message);
+                  } else {
+                    console.log("Existing rule targets migrated successfully.");
+                  }
+                  release();
+                }
+              );
             }
-            release();
           });
         } else {
           release();
@@ -310,7 +321,7 @@ export async function dbQuery(text, params = []) {
 
   if (lowerText.startsWith("select * from rules")) {
     const shop = params[0];
-    let filteredRules = db.rules.filter(r => r.shop === shop);
+    let filteredRules = db.rules.filter(r => r.shop === shop && r.status !== 'deleted');
     // Order by priority desc, id desc
     filteredRules.sort((a, b) => {
       if (b.priority !== a.priority) return b.priority - a.priority;
@@ -322,7 +333,7 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from rules where id = $1")) {
     const id = parseInt(params[0]);
     const shop = params[1];
-    const rule = db.rules.find(r => r.id === id && r.shop === shop);
+    const rule = db.rules.find(r => r.id === id && r.shop === shop && r.status !== 'deleted');
     return { rows: rule ? [rule] : [] };
   }
 
@@ -372,6 +383,20 @@ export async function dbQuery(text, params = []) {
     return { rows: [] };
   }
 
+  if (lowerText.startsWith("update rules set status = 'deleted'")) {
+    const id = parseInt(params[0]);
+    const shop = params[1];
+    const ruleIdx = db.rules.findIndex(r => r.id === id && r.shop === shop);
+    if (ruleIdx !== -1) {
+      db.rules[ruleIdx].status = 'deleted';
+      db.rules[ruleIdx].updated_at = new Date().toISOString();
+      const updated = db.rules[ruleIdx];
+      writeFallbackDB(db);
+      return { rows: [updated] };
+    }
+    return { rows: [] };
+  }
+
   if (lowerText.startsWith("delete from rules where id = $1")) {
     const id = parseInt(params[0]);
     const shop = params[1];
@@ -389,7 +414,7 @@ export async function dbQuery(text, params = []) {
     const parsedIds = Array.isArray(ids) ? ids.map(Number) : [];
     let updatedCount = 0;
     db.rules = db.rules.map(r => {
-      if (parsedIds.includes(r.id) && r.shop === shop) {
+      if (parsedIds.includes(r.id) && r.shop === shop && r.status !== 'deleted') {
         updatedCount++;
         return { ...r, status, updated_at: new Date().toISOString() };
       }
@@ -442,7 +467,7 @@ export async function dbQuery(text, params = []) {
   }
 
   if (lowerText.startsWith("insert into rule_analytics")) {
-    const [shop, rule_id, event_type, cart_value, cart_id] = params;
+    const [shop, rule_id, event_type, cart_value, cart_id, created_at] = params;
     const newAnalytics = {
       id: db.rule_analytics.length > 0 ? Math.max(...db.rule_analytics.map(a => a.id)) + 1 : 1,
       shop,
@@ -450,11 +475,25 @@ export async function dbQuery(text, params = []) {
       event_type,
       cart_value: parseFloat(cart_value) || 0.00,
       cart_id,
-      created_at: new Date().toISOString()
+      created_at: created_at || new Date().toISOString()
     };
     db.rule_analytics.push(newAnalytics);
     writeFallbackDB(db);
     return { rows: [newAnalytics] };
+  }
+
+  if (lowerText.startsWith("delete from rule_analytics")) {
+    const shop = params[0];
+    const beforeLen = db.rule_analytics.length;
+    db.rule_analytics = db.rule_analytics.filter(a => a.shop !== shop);
+    writeFallbackDB(db);
+    return { rowCount: beforeLen - db.rule_analytics.length };
+  }
+
+  if (lowerText.includes("count(*)") && lowerText.includes("rule_analytics")) {
+    const shop = params[0];
+    const count = db.rule_analytics.filter(a => a.shop === shop).length;
+    return { rows: [{ count }] };
   }
 
   if (lowerText.includes("select") && lowerText.includes("rule_analytics")) {

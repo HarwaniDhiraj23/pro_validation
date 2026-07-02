@@ -56,12 +56,22 @@ export function formatOperator(op) {
 
 export function formatDate(dateString) {
   if (!dateString) return "-";
-  const date = new Date(dateString);
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "-";
+    
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; 
+    
+    return `${month} ${day}, ${year} at ${hours}:${minutes} ${ampm}`;
+  } catch (e) {
+    return "-";
+  }
 }

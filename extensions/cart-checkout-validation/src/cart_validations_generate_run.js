@@ -30,7 +30,14 @@ export function cartValidationsGenerateRun(input) {
     return { operations: [] };
   }
 
-  // 2. Evaluate each rule
+  // Only evaluate validation rules when the buyer is completing checkout (submitting the order).
+  // This is the official Shopify-recommended practice to prevent blocking "add to cart" actions (CART_INTERACTION)
+  // and login redirections (CHECKOUT_INTERACTION).
+  const step = input.buyerJourney?.step;
+  if (step !== "CHECKOUT_COMPLETION") {
+    return { operations: [] };
+  }
+
   for (const rule of rules) {
     if (rule.status !== "active") continue;
     
@@ -43,9 +50,14 @@ export function cartValidationsGenerateRun(input) {
 
     const isTriggered = evaluateRule(rule, input);
     if (isTriggered) {
+      let errorTarget = rule.error_target || "$.cart";
+      // Shift global cart errors to the first line item for unauthenticated buyers to avoid locking the email/login form
+      if (errorTarget === "$.cart" && !input.cart?.buyerIdentity?.isAuthenticated && input.cart?.lines?.[0]?.merchandise?.id) {
+        errorTarget = "$.cart.lines[0].quantity";
+      }
       errors.push({
         message: rule.error_message || "Checkout is blocked by validation rules.",
-        target: rule.error_target || "$.cart",
+        target: errorTarget,
       });
     }
   }

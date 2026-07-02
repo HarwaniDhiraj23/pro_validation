@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, Layout, Box, HorizontalStack, VerticalStack, Button, Text, Spinner, Badge, Grid } from "@shopify/polaris";
+import { Page, Card, Layout, Box, HorizontalStack, VerticalStack, Button, Text, Spinner, Badge, Grid, TextField } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 export default function RuleTemplates({ navigate }) {
@@ -8,6 +8,7 @@ export default function RuleTemplates({ navigate }) {
   const [templates, setTemplates] = useState([]);
   const [applyingId, setApplyingId] = useState(null);
   const [filterCategory, setFilterCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetch("/api/templates")
@@ -54,9 +55,12 @@ export default function RuleTemplates({ navigate }) {
 
   // Get unique categories for filters
   const categories = ["All", ...new Set(templates.map(t => t.category))];
-  const filteredTemplates = filterCategory === "All"
-    ? templates
-    : templates.filter(t => t.category === filterCategory);
+  const filteredTemplates = templates.filter(t => {
+    const matchesCategory = filterCategory === "All" || t.category === filterCategory;
+    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          t.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   return (
     <Page
@@ -82,6 +86,17 @@ export default function RuleTemplates({ navigate }) {
           box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
       `}</style>
+
+      <div style={{ marginBottom: "16px" }}>
+        <TextField
+          label="Search templates"
+          labelHidden
+          placeholder="Search pre-built templates by title or description..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+          autoComplete="off"
+        />
+      </div>
 
       {/* Categories Filter Tabs */}
       <div className="filter-bar">

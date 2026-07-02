@@ -4,11 +4,21 @@ import { syncRulesToShopify } from "./rules.js";
 
 const router = express.Router();
 
-// GET /api/templates - Get all prebuilt templates
+// GET /api/templates - Get all prebuilt templates (excluding already applied ones)
 router.get("/", async (req, res) => {
   try {
+    const shop = res.locals.shopify.session.shop;
+    // Fetch active/inactive rules to exclude already applied templates (excluding deleted ones)
+    const existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [shop]);
+    const existingTitles = existingRulesRes.rows.map(r => r.title.toLowerCase());
+
     const result = await dbQuery("SELECT * FROM rule_templates ORDER BY id ASC");
-    res.json(result.rows);
+    
+    const filteredTemplates = result.rows.filter(tmpl => 
+      !existingTitles.includes(tmpl.title.toLowerCase())
+    );
+
+    res.json(filteredTemplates);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

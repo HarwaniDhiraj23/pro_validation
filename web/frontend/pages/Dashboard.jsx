@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Layout, Card, TextContainer, Box, Text, HorizontalStack, VerticalStack, Button, Badge, DataTable, Spinner } from "@shopify/polaris";
+import { Page, Layout, Card, TextContainer, Box, Text, HorizontalStack, VerticalStack, Button, Badge, DataTable, Spinner, Pagination } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { formatDate } from "../utils/utils";
 
@@ -9,6 +9,7 @@ export default function Dashboard({ navigate }) {
   const [data, setData] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [applyingRec, setApplyingRec] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchData = async () => {
     try {
@@ -20,6 +21,7 @@ export default function Dashboard({ navigate }) {
       const recData = await recRes.json();
       setData(analyticsData);
       setRecommendations(recData);
+
     } catch (e) {
       console.error(e);
       shopify.toast.show("Error loading dashboard data", { isError: true });
@@ -45,6 +47,23 @@ export default function Dashboard({ navigate }) {
       }
     } catch (e) {
       shopify.toast.show("Simulation failed", { isError: true });
+    }
+  };
+
+  const handleResetAnalytics = async () => {
+    try {
+      await fetch("/api/analytics/reset", { method: "DELETE" });
+      // Re-seed fresh data
+      const seedRes = await fetch("/api/analytics/seed", { method: "POST" });
+      const seedData = await seedRes.json();
+      if (seedData.seeded) {
+        shopify.toast.show(`Analytics refreshed with ${seedData.eventCount} demo events`);
+      } else {
+        shopify.toast.show("Analytics reset complete");
+      }
+      fetchData();
+    } catch (e) {
+      shopify.toast.show("Reset failed", { isError: true });
     }
   };
 
@@ -104,8 +123,12 @@ export default function Dashboard({ navigate }) {
       }}
     // secondaryActions={[
     //   {
-    //     content: "Simulate Block Event",
+    //     content: "Simulate Block",
     //     onAction: handleSimulate
+    //   },
+    //   {
+    //     content: "Refresh Analytics",
+    //     onAction: handleResetAnalytics
     //   }
     // ]}
     >
@@ -137,13 +160,13 @@ export default function Dashboard({ navigate }) {
           border-color: rgba(99, 102, 241, 0.4);
         }
         .kpi-val {
-          font-size: 32px;
-          font-weight: 700;
-          margin: 8px 0;
-          font-family: 'Outfit', sans-serif;
-          background: linear-gradient(to right, #a5b4fc, #818cf8);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
+          font-size: 36px;
+          font-weight: 800;
+          margin: 10px 0 6px 0;
+          font-family: 'Outfit', 'Inter', sans-serif;
+          color: #a5b4fc;
+          letter-spacing: -1px;
+          line-height: 1;
         }
         .rec-item {
           border-bottom: 1px solid #e1e3e5;
@@ -154,6 +177,178 @@ export default function Dashboard({ navigate }) {
         }
         .glowing-button {
           box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+        .custom-table {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+          font-family: 'Inter', sans-serif;
+        }
+        .custom-table th {
+          padding: 12px 16px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #8c9196;
+          text-transform: uppercase;
+          border-bottom: 2px solid rgba(0,0,0,0.05);
+        }
+        .custom-table td {
+          padding: 14px 16px;
+          font-size: 14px;
+          color: #202223;
+          border-bottom: 1px solid rgba(0,0,0,0.04);
+          vertical-align: middle;
+        }
+        .custom-table tr:hover td {
+          background-color: rgba(99, 102, 241, 0.02);
+        }
+        .rule-name-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .rule-icon-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: rgba(99, 102, 241, 0.08);
+          color: #4f46e5;
+          font-size: 16px;
+        }
+        .rule-progress-bar {
+          height: 6px;
+          border-radius: 3px;
+          background-color: #f1f2f4;
+          overflow: hidden;
+          width: 100%;
+        }
+        .rule-progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #4f46e5, #818cf8);
+          border-radius: 3px;
+        }
+        .count-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-weight: 700;
+          font-size: 13px;
+          min-width: 32px;
+        }
+        .count-badge.high {
+          background: rgba(220, 38, 38, 0.1);
+          color: #dc2626;
+        }
+        .count-badge.medium {
+          background: rgba(245, 158, 11, 0.1);
+          color: #d97706;
+        }
+        .count-badge.low {
+          background: rgba(99, 102, 241, 0.1);
+          color: #4f46e5;
+        }
+        .rules-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-top: 12px;
+        }
+        @media (max-width: 990px) {
+          .rules-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 480px) {
+          .rules-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .rule-stat-card {
+          background: #ffffff;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 12px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+          transition: all 0.25s ease;
+          min-height: 120px;
+          overflow: hidden;
+        }
+        .rule-stat-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(99, 102, 241, 0.08);
+          border-color: rgba(99, 102, 241, 0.2);
+        }
+        .rule-stat-card.high {
+          border-left: 4px solid #dc2626;
+        }
+        .rule-stat-card.medium {
+          border-left: 4px solid #d97706;
+        }
+        .rule-stat-card.low {
+          border-left: 4px solid #4f46e5;
+        }
+        .rule-stat-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .rule-stat-icon {
+          font-size: 16px;
+        }
+        .rule-stat-badge {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 2px 8px;
+          border-radius: 12px;
+        }
+        .high .rule-stat-badge {
+          background: rgba(220, 38, 38, 0.1);
+          color: #dc2626;
+        }
+        .medium .rule-stat-badge {
+          background: rgba(245, 158, 11, 0.1);
+          color: #d97706;
+        }
+        .low .rule-stat-badge {
+          background: rgba(99, 102, 241, 0.1);
+          color: #4f46e5;
+        }
+        .rule-stat-title {
+          font-size: 14px;
+          font-weight: 600;
+          color: #202223;
+          margin-bottom: 16px;
+          line-height: 1.4;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          width: 100%;
+        }
+        .rule-stat-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          border-top: 1px solid rgba(0, 0, 0, 0.04);
+          padding-top: 10px;
+        }
+        .rule-stat-label {
+          font-size: 11px;
+          color: #8c9196;
+        }
+        .rule-stat-count {
+          font-size: 20px;
+          font-weight: 800;
+          color: #1a1c1e;
         }
       `}</style>
 
@@ -180,140 +375,94 @@ export default function Dashboard({ navigate }) {
           <Text variant="bodySm" tone="success">⚡ Live Rules</Text>
         </div>
       </div>
-
       <Layout>
-        {/* Charts & Graphs */}
+        {/* Breakdown by rule */}
         <Layout.Section>
-          <Card title="Checkout Blocks Trend (Last 14 Days)">
-            <Box padding="4">
-              {chartPoints.length > 1 ? (
-                <div style={{ width: "100%", overflowX: "auto" }}>
-                  <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ minWidth: "500px" }}>
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    {/* Gridlines */}
-                    <line x1="30" y1="20" x2={svgWidth - 30} y2="20" stroke="#f1f2f4" strokeWidth="1" />
-                    <line x1="30" y1="100" x2={svgWidth - 30} y2="100" stroke="#f1f2f4" strokeWidth="1" />
-                    <line x1="30" y1="180" x2={svgWidth - 30} y2="180" stroke="#e1e3e5" strokeWidth="1" />
+          <Card>
+            <Box padding="5">
+              <div style={{ marginBottom: "16px" }}>
+                <Text variant="headingMd" as="h2">Top Triggered Block Rules</Text>
+              </div>
+              {rulesBreakdown.length > 0 ? (
+                <div className="rules-grid">
+                  {rulesBreakdown.map((r, idx) => {
+                    let levelClass = "low";
+                    if (r.count >= 20) levelClass = "high";
+                    else if (r.count >= 10) levelClass = "medium";
 
-                    {/* Area under line */}
-                    <path
-                      d={`M ${chartPoints[0].x} 180 L ${polylinePath} L ${chartPoints[chartPoints.length - 1].x} 180 Z`}
-                      fill="url(#chartGrad)"
-                    />
-
-                    {/* Line */}
-                    <polyline
-                      fill="none"
-                      stroke="#4f46e5"
-                      strokeWidth="3"
-                      points={polylinePath}
-                    />
-
-                    {/* Nodes & Labels */}
-                    {chartPoints.map((pt, idx) => (
-                      <g key={idx}>
-                        <circle cx={pt.x} cy={pt.y} r="4" fill="#ffffff" stroke="#4f46e5" strokeWidth="2" />
-                        <text x={pt.x} y={pt.y - 8} fontSize="9" textAnchor="middle" fill="#4f46e5" fontWeight="semibold">
-                          {pt.value}
-                        </text>
-                        {/* Only show dates for start, mid, end to prevent overlaps */}
-                        {(idx === 0 || idx === Math.floor(chartPoints.length / 2) || idx === chartPoints.length - 1) && (
-                          <text x={pt.x} y="195" fontSize="10" textAnchor="middle" fill="#8c9196">
-                            {pt.label.substring(5)}
-                          </text>
-                        )}
-                      </g>
-                    ))}
-                  </svg>
+                    return (
+                      <div className={`rule-stat-card ${levelClass}`} key={idx}>
+                        <div className="rule-stat-header">
+                          <span className="rule-stat-icon"></span>
+                          <span className="rule-stat-badge">{levelClass} trigger rate</span>
+                        </div>
+                        <div className="rule-stat-title">{r.title}</div>
+                        <div className="rule-stat-footer">
+                          <span className="rule-stat-label">Total Blocks</span>
+                          <span className="rule-stat-count">{r.count}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <Box padding="8" textAlign="center">
-                  <Text variant="bodyMd" tone="subdued">Insufficient analytics data to draw chart.</Text>
+                <Box padding="4" textAlign="center">
+                  <Text variant="bodyMd" tone="subdued">No rules triggered blocks yet</Text>
                 </Box>
               )}
             </Box>
           </Card>
         </Layout.Section>
 
-        {/* Recommendations Side Bar */}
-        <Layout.Section secondary>
-          <Card title="⚡ Smart Recommendations">
-            <Box padding="4">
-              <VerticalStack gap="4">
-                {recommendations.length > 0 ? (
-                  recommendations.slice(0, 3).map((rec) => (
-                    <div key={rec.id} className="rec-item">
-                      <VerticalStack gap="2">
-                        <HorizontalStack align="space-between">
-                          <Text variant="bodyMd" fontWeight="bold">
-                            {rec.title}
-                          </Text>
-                          <Badge tone={rec.impact === "Critical" || rec.impact === "High" ? "critical" : "info"}>
-                            {rec.impact} Impact
-                          </Badge>
-                        </HorizontalStack>
-                        <Text variant="bodySm" tone="subdued">
-                          {rec.reason}
-                        </Text>
-                        <Box>
-                          <Button
-                            size="slim"
-                            primary
-                            loading={applyingRec === rec.id}
-                            onClick={() => handleApplyRecommendation(rec)}
-                          >
-                            Apply Recommendation
-                          </Button>
-                        </Box>
-                      </VerticalStack>
-                    </div>
-                  ))
-                ) : (
-                  <Text variant="bodyMd" tone="subdued">
-                    Your store configuration looks perfect! No recommendations at this time.
-                  </Text>
-                )}
-              </VerticalStack>
-            </Box>
-          </Card>
-        </Layout.Section>
-
-        {/* Breakdown by rule */}
-        <Layout.Section>
-          <Card title="Top Triggered Block Rules">
-            <DataTable
-              columnContentTypes={["text", "numeric"]}
-              headings={["Rule Title", "Blocks Count"]}
-              rows={
-                rulesBreakdown.length > 0
-                  ? rulesBreakdown.map(r => [r.title, r.count])
-                  : [["No rules triggered blocks yet", 0]]
-              }
-            />
-          </Card>
-        </Layout.Section>
-
         {/* Recent logs */}
         <Layout.Section>
-          <Card title="Recent Blocked Checkouts Log">
-            <DataTable
-              columnContentTypes={["text", "text", "text"]}
-              headings={["Date/Time", "Rule Responsible", "Cart Subtotal"]}
-              rows={
-                recentBlocks.length > 0
-                  ? recentBlocks.map(b => [
-                    formatDate(b.created_at),
-                    b.rule_title || "Unknown/Deleted Rule",
-                    `$${parseFloat(b.cart_value).toFixed(2)}`
-                  ])
-                  : [["-", "No checkouts blocked yet", "-"]]
-              }
-            />
+          <Card>
+            <Box padding="5">
+              <div style={{ marginBottom: "16px" }}>
+                <Text variant="headingMd" as="h2">Recent Blocked Checkouts Log</Text>
+              </div>
+              {recentBlocks.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table className="custom-table">
+                      <thead>
+                        <tr>
+                          <th>Sr.</th>
+                          <th>Rule Responsible</th>
+                          <th style={{ textAlign: "right" }}>Cart Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const currentItems = recentBlocks.slice(0, 5);
+
+                          return currentItems.map((b, idx) => (
+                            <tr key={idx}>
+                              <td style={{ color: "#6d7175", fontSize: "13px" }}>
+                                {idx + 1}
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#dc2626" }} />
+                                  <Text variant="bodyMd" fontWeight="medium">{b.rule_title || "Unknown/Deleted Rule"}</Text>
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "right", fontWeight: "700", color: "#1f2937" }}>
+                                ${parseFloat(b.cart_value).toFixed(2)}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <Box padding="4" textAlign="center">
+                  <Text variant="bodyMd" tone="subdued">No checkouts blocked yet</Text>
+                </Box>
+              )}
+            </Box>
           </Card>
         </Layout.Section>
       </Layout>

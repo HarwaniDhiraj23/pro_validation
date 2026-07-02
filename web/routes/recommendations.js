@@ -1,5 +1,6 @@
 import express from "express";
 import shopify from "../shopify.js";
+import { dbQuery } from "../db/connection.js";
 
 const router = express.Router();
 
@@ -8,6 +9,16 @@ router.get("/", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
     const client = new shopify.api.clients.Graphql({ session });
+
+    // Fetch applied rules and templates map to filter recommendations (excluding deleted rules)
+    const existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [session.shop]);
+    const existingTitles = existingRulesRes.rows.map(r => r.title.toLowerCase());
+
+    const templatesRes = await dbQuery("SELECT id, title FROM rule_templates");
+    const templatesMap = {};
+    templatesRes.rows.forEach(t => {
+      templatesMap[t.id] = t.title.toLowerCase();
+    });
 
     // 1. Query products and selling plans to customize recommendations
     const checkQuery = `
@@ -135,7 +146,14 @@ router.get("/", async (req, res) => {
     // Sort by recommendation score descending
     recommendations.sort((a, b) => b.score - a.score);
 
-    res.json(recommendations);
+    // Filter out already applied recommendations
+    const filteredRecommendations = recommendations.filter(rec => {
+      const recTitleLower = rec.title.toLowerCase();
+      const templateTitleLower = templatesMap[rec.templateId] || "";
+      return !existingTitles.includes(recTitleLower) && !existingTitles.includes(templateTitleLower);
+    });
+
+    res.json(filteredRecommendations);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

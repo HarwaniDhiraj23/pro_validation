@@ -25,9 +25,17 @@ router.get("/", async (req, res) => {
         blockedValue = row.total_value;
       } else if (row.event_type === "allow") {
         totalAllows = row.count;
+      } else if (row.event_type === "check") {
+        totalChecks += row.count;
       }
+      // Sum all events into totalChecks for aggregate
       totalChecks += row.count;
     });
+
+    // If no check events yet, use blocks + allows as total checks
+    if (totalChecks === 0) {
+      totalChecks = totalBlocks + totalAllows;
+    }
 
     // 2. Active rules count
     const activeRulesRes = await dbQuery(
@@ -36,7 +44,7 @@ router.get("/", async (req, res) => {
     );
     const activeRulesCount = activeRulesRes.rows[0]?.count || 0;
 
-    // 3. Chart data: last 7 days blocks/allows grouped by date
+    // 3. Chart data: last 14 days blocks/allows grouped by date
     const chartRes = await dbQuery(
       `SELECT DATE(created_at) as date, event_type, COUNT(*)::int as count 
        FROM rule_analytics 
@@ -104,22 +112,14 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/analytics/simulate - Trigger a mock check/block event for testing dashboard visualization
-router.post("/simulate", async (req, res) => {
+
+
+// DELETE /api/analytics/reset - Clear all analytics data for the shop
+router.delete("/reset", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
-    const { ruleId, eventType, cartValue } = req.body;
-
-    const val = cartValue || (Math.random() * 200 + 10).toFixed(2);
-    const event = eventType || (Math.random() > 0.3 ? "allow" : "block");
-
-    const result = await dbQuery(
-      `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [shop, ruleId || null, event, val, `cart_${Math.random().toString(36).substring(2, 9)}`]
-    );
-
-    res.json(result.rows[0]);
+    await dbQuery("DELETE FROM rule_analytics WHERE shop = $1", [shop]);
+    res.json({ message: "Analytics data cleared." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

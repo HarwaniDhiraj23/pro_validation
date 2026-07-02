@@ -69,6 +69,14 @@ const COMMON_COUNTRIES = [
   { label: "Syria (SY)", value: "SY" }
 ];
 
+const COMMON_REGEXES = [
+  { label: "Block PO Boxes", value: "(?i)\\b(p(ost)?\\.?\\s*o(ffice)?\\.?\\s*b(ox)?|b(in)?\\s*#?\\s*\\d+)\\b" },
+  { label: "Only Alphanumeric characters", value: "^[a-zA-Z0-9\\s,\\.-]+$" },
+  { label: "Must contain a number (e.g. house number)", value: ".*\\d+.*" },
+  { label: "Block links or URLs", value: "https?://|www\\." },
+  { label: "No special characters (only letters/numbers/spaces)", value: "^[a-zA-Z0-9 ]+$" }
+];
+
 const CONDITION_TYPES = [
   { label: "Customer Tags", value: "customer_tags" },
   { label: "Login Required", value: "login_required" },
@@ -168,8 +176,8 @@ const OPERATORS_BY_TYPE = {
 
 const ERROR_TARGETS = [
   { label: "Cart Summary (Generic)", value: "$.cart" },
-  { label: "Delivery Address Form", value: "$.cart.deliveryGroups[0].deliveryAddress" },
-  { label: "First Line Item", value: "$.cart.lines[0]" }
+  { label: "Delivery Address Form", value: "$.cart.deliveryGroups[0].deliveryAddress.address1" },
+  { label: "First Line Item", value: "$.cart.lines[0].quantity" }
 ];
 
 export default function RuleBuilder({ ruleId, navigate }) {
@@ -194,6 +202,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [selectedBrowseItems, setSelectedBrowseItems] = useState([]);
   const [browseLoading, setBrowseLoading] = useState(false);
 
+  const [scheduleStart, setScheduleStart] = useState("");
+  const [scheduleEnd, setScheduleEnd] = useState("");
+  const [enableScheduling, setEnableScheduling] = useState(false);
+
   useEffect(() => {
     if (ruleId && ruleId !== "new") {
       setLoading(true);
@@ -208,6 +220,23 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
             setConditions(data.conditions || []);
+            const toLocalDateTimeString = (dateInput) => {
+              if (!dateInput) return "";
+              const d = new Date(dateInput);
+              if (isNaN(d.getTime())) return "";
+              const tzOffset = d.getTimezoneOffset() * 60000;
+              const localISOTime = new Date(d.getTime() - tzOffset).toISOString();
+              return localISOTime.slice(0, 16);
+            };
+
+            if (data.schedule_start) {
+              setScheduleStart(toLocalDateTimeString(data.schedule_start));
+              setEnableScheduling(true);
+            }
+            if (data.schedule_end) {
+              setScheduleEnd(toLocalDateTimeString(data.schedule_end));
+              setEnableScheduling(true);
+            }
           }
         })
         .catch(err => {
@@ -232,7 +261,20 @@ export default function RuleBuilder({ ruleId, navigate }) {
 
   const handleConditionChange = (index, field, value) => {
     const updated = [...conditions];
-    updated[index][field] = value;
+
+    let sanitizedValue = value;
+    if (field === "value") {
+      const type = updated[index].type;
+      if (type === "minimum_order_value" || type === "maximum_order_value" || type === "weight_limit") {
+        // Only allow digits and a single optional decimal point
+        sanitizedValue = value.replace(/[^0-9.]/g, "").replace(/(\..*?)\..*/g, '$1');
+      } else if (type === "quantity_limit" || type === "sku_limit" || type === "customer_age") {
+        // Only allow whole digits
+        sanitizedValue = value.replace(/[^0-9]/g, "");
+      }
+    }
+
+    updated[index][field] = sanitizedValue;
 
     // Auto-reset operator and value if condition type changes
     if (field === "type") {
@@ -247,7 +289,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const handleOpenBrowse = async (idx, type, currentValue) => {
     setBrowseIdx(idx);
     setBrowseType(type);
-    
+
     // Parse current values
     const currentList = currentValue ? currentValue.split(",").map(v => v.trim()) : [];
     setSelectedBrowseItems(currentList);
@@ -274,6 +316,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
     } else if (type === "block_countries") {
       setBrowseItems(COMMON_COUNTRIES);
       setBrowseModalOpen(true);
+    } else if (type === "address_regex") {
+      setBrowseItems(COMMON_REGEXES);
+      setBrowseModalOpen(true);
     }
   };
 
@@ -287,6 +332,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
 
   const handleToggleBrowseItem = (val) => {
     setSelectedBrowseItems(prev => {
+      if (browseType === "address_regex") {
+        return prev.includes(val) ? [] : [val];
+      }
       if (prev.includes(val)) {
         return prev.filter(item => item !== val);
       } else {
@@ -330,6 +378,60 @@ export default function RuleBuilder({ ruleId, navigate }) {
       return;
     }
 
+    // Validate conditions
+    for (let i = 0; i < conditions.length; i++) {
+      const cond = conditions[i];
+      if (cond.type !== "shipping_address_pobox" &&
+        cond.type !== "login_required" &&
+        cond.type !== "b2b_only" &&
+        cond.type !== "guest_checkout_restriction" &&
+        cond.type !== "has_hazardous_item" &&
+        cond.type !== "has_subscription") {
+
+        if (!cond.value || !cond.value.trim()) {
+          shopify.toast.show(`Condition #${i + 1} value is required`, { isError: true });
+          return;
+        }
+
+        // Numeric validation checks
+        if (cond.type === "minimum_order_value" || cond.type === "maximum_order_value" || cond.type === "weight_limit") {
+          if (isNaN(Number(cond.value))) {
+            shopify.toast.show(`Condition #${i + 1} value must be a valid number`, { isError: true });
+            return;
+          }
+        }
+        if (cond.type === "quantity_limit" || cond.type === "sku_limit" || cond.type === "customer_age") {
+          const num = Number(cond.value);
+          if (isNaN(num) || !Number.isInteger(num)) {
+            shopify.toast.show(`Condition #${i + 1} value must be a valid whole number`, { isError: true });
+            return;
+          }
+        }
+      }
+    }
+
+    if (enableScheduling) {
+      if (!scheduleStart) {
+        shopify.toast.show("Start date & time is required when scheduling is enabled", { isError: true });
+        return;
+      }
+      const buffer = new Date(Date.now() - 5 * 60 * 1000); // 5 minute clock variation buffer
+      if (new Date(scheduleStart) < buffer) {
+        shopify.toast.show("Start date & time cannot be in the past", { isError: true });
+        return;
+      }
+      if (scheduleEnd) {
+        if (new Date(scheduleEnd) < buffer) {
+          shopify.toast.show("End date & time cannot be in the past", { isError: true });
+          return;
+        }
+        if (new Date(scheduleEnd) < new Date(scheduleStart)) {
+          shopify.toast.show("End date & time must be after start date & time", { isError: true });
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     const body = {
       title,
@@ -338,7 +440,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
       conditions_operator: conditionsOperator,
       conditions,
       error_message: errorMessage,
-      error_target: errorTarget
+      error_target: errorTarget,
+      schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
+      schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null
     };
 
     try {
@@ -405,6 +509,30 @@ export default function RuleBuilder({ ruleId, navigate }) {
           padding: 12px;
           margin-bottom: 8px;
         }
+        /* Premium custom select overrides */
+        .Polaris-Select__Input {
+          background-color: #ffffff !important;
+          border: 1px solid #cccccc !important;
+          border-radius: 8px !important;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+          font-size: 14px !important;
+          color: #202223 !important;
+          padding: 10px 36px 10px 14px !important;
+          min-height: 42px !important;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+          cursor: pointer !important;
+        }
+        .Polaris-Select__Input:focus {
+          border-color: #008060 !important;
+          box-shadow: 0 0 0 2px rgba(0, 128, 96, 0.15) !important;
+        }
+        .Polaris-Select__Backdrop {
+          border-radius: 8px !important;
+          border-color: #cccccc !important;
+        }
+        .Polaris-Select__Input:hover:not(:focus) {
+          border-color: #999999 !important;
+        }
       `}</style>
 
       <Layout>
@@ -415,7 +543,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
               <Box padding="5">
                 <FormLayout>
                   <TextField
-                    label="Rule Title"
+                    label="Rule Title *"
                     value={title}
                     onChange={setTitle}
                     placeholder="e.g. Block PO Box Orders"
@@ -445,6 +573,69 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       />
                     </div>
                   </HorizontalStack>
+
+                  {/* Scheduling Section */}
+                  <div style={{ marginTop: "16px", borderTop: "1px solid #f1f2f4", paddingTop: "16px" }}>
+                    <Checkbox
+                      label="Schedule active timeframe"
+                      checked={enableScheduling}
+                      onChange={(val) => {
+                        setEnableScheduling(val);
+                        if (val) {
+                          const now = new Date();
+                          const tzOffset = now.getTimezoneOffset() * 60000;
+                          const localTimeStr = new Date(now.getTime() - tzOffset).toISOString().substring(0, 16);
+                          if (!scheduleStart) setScheduleStart(localTimeStr);
+                          if (!scheduleEnd) setScheduleEnd(localTimeStr);
+                        }
+                      }}
+                    />
+                    
+                    {enableScheduling && (
+                      <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#202223", marginBottom: "4px" }}>
+                            Start Date & Time
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={scheduleStart}
+                            onChange={(e) => setScheduleStart(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              border: "1px solid #cccccc",
+                              borderRadius: "8px",
+                              fontFamily: "inherit",
+                              fontSize: "14px",
+                              boxSizing: "border-box",
+                              outline: "none"
+                            }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: "block", fontSize: "12px", fontWeight: "500", color: "#202223", marginBottom: "4px" }}>
+                            End Date & Time
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={scheduleEnd}
+                            onChange={(e) => setScheduleEnd(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              border: "1px solid #cccccc",
+                              borderRadius: "8px",
+                              fontFamily: "inherit",
+                              fontSize: "14px",
+                              boxSizing: "border-box",
+                              outline: "none"
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </FormLayout>
               </Box>
             </Card>
@@ -470,18 +661,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </HorizontalStack>
 
                   {conditions.map((cond, idx) => (
-                    <div key={idx} style={{ 
-                      display: "flex", 
-                      flexDirection: "column", 
-                      gap: "12px", 
-                      padding: "16px", 
-                      border: "1px solid #dcdfe3", 
-                      borderRadius: "8px", 
+                    <div key={idx} style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                      padding: "16px",
+                      border: "1px solid #dcdfe3",
+                      borderRadius: "8px",
                       backgroundColor: "#fafbfb"
                     }}>
-                      <div style={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
                         alignItems: "center",
                         borderBottom: "1px solid #eef0f1",
                         paddingBottom: "8px",
@@ -506,37 +697,37 @@ export default function RuleBuilder({ ruleId, navigate }) {
                           value={cond.operator}
                           onChange={(val) => handleConditionChange(idx, "operator", val)}
                         />
-                        
+
                         {/* Only show value field for types that need it */}
-                        {cond.type !== "shipping_address_pobox" && 
-                         cond.type !== "login_required" && 
-                         cond.type !== "b2b_only" && 
-                         cond.type !== "guest_checkout_restriction" && 
-                         cond.type !== "has_hazardous_item" && 
-                         cond.type !== "has_subscription" ? (
+                        {cond.type !== "shipping_address_pobox" &&
+                          cond.type !== "login_required" &&
+                          cond.type !== "b2b_only" &&
+                          cond.type !== "guest_checkout_restriction" &&
+                          cond.type !== "has_hazardous_item" &&
+                          cond.type !== "has_subscription" ? (
                           <TextField
-                            label="Value"
+                            label="Value *"
                             placeholder={
-                              cond.type === "block_states" ? "e.g. AK,HI,PR" : 
-                              cond.type === "block_countries" ? "e.g. KP,IR,SY" : 
-                              cond.type === "product_combinations" ? "e.g. prod_A,prod_B" :
-                              "value"
+                              cond.type === "block_states" ? "e.g. AK,HI,PR" :
+                                cond.type === "block_countries" ? "e.g. KP,IR,SY" :
+                                  cond.type === "product_combinations" ? "e.g. prod_A,prod_B" :
+                                    "value"
                             }
                             value={cond.value}
                             onChange={(val) => handleConditionChange(idx, "value", val)}
                             autoComplete="off"
-                             connectedRight={
-                               (cond.type === "product_combinations" || cond.type === "restricted_collections") ? (
-                                 <Button onClick={() => handleSelectResources(idx, cond.type)}>
-                                   {cond.type === "restricted_collections" ? "Browse Collections" : "Browse Products"}
-                                 </Button>
-                               ) : (cond.type === "customer_tags" || cond.type === "block_states" || cond.type === "block_countries") ? (
-                                 <Button onClick={() => handleOpenBrowse(idx, cond.type, cond.value)}>
-                                   Browse
-                                 </Button>
-                               ) : null
-                             }
-                           />
+                            connectedRight={
+                              (cond.type === "product_combinations" || cond.type === "restricted_collections") ? (
+                                <Button onClick={() => handleSelectResources(idx, cond.type)}>
+                                  {cond.type === "restricted_collections" ? "Browse Collections" : "Browse Products"}
+                                </Button>
+                              ) : (cond.type === "customer_tags" || cond.type === "block_states" || cond.type === "block_countries" || cond.type === "address_regex") ? (
+                                <Button onClick={() => handleOpenBrowse(idx, cond.type, cond.value)}>
+                                  Browse
+                                </Button>
+                              ) : null
+                            }
+                          />
                         ) : null}
                       </FormLayout>
                     </div>
@@ -552,7 +743,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
               <Box padding="5">
                 <FormLayout>
                   <TextField
-                    label="Custom Error Message"
+                    label="Custom Error Message *"
                     value={errorMessage}
                     onChange={setErrorMessage}
                     multiline={2}
@@ -573,7 +764,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
         </Layout.Section>
 
         {/* Visual Live Preview Widget */}
-        <Layout.Section secondary>
+        {/* <Layout.Section secondary>
           <Card title="📱 Checkout UI Live Preview">
             <Box padding="4" background="bg-surface-secondary" borderRadius="3">
               <VerticalStack gap="2">
@@ -590,7 +781,6 @@ export default function RuleBuilder({ ruleId, navigate }) {
                     <Text variant="bodyMd" fontWeight="semibold">$120.00</Text>
                   </HorizontalStack>
 
-                  {/* Simulated Shopify Error Banner */}
                   <div className="checkout-banner">
                     <span style={{ fontSize: "18px" }}>⚠️</span>
                     <VerticalStack gap="1">
@@ -608,15 +798,16 @@ export default function RuleBuilder({ ruleId, navigate }) {
               </VerticalStack>
             </Box>
           </Card>
-        </Layout.Section>
+        </Layout.Section> */}
       </Layout>
       <Modal
         open={browseModalOpen}
         onClose={() => setBrowseModalOpen(false)}
         title={
           browseType === "customer_tags" ? "Browse Customer Tags" :
-          browseType === "block_states" ? "Select States" :
-          "Select Countries"
+            browseType === "block_states" ? "Select States" :
+              browseType === "address_regex" ? "Select Address Regex Pattern" :
+                "Select Countries"
         }
         primaryAction={{
           content: "Done",
@@ -630,12 +821,12 @@ export default function RuleBuilder({ ruleId, navigate }) {
             </div>
           ) : browseItems.length === 0 ? (
             <Text tone="subdued">
-              {browseType === "customer_tags" 
-                ? "No customer tags found on your store." 
+              {browseType === "customer_tags"
+                ? "No customer tags found on your store."
                 : "No items available."}
             </Text>
           ) : (
-            <div style={{ maxHeight: "300px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
               {browseItems.map((item) => (
                 <Checkbox
                   key={item.value}

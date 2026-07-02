@@ -1,4 +1,7 @@
 query CartValidationsGenerateRunInput {
+  buyerJourney {
+    step
+  }
   validation {
     metafield(namespace: "cart-validation", key: "rules") {
       value

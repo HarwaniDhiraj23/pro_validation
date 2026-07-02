@@ -57,7 +57,7 @@ INSERT INTO rule_templates (title, category, description, conditions, error_mess
 VALUES
 ('Block PO Box Addresses', 'Address', 'Prevents customers from shipping to Post Office Boxes.', 
  '[{"type": "shipping_address_pobox", "operator": "is_pobox", "value": ""}]', 
- 'We cannot ship to PO Box addresses. Please provide a physical shipping address.', '$.cart.deliveryGroups[0].deliveryAddress'),
+ 'We cannot ship to PO Box addresses. Please provide a physical shipping address.', '$.cart.deliveryGroups[0].deliveryAddress.address1'),
 
 ('B2B Only Checkout', 'B2B', 'Restricts checkout to recognized business accounts (purchasing companies) only.',
  '[{"type": "b2b_only", "operator": "is_not_b2b", "value": ""}]',
@@ -69,11 +69,11 @@ VALUES
 
 ('Restricted States', 'Address', 'Blocks checkout for specific states/provinces (e.g., AK, HI).',
  '[{"type": "block_states", "operator": "in_states", "value": "AK,HI"}]',
- 'We currently do not ship to Alaska or Hawaii.', '$.cart.deliveryGroups[0].deliveryAddress'),
+ 'We currently do not ship to Alaska or Hawaii.', '$.cart.deliveryGroups[0].deliveryAddress.address1'),
 
 ('Block Specific Countries', 'Address', 'Blocks checkout for specific country codes.',
  '[{"type": "block_countries", "operator": "in_countries", "value": "KP,IR,SY"}]',
- 'We do not ship to the selected country.', '$.cart.deliveryGroups[0].deliveryAddress'),
+ 'We do not ship to the selected country.', '$.cart.deliveryGroups[0].deliveryAddress.address1'),
 
 ('Hazardous Items Shipping Restriction', 'Product', 'Blocks hazardous items from being shipped to restricted states/regions.',
  '[{"type": "has_hazardous_item", "operator": "equals", "value": "true"}, {"type": "block_states", "operator": "in_states", "value": "AK,HI,PR"}]',
@@ -90,7 +90,7 @@ VALUES
 ('Limit Customer Age (18+)', 'Customer', 'Ensures that checkout is blocked if the customer is under 18.',
  '[{"type": "customer_age", "operator": "under_age", "value": "18"}]',
  'You must be 18 years or older to purchase these items.', '$.cart'),
- 
+  
 ('Restrict Subscription Items', 'Product', 'Limits subscription purchases to authenticated customers with a specific tag (e.g., VIP).',
  '[{"type": "has_subscription", "operator": "equals", "value": "true"}, {"type": "customer_tags", "operator": "not_contains", "value": "vip"}]',
  'Subscriptions are exclusive to VIP members.', '$.cart'),
@@ -105,11 +105,11 @@ VALUES
 
 ('Block Specific ZIP Codes', 'Address', 'Blocks checkout for selected ZIP/Postal codes.',
  '[{"type": "block_zipcodes", "operator": "in_zips", "value": "90210,10001"}]',
- 'We do not offer shipping to your ZIP code.', '$.cart.deliveryGroups[0].deliveryAddress'),
+ 'We do not offer shipping to your ZIP code.', '$.cart.deliveryGroups[0].deliveryAddress.address1'),
 
 ('Regex Address Format Validation', 'Address', 'Enforces correct formatting using regex to block invalid entries.',
  '[{"type": "address_regex", "operator": "matches_regex", "value": "^[a-zA-Z0-9\\\\s,.-]+$"}]',
- 'Please avoid special characters in your shipping address.', '$.cart.deliveryGroups[0].deliveryAddress'),
+ 'Please avoid special characters in your shipping address.', '$.cart.deliveryGroups[0].deliveryAddress.address1'),
 
 ('Restricted Collections Validation', 'Product', 'Blocks purchase of products in restricted collections.',
  '[{"type": "restricted_collections", "operator": "in_collections", "value": "restricted_id"}]',
