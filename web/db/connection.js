@@ -19,6 +19,7 @@ const FALLBACK_DB_PATH = path.join(__dirnameRoot, "fallback_db.json");
 function initFallbackDB() {
   if (!fs.existsSync(FALLBACK_DB_PATH)) {
     const initialData = {
+      shops: [],
       rules: [],
       rule_versions: [],
       rule_analytics: [],
@@ -275,13 +276,15 @@ if (pool && !useFallback) {
             } else {
               console.log("PostgreSQL database tables verified/created successfully.");
               client.query(
-                `UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
+                `ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+                 UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
                  UPDATE rules SET error_target = '$.cart.lines[0].quantity' WHERE error_target = '$.cart.lines[0]';`,
                 (migErr) => {
                   if (migErr) {
-                    console.error("Migration error updating old targets:", migErr.message);
+                    console.error("Migration error updating old targets / adding columns:", migErr.message);
                   } else {
-                    console.log("Existing rule targets migrated successfully.");
+                    console.log("Existing rule targets migrated and new columns added successfully.");
                   }
                   release();
                 }
@@ -315,13 +318,18 @@ export async function dbQuery(text, params = []) {
   const db = readFallbackDB();
   const lowerText = text.trim().toLowerCase();
 
+  if (lowerText.startsWith("select shop from shops where uninstalled")) {
+    const activeShops = db.shops ? db.shops.filter(s => !s.uninstalled).map(s => ({ shop: s.shop })) : [];
+    return { rows: activeShops };
+  }
+
   if (lowerText.startsWith("select * from rule_templates")) {
     return { rows: db.rule_templates };
   }
 
   if (lowerText.startsWith("select * from rules")) {
     const shop = params[0];
-    let filteredRules = db.rules.filter(r => r.shop === shop && r.status !== 'deleted');
+    let filteredRules = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
     // Order by priority desc, id desc
     filteredRules.sort((a, b) => {
       if (b.priority !== a.priority) return b.priority - a.priority;
@@ -333,22 +341,37 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from rules where id = $1")) {
     const id = parseInt(params[0]);
     const shop = params[1];
-    const rule = db.rules.find(r => r.id === id && r.shop === shop && r.status !== 'deleted');
+    const rule = db.rules.find(r => r.id === id && (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
     return { rows: rule ? [rule] : [] };
   }
 
   if (lowerText.startsWith("insert into rules")) {
-    const [shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end] = params;
+    // Check if target_shop is part of params (length 11 instead of 10)
+    const hasTargetShop = params.length === 11;
+    const shop = params[0];
+    const target_shop = hasTargetShop ? params[1] : null;
+    const titleIdx = hasTargetShop ? 2 : 1;
+    const title = params[titleIdx];
+    const status = params[titleIdx + 1] || "active";
+    const priority = params[titleIdx + 2] || 0;
+    const conditions_operator = params[titleIdx + 3] || "AND";
+    const conditions = params[titleIdx + 4];
+    const error_message = params[titleIdx + 5];
+    const error_target = params[titleIdx + 6] || "$.cart";
+    const schedule_start = params[titleIdx + 7];
+    const schedule_end = params[titleIdx + 8];
+
     const newRule = {
       id: db.rules.length > 0 ? Math.max(...db.rules.map(r => r.id)) + 1 : 1,
       shop,
+      target_shop: target_shop || null,
       title,
-      status: status || "active",
+      status,
       priority: parseInt(priority) || 0,
-      conditions_operator: conditions_operator || "AND",
+      conditions_operator,
       conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
       error_message,
-      error_target: error_target || "$.cart",
+      error_target,
       schedule_start,
       schedule_end,
       created_at: new Date().toISOString(),
@@ -359,28 +382,53 @@ export async function dbQuery(text, params = []) {
     return { rows: [newRule] };
   }
 
-  if (lowerText.startsWith("update rules set title = $1")) {
-    const [title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
-    const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
-    if (ruleIdx !== -1) {
-      const updated = {
-        ...db.rules[ruleIdx],
-        title,
-        status,
-        priority: parseInt(priority) || 0,
-        conditions_operator,
-        conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
-        error_message,
-        error_target,
-        schedule_start,
-        schedule_end,
-        updated_at: new Date().toISOString()
-      };
-      db.rules[ruleIdx] = updated;
-      writeFallbackDB(db);
-      return { rows: [updated] };
+  if (lowerText.startsWith("update rules set title = $1") || lowerText.startsWith("update rules set target_shop = $1")) {
+    // Check parameters mapping for update:
+    // If target_shop is part of update fields
+    let updated;
+    if (lowerText.includes("target_shop = $1")) {
+      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
+      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      if (ruleIdx !== -1) {
+        updated = {
+          ...db.rules[ruleIdx],
+          target_shop: target_shop || null,
+          title,
+          status,
+          priority: parseInt(priority) || 0,
+          conditions_operator,
+          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          error_message,
+          error_target,
+          schedule_start,
+          schedule_end,
+          updated_at: new Date().toISOString()
+        };
+        db.rules[ruleIdx] = updated;
+        writeFallbackDB(db);
+      }
+    } else {
+      const [title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
+      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      if (ruleIdx !== -1) {
+        updated = {
+          ...db.rules[ruleIdx],
+          title,
+          status,
+          priority: parseInt(priority) || 0,
+          conditions_operator,
+          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          error_message,
+          error_target,
+          schedule_start,
+          schedule_end,
+          updated_at: new Date().toISOString()
+        };
+        db.rules[ruleIdx] = updated;
+        writeFallbackDB(db);
+      }
     }
-    return { rows: [] };
+    return { rows: updated ? [updated] : [] };
   }
 
   if (lowerText.startsWith("update rules set status = 'deleted'")) {
@@ -434,11 +482,23 @@ export async function dbQuery(text, params = []) {
   }
 
   if (lowerText.startsWith("insert into rule_versions")) {
-    const [rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target] = params;
+    const hasTargetShop = params.length === 9;
+    const rule_id = params[0];
+    const version = params[1];
+    const target_shop = hasTargetShop ? params[2] : null;
+    const titleIdx = hasTargetShop ? 3 : 2;
+    const title = params[titleIdx];
+    const priority = params[titleIdx + 1] || 0;
+    const conditions_operator = params[titleIdx + 2];
+    const conditions = params[titleIdx + 3];
+    const error_message = params[titleIdx + 4];
+    const error_target = params[titleIdx + 5];
+
     const newVersion = {
       id: db.rule_versions.length > 0 ? Math.max(...db.rule_versions.map(v => v.id)) + 1 : 1,
       rule_id: parseInt(rule_id),
       version: parseInt(version),
+      target_shop: target_shop || null,
       title,
       priority: parseInt(priority) || 0,
       conditions_operator,
@@ -500,6 +560,54 @@ export async function dbQuery(text, params = []) {
     const shop = params[0];
     const shopAnalytics = db.rule_analytics.filter(a => a.shop === shop);
     return { rows: shopAnalytics };
+  }
+
+  if (lowerText.includes("insert into shops") || lowerText.includes("conflict (shop)")) {
+    const shop = params[0];
+    if (!db.shops) db.shops = [];
+    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const now = new Date().toISOString();
+    if (shopIdx !== -1) {
+      db.shops[shopIdx] = {
+        ...db.shops[shopIdx],
+        uninstalled: false,
+        installed_at: now,
+        uninstalled_at: null,
+        updated_at: now
+      };
+      writeFallbackDB(db);
+      return { rows: [db.shops[shopIdx]] };
+    } else {
+      const newShop = {
+        id: db.shops.length > 0 ? Math.max(...db.shops.map(s => s.id)) + 1 : 1,
+        shop,
+        uninstalled: false,
+        installed_at: now,
+        uninstalled_at: null,
+        created_at: now,
+        updated_at: now
+      };
+      db.shops.push(newShop);
+      writeFallbackDB(db);
+      return { rows: [newShop] };
+    }
+  }
+
+  if (lowerText.startsWith("update shops") && lowerText.includes("uninstalled = true")) {
+    const shop = params[0];
+    if (!db.shops) db.shops = [];
+    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    if (shopIdx !== -1) {
+      db.shops[shopIdx] = {
+        ...db.shops[shopIdx],
+        uninstalled: true,
+        uninstalled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      writeFallbackDB(db);
+      return { rows: [db.shops[shopIdx]] };
+    }
+    return { rows: [] };
   }
 
   return { rows: [], rowCount: 0 };

@@ -188,6 +188,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("0");
   const [status, setStatus] = useState("active");
+  const [targetShop, setTargetShop] = useState(""); // "" means All Stores / Default
+  const [installedShops, setInstalledShops] = useState([]);
   const [conditionsOperator, setConditionsOperator] = useState("AND");
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
   const [errorTarget, setErrorTarget] = useState("$.cart");
@@ -206,6 +208,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [scheduleEnd, setScheduleEnd] = useState("");
   const [enableScheduling, setEnableScheduling] = useState(false);
 
+  // Fetch installed active stores on component mount
+  useEffect(() => {
+    fetch("/api/rules/installed-shops")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setInstalledShops(data);
+        }
+      })
+      .catch(err => console.error("Error fetching installed shops:", err));
+  }, []);
+
   useEffect(() => {
     if (ruleId && ruleId !== "new") {
       setLoading(true);
@@ -216,6 +230,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setTitle(data.title);
             setPriority(String(data.priority || 0));
             setStatus(data.status);
+            setTargetShop(data.target_shop || "");
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
@@ -434,6 +449,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
 
     setSaving(true);
     const body = {
+      target_shop: targetShop || null,
       title,
       priority: parseInt(priority) || 0,
       status,
@@ -570,6 +586,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         ]}
                         value={status}
                         onChange={setStatus}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Select
+                        label="Target Store"
+                        options={[
+                          { label: "All Stores (Global)", value: "" },
+                          ...installedShops.map(shop => ({ label: shop, value: shop }))
+                        ]}
+                        value={targetShop}
+                        onChange={setTargetShop}
+                        helpText="Select which store this rule applies to."
                       />
                     </div>
                   </HorizontalStack>

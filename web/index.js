@@ -38,6 +38,24 @@ app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
+  async (req, res, next) => {
+    try {
+      const session = res.locals.shopify.session;
+      const shop = session.shop;
+      console.log(`[Installation] Recording installation for shop: ${shop}`);
+
+      await dbQuery(
+        `INSERT INTO shops (shop, uninstalled, installed_at, uninstalled_at)
+         VALUES ($1, FALSE, CURRENT_TIMESTAMP, NULL)
+         ON CONFLICT (shop) 
+         DO UPDATE SET uninstalled = FALSE, installed_at = CURRENT_TIMESTAMP, uninstalled_at = NULL, updated_at = CURRENT_TIMESTAMP`,
+        [shop]
+      );
+    } catch (err) {
+      console.error("[Installation] Error writing shop to database:", err.message);
+    }
+    next();
+  },
   shopify.redirectToShopifyOrAppRoot()
 );
 app.post(
@@ -49,6 +67,27 @@ app.post(
 // also add a proxy rule for them in web/frontend/vite.config.js
 
 app.use("/api/*", shopify.validateAuthenticatedSession());
+
+// Ensure shop is registered in the database on every authenticated request.
+// If shop exists → update updated_at. If not → insert new entry.
+app.use("/api/*", async (req, res, next) => {
+  try {
+    const session = res.locals.shopify?.session;
+    const shop = session?.shop;
+    if (shop) {
+      await dbQuery(
+        `INSERT INTO shops (shop, uninstalled, installed_at, uninstalled_at)
+         VALUES ($1, FALSE, CURRENT_TIMESTAMP, NULL)
+         ON CONFLICT (shop) 
+         DO UPDATE SET uninstalled = FALSE, updated_at = CURRENT_TIMESTAMP`,
+        [shop]
+      );
+    }
+  } catch (err) {
+    console.error("[Shop Tracking] Error ensuring shop registration:", err.message);
+  }
+  next();
+});
 
 app.use(express.json());
 
@@ -90,7 +129,20 @@ app.post("/api/products", async (_req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+app.use("/*", async (req, res, next) => {
+  // Return a clean 404 for asset fallbacks (e.g. favicon, css, js) rather than triggering authentication
+  if (req.path.includes(".") || req.path.startsWith("/assets/")) {
+    return res.status(404).send("Not Found");
+  }
+
+  const shop = req.query.shop;
+  if (!shop) {
+    // If shop is missing, return a clean bad request instead of throwing a library exception
+    return res.status(400).send("Missing shop query parameter.");
+  }
+
+  next();
+}, shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
   return res
     .status(200)
     .set("Content-Type", "text/html")

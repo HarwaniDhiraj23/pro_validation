@@ -1,7 +1,19 @@
+-- Create shops table for multi-store installation tracking
+CREATE TABLE IF NOT EXISTS shops (
+  id SERIAL PRIMARY KEY,
+  shop VARCHAR(255) UNIQUE NOT NULL,
+  uninstalled BOOLEAN DEFAULT FALSE,
+  installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  uninstalled_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create rules table
 CREATE TABLE IF NOT EXISTS rules (
   id SERIAL PRIMARY KEY,
   shop VARCHAR(255) NOT NULL,
+  target_shop VARCHAR(255) DEFAULT NULL, -- Specific shop this rule applies to (NULL/all means all/default)
   title VARCHAR(255) NOT NULL,
   status VARCHAR(50) DEFAULT 'active', -- active, inactive
   priority INTEGER DEFAULT 0,
@@ -20,6 +32,7 @@ CREATE TABLE IF NOT EXISTS rule_versions (
   id SERIAL PRIMARY KEY,
   rule_id INTEGER REFERENCES rules(id) ON DELETE CASCADE,
   version INTEGER NOT NULL,
+  target_shop VARCHAR(255) DEFAULT NULL,
   title VARCHAR(255) NOT NULL,
   priority INTEGER DEFAULT 0,
   conditions_operator VARCHAR(10) DEFAULT 'AND',

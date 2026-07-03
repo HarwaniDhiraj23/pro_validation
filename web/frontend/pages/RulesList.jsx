@@ -406,6 +406,11 @@ export default function RulesList({ navigate }) {
                         {isActive ? "Active" : "Inactive"}
                       </span>
                       <span className="priority-pill">P{rule.priority || 0}</span>
+                      {rule.target_shop ? (
+                        <Badge tone="attention">{rule.target_shop}</Badge>
+                      ) : (
+                        <Badge tone="info">Global (All Stores)</Badge>
+                      )}
                     </div>
                     <div className="rl-meta">Target: {rule.error_target}</div>
                     {rule.conditions && rule.conditions.length > 0 && (

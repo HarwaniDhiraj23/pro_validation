@@ -121,16 +121,6 @@ export default function Dashboard({ navigate }) {
         content: "View Rules",
         onAction: () => navigate("/rules")
       }}
-    // secondaryActions={[
-    //   {
-    //     content: "Simulate Block",
-    //     onAction: handleSimulate
-    //   },
-    //   {
-    //     content: "Refresh Analytics",
-    //     onAction: handleResetAnalytics
-    //   }
-    // ]}
     >
       <style>{`
         .kpi-grid {
@@ -146,25 +136,48 @@ export default function Dashboard({ navigate }) {
           .kpi-grid { grid-template-columns: 1fr; }
         }
         .kpi-card {
-          background: linear-gradient(135deg, #1e2229 0%, #111418 100%);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          padding: 20px;
-          color: white;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-          transition: all 0.3s ease;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 24px;
+          color: #1e293b;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
         }
+        .kpi-card::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: #6366f1;
+        }
+        .kpi-card:nth-child(1)::before { background: linear-gradient(90deg, #4f46e5, #818cf8); }
+        .kpi-card:nth-child(2)::before { background: linear-gradient(90deg, #e11d48, #fb7185); }
+        .kpi-card:nth-child(3)::before { background: linear-gradient(90deg, #059669, #34d399); }
+        .kpi-card:nth-child(4)::before { background: linear-gradient(90deg, #d97706, #fbbf24); }
+
         .kpi-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 8px 30px rgba(99, 102, 241, 0.2);
-          border-color: rgba(99, 102, 241, 0.4);
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+          border-color: #cbd5e1;
+        }
+        .kpi-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
         .kpi-val {
-          font-size: 36px;
+          font-size: 38px;
           font-weight: 800;
-          margin: 10px 0 6px 0;
+          margin: 12px 0 8px 0;
           font-family: 'Outfit', 'Inter', sans-serif;
-          color: #a5b4fc;
+          color: #0f172a;
           letter-spacing: -1px;
           line-height: 1;
         }
@@ -355,24 +368,32 @@ export default function Dashboard({ navigate }) {
       {/* KPI Section */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <Text variant="bodyMd" color="subdued" fontWeight="medium">Total Checkout Checks</Text>
+          <div className="kpi-title">Total Checkout Checks</div>
           <div className="kpi-val">{summary?.totalChecks || 0}</div>
-          <Text variant="bodySm" tone="success">🛡️ Active Shielding</Text>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "#16a34a", display: "flex", alignItems: "center", gap: "4px" }}>
+            <span>🛡️</span> Active Shielding
+          </div>
         </div>
         <div className="kpi-card">
-          <Text variant="bodyMd" color="subdued" fontWeight="medium">Blocked Checkouts</Text>
+          <div className="kpi-title">Blocked Checkouts</div>
           <div className="kpi-val">{summary?.totalBlocks || 0}</div>
-          <Text variant="bodySm" tone="critical">🛑 Block Rate: {blockRate}%</Text>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "#dc2626", display: "flex", alignItems: "center", gap: "4px" }}>
+            <span>🛑</span> Block Rate: {blockRate}%
+          </div>
         </div>
         <div className="kpi-card">
-          <Text variant="bodyMd" color="subdued" fontWeight="medium">Blocked Order Value</Text>
+          <div className="kpi-title">Blocked Order Value</div>
           <div className="kpi-val">${(summary?.blockedValue || 0).toFixed(2)}</div>
-          <Text variant="bodySm" tone="success">💵 Prevented Loss</Text>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "#16a34a", display: "flex", alignItems: "center", gap: "4px" }}>
+            <span>💵</span> Prevented Loss
+          </div>
         </div>
         <div className="kpi-card">
-          <Text variant="bodyMd" color="subdued" fontWeight="medium">Active Rules</Text>
+          <div className="kpi-title">Active Rules</div>
           <div className="kpi-val">{summary?.activeRulesCount || 0}</div>
-          <Text variant="bodySm" tone="success">⚡ Live Rules</Text>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "#4f46e5", display: "flex", alignItems: "center", gap: "4px" }}>
+            <span>⚡</span> Live Rules
+          </div>
         </div>
       </div>
       <Layout>

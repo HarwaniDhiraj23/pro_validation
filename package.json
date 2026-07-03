@@ -5,18 +5,20 @@
   "license": "UNLICENSED",
   "scripts": {
     "shopify": "shopify",
-    "build": "shopify app build",
-    "dev": "shopify app dev",
+    "build": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 shopify app build",
+    "dev": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 shopify app dev",
     "info": "shopify app info",
     "generate": "shopify app generate",
-    "deploy": "shopify app deploy"
+    "deploy": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 shopify app deploy"
   },
-  "dependencies": {},
   "author": "PCTR46",
   "private": true,
   "workspaces": [
     "extensions/*",
     "web",
     "web/frontend"
-  ]
+  ],
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
 }

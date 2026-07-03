@@ -93,6 +93,25 @@ const WebhookHandlers = {
       }
     },
   },
+
+  APP_UNINSTALLED: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/api/webhooks",
+    callback: async (topic, shop, body, webhookId) => {
+      try {
+        console.log(`[Webhook] APP_UNINSTALLED for shop: ${shop}`);
+        
+        await dbQuery(
+          `UPDATE shops 
+           SET uninstalled = TRUE, uninstalled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+           WHERE shop = $1`,
+          [shop]
+        );
+      } catch (err) {
+        console.error("[Webhook] APP_UNINSTALLED error:", err.message);
+      }
+    },
+  },
 };
 
 export default WebhookHandlers;

@@ -177,7 +177,12 @@ function evaluateCondition(cond, cartInput) {
     case "address_regex": {
       const addr = (shippingAddress.address1 || "") + " " + (shippingAddress.address2 || "");
       try {
-        const regex = new RegExp(cond.value || "", "i");
+        let pattern = cond.value || "";
+        // Strip out PCRE inline modifiers like (?i) which JavaScript RegExp does not support
+        if (pattern.startsWith("(?i)")) {
+          pattern = pattern.substring(4);
+        }
+        const regex = new RegExp(pattern, "i");
         const matches = regex.test(addr);
         return cond.operator === "matches_regex" ? matches : !matches;
       } catch (err) {
