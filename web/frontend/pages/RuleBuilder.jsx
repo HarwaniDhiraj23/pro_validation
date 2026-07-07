@@ -221,6 +221,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const templateId = params.get("templateId");
+
     if (ruleId && ruleId !== "new") {
       setLoading(true);
       fetch(`/api/rules/${ruleId}`)
@@ -256,6 +259,28 @@ export default function RuleBuilder({ ruleId, navigate }) {
         })
         .catch(err => {
           shopify.toast.show("Error loading rule data", { isError: true });
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else if (templateId) {
+      setLoading(true);
+      fetch(`/api/templates/${templateId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setTitle(data.title);
+            setPriority("0");
+            setStatus("active");
+            setTargetShop("");
+            setConditionsOperator(data.conditions_operator || "AND");
+            setErrorMessage(data.error_message);
+            setErrorTarget(data.error_target || "$.cart");
+            setConditions(data.conditions || []);
+          }
+        })
+        .catch(err => {
+          shopify.toast.show("Error loading template details", { isError: true });
         })
         .finally(() => {
           setLoading(false);

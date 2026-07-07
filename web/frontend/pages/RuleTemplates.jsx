@@ -24,23 +24,8 @@ export default function RuleTemplates({ navigate }) {
       });
   }, []);
 
-  const handleApply = async (id, title) => {
-    setApplyingId(id);
-    try {
-      const res = await fetch(`/api/templates/${id}/apply`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        shopify.toast.show(`Template "${title}" applied successfully!`);
-        navigate("/rules");
-      } else {
-        shopify.toast.show("Failed to apply template", { isError: true });
-      }
-    } catch (e) {
-      shopify.toast.show("Network error", { isError: true });
-    } finally {
-      setApplyingId(null);
-    }
+  const handleApply = (id) => {
+    navigate(`/rules/new?templateId=${id}`);
   };
 
   if (loading) {

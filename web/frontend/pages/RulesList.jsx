@@ -273,6 +273,7 @@ export default function RulesList({ navigate }) {
           border: 1px solid #e5e7eb;
           border-radius: 20px;
           padding: 3px 8px;
+          flex-shrink: 0;
         }
         .prio-btn {
           background: none;
@@ -303,7 +304,13 @@ export default function RulesList({ navigate }) {
           line-height: 1;
         }
         /* Action buttons */
-        .rl-actions { display: flex; align-items: center; gap: 6px; }
+        .rl-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+          flex-wrap: nowrap;
+        }
         .act-btn {
           padding: 6px 12px;
           border-radius: 7px;
@@ -442,7 +449,7 @@ export default function RulesList({ navigate }) {
                     >
                       {isActive ? "Deactivate" : "Activate"}
                     </button>
-                    {/* <button className="act-btn ver" onClick={() => navigate(`/rules/${rule.id}/versions`)}>Versions</button> */}
+                    <button className="act-btn ver" onClick={() => navigate(`/rules/${rule.id}/versions`)}>Versions</button>
                     <button className="act-btn edit" onClick={() => navigate(`/rules/${rule.id}`)}>Edit</button>
                     <button className="act-btn del" onClick={() => handleDeleteSingle(rule.id)}>Delete</button>
                   </div>

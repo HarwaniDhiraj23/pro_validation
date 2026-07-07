@@ -398,6 +398,61 @@ export default function Dashboard({ navigate }) {
       </div>
       <Layout>
         {/* Breakdown by rule */}
+        {/* Smart Recommendations */}
+        {recommendations.length > 0 && (
+          <Layout.Section>
+            <Card>
+              <Box padding="5">
+                <VerticalStack gap="2">
+                  <Text variant="headingMd" as="h2">💡 Smart Recommendations</Text>
+                  <Text variant="bodySm" tone="subdued">
+                    Optimize your checkout experience with rules recommended specifically for your catalog.
+                  </Text>
+                  
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                    gap: "16px",
+                    marginTop: "12px"
+                  }}>
+                    {recommendations.map((rec) => (
+                      <div key={rec.id} style={{
+                        padding: "16px",
+                        borderRadius: "12px",
+                        border: "1px solid #e1e3e5",
+                        background: "#fafbfb",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        minHeight: "140px"
+                      }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                            <div style={{ fontWeight: "700", fontSize: "14px", color: "#202223" }}>{rec.title}</div>
+                            <Badge tone={rec.impact === "Critical" || rec.impact === "High" ? "attention" : "info"}>
+                              {rec.impact}
+                            </Badge>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#6d7175", lineHeight: "1.4" }}>{rec.reason}</div>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+                          <Button
+                            size="slim"
+                            primary
+                            onClick={() => navigate(`/rules/new?templateId=${rec.templateId}`)}
+                          >
+                            Apply Rule
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </VerticalStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+        )}
         <Layout.Section>
           <Card>
             <Box padding="5">
@@ -434,6 +489,8 @@ export default function Dashboard({ navigate }) {
             </Box>
           </Card>
         </Layout.Section>
+
+
 
         {/* Recent logs */}
         <Layout.Section>
