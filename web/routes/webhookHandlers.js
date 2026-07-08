@@ -35,9 +35,11 @@ const WebhookHandlers = {
           [shop]
         );
         const activeRules = rulesRes.rows || [];
+        console.log(`[Webhook] Active rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
 
         // 2. Validate payload against active rules
         const triggeredRule = validateCheckoutPayload(payload, activeRules);
+        console.log(`[Webhook] triggeredRule evaluation:`, triggeredRule ? { id: triggeredRule.id, title: triggeredRule.title } : "None matched");
 
         if (triggeredRule) {
           // If a rule condition is met, log as a "block" event with the specific rule ID
@@ -49,6 +51,7 @@ const WebhookHandlers = {
           );
         } else {
           // Otherwise, log as a normal "check" event (no block triggered)
+          console.log(`[Webhook] Logging check check event for ${shop}`);
           await dbQuery(
             `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
              VALUES ($1, $2, $3, $4, $5)`,
@@ -56,7 +59,7 @@ const WebhookHandlers = {
           );
         }
       } catch (err) {
-        console.error("[Webhook] CHECKOUTS_CREATE error:", err.message);
+        console.error("[Webhook] CHECKOUTS_CREATE error:", err.stack || err.message);
       }
     },
   },

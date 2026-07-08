@@ -213,18 +213,7 @@ function initFallbackDB() {
       rules: [],
       rule_versions: [],
       rule_analytics: [],
-      rule_templates: PREBUILT_TEMPLATES
     };
-    // Generate some simulated analytics data
-    const now = new Date();
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      initialData.rule_analytics.push(
-        { id: i * 3 + 1, shop: "mock-shop.myshopify.com", rule_id: 1, event_type: "block", cart_value: 45.00, created_at: date.toISOString() },
-        { id: i * 3 + 2, shop: "mock-shop.myshopify.com", rule_id: 2, event_type: "block", cart_value: 120.00, created_at: date.toISOString() },
-        { id: i * 3 + 3, shop: "mock-shop.myshopify.com", rule_id: null, event_type: "allow", cart_value: 75.00, created_at: date.toISOString() }
-      );
-    }
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
     fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(initialData, null, 2));
   } else {
@@ -358,6 +347,18 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from rules")) {
     const shop = params[0];
     let filteredRules = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
+    
+    // If the query specifies active status, filter by active status and date schedule
+    if (lowerText.includes("status = 'active'") || lowerText.includes("status = $2") || lowerText.includes("status='active'")) {
+      const now = new Date();
+      filteredRules = filteredRules.filter(r => {
+        if (r.status !== "active") return false;
+        if (r.schedule_start && new Date(r.schedule_start) > now) return false;
+        if (r.schedule_end && new Date(r.schedule_end) < now) return false;
+        return true;
+      });
+    }
+
     // Order by priority desc, id desc
     filteredRules.sort((a, b) => {
       if (b.priority !== a.priority) return b.priority - a.priority;

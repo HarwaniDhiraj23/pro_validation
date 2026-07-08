@@ -57,36 +57,36 @@ function evaluateCondition(cond, data) {
     }
 
     case "shipping_address_pobox": {
-      const addr1 = (shippingAddress.address1 || "").toLowerCase();
-      const addr2 = (shippingAddress.address2 || "").toLowerCase();
+      const addr1 = (shippingAddress.address1 || shippingAddress.address_1 || "").toLowerCase();
+      const addr2 = (shippingAddress.address2 || shippingAddress.address_2 || "").toLowerCase();
       const poBoxRegex = /\b(p\s*o\s*box|post\s*office\s*box|p\.?\s*o\.?\s*box)\b/i;
       const isPoBox = poBoxRegex.test(addr1) || poBoxRegex.test(addr2);
       return cond.operator === "is_pobox" ? isPoBox : !isPoBox;
     }
 
     case "block_states": {
-      const state = (shippingAddress.province_code || "").toUpperCase().trim();
+      const state = (shippingAddress.province_code || shippingAddress.provinceCode || "").toUpperCase().trim();
       const blocked = (cond.value || "").toUpperCase().split(",").map(s => s.trim());
       const inStates = blocked.includes(state);
       return cond.operator === "in_states" ? inStates : !inStates;
     }
 
     case "block_countries": {
-      const country = (shippingAddress.country_code || "").toUpperCase().trim();
+      const country = (shippingAddress.country_code || shippingAddress.countryCode || "").toUpperCase().trim();
       const blocked = (cond.value || "").toUpperCase().split(",").map(c => c.trim());
       const inCountries = blocked.includes(country);
       return cond.operator === "in_countries" ? inCountries : !inCountries;
     }
 
     case "block_zipcodes": {
-      const zip = (shippingAddress.zip || "").toLowerCase().trim();
+      const zip = (shippingAddress.zip || shippingAddress.zip_code || "").toLowerCase().trim();
       const blocked = (cond.value || "").toLowerCase().split(",").map(z => z.trim());
       const inZips = blocked.some(z => zip.startsWith(z));
       return cond.operator === "in_zips" ? inZips : !inZips;
     }
 
     case "address_regex": {
-      const addr = (shippingAddress.address1 || "") + " " + (shippingAddress.address2 || "");
+      const addr = (shippingAddress.address1 || shippingAddress.address_1 || "") + " " + (shippingAddress.address2 || shippingAddress.address_2 || "");
       try {
         let pattern = cond.value || "";
         // Strip out PCRE inline modifiers like (?i) which JavaScript RegExp does not support
@@ -141,9 +141,16 @@ function evaluateCondition(cond, data) {
     }
 
     case "restricted_collections": {
-      // In webhook payloads we can only match product IDs or vendors as collections are not directly resolved.
-      // So we fallback to matching product IDs.
-      return false;
+      const cleanId = id => id.includes("gid://") ? id.split("/").pop() : id;
+      const restrictedCollIds = (cond.value || "").split(",").map(c => cleanId(c.trim()));
+      
+      const hasItem = lineItems.some(item => {
+        // Shopify checkout line items can have collection details depending on payload version
+        // We look for collection lists or matching collection IDs
+        const itemCollections = (item.collection_ids || item.collections || []).map(c => cleanId(String(c.id || c)));
+        return itemCollections.some(c => restrictedCollIds.includes(c));
+      });
+      return cond.operator === "in_collections" ? hasItem : !hasItem;
     }
 
     case "restricted_vendors": {

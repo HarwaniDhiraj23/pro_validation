@@ -14,24 +14,6 @@ export default function Dashboard({ navigate }) {
       const analyticsRes = await fetch("/api/analytics");
       const analyticsData = await analyticsRes.json();
 
-      // Auto-seed demo data if there are no analytics events at all
-      const totalEvents = (analyticsData?.summary?.totalChecks || 0) + (analyticsData?.summary?.totalBlocks || 0) + (analyticsData?.summary?.totalAllows || 0);
-      if (totalEvents === 0) {
-        try {
-          const seedRes = await fetch("/api/analytics/seed", { method: "POST" });
-          const seedResult = await seedRes.json();
-          if (seedResult.seeded) {
-            // Re-fetch with the newly seeded data
-            const refreshRes = await fetch("/api/analytics");
-            const refreshData = await refreshRes.json();
-            setData(refreshData);
-            return;
-          }
-        } catch (seedErr) {
-          console.warn("Auto-seed failed:", seedErr);
-        }
-      }
-
       setData(analyticsData);
     } catch (e) {
       console.error(e);
@@ -64,14 +46,7 @@ export default function Dashboard({ navigate }) {
   const handleResetAnalytics = async () => {
     try {
       await fetch("/api/analytics/reset", { method: "DELETE" });
-      // Re-seed fresh data
-      const seedRes = await fetch("/api/analytics/seed", { method: "POST" });
-      const seedData = await seedRes.json();
-      if (seedData.seeded) {
-        shopify.toast.show(`Analytics refreshed with ${seedData.eventCount} demo events`);
-      } else {
-        shopify.toast.show("Analytics reset complete");
-      }
+      shopify.toast.show("Analytics cleared successfully.");
       fetchData();
     } catch (e) {
       shopify.toast.show("Reset failed", { isError: true });
