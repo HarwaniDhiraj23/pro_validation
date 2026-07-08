@@ -7,21 +7,32 @@ export default function Dashboard({ navigate }) {
   const shopify = useAppBridge();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [recommendations, setRecommendations] = useState([]);
-  const [applyingRec, setApplyingRec] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const fetchData = async () => {
     try {
-      const [analyticsRes, recRes] = await Promise.all([
-        fetch("/api/analytics"),
-        fetch("/api/recommendations")
-      ]);
+      const analyticsRes = await fetch("/api/analytics");
       const analyticsData = await analyticsRes.json();
-      const recData = await recRes.json();
-      setData(analyticsData);
-      setRecommendations(recData);
 
+      // Auto-seed demo data if there are no analytics events at all
+      const totalEvents = (analyticsData?.summary?.totalChecks || 0) + (analyticsData?.summary?.totalBlocks || 0) + (analyticsData?.summary?.totalAllows || 0);
+      if (totalEvents === 0) {
+        try {
+          const seedRes = await fetch("/api/analytics/seed", { method: "POST" });
+          const seedResult = await seedRes.json();
+          if (seedResult.seeded) {
+            // Re-fetch with the newly seeded data
+            const refreshRes = await fetch("/api/analytics");
+            const refreshData = await refreshRes.json();
+            setData(refreshData);
+            return;
+          }
+        } catch (seedErr) {
+          console.warn("Auto-seed failed:", seedErr);
+        }
+      }
+
+      setData(analyticsData);
     } catch (e) {
       console.error(e);
       shopify.toast.show("Error loading dashboard data", { isError: true });
@@ -64,25 +75,6 @@ export default function Dashboard({ navigate }) {
       fetchData();
     } catch (e) {
       shopify.toast.show("Reset failed", { isError: true });
-    }
-  };
-
-  const handleApplyRecommendation = async (rec) => {
-    setApplyingRec(rec.id);
-    try {
-      const res = await fetch(`/api/templates/${rec.templateId}/apply`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        shopify.toast.show(`Rule "${rec.title}" applied successfully!`);
-        fetchData();
-      } else {
-        shopify.toast.show("Failed to apply recommendation", { isError: true });
-      }
-    } catch (e) {
-      shopify.toast.show("Network error", { isError: true });
-    } finally {
-      setApplyingRec(null);
     }
   };
 
@@ -398,61 +390,7 @@ export default function Dashboard({ navigate }) {
       </div>
       <Layout>
         {/* Breakdown by rule */}
-        {/* Smart Recommendations */}
-        {recommendations.length > 0 && (
-          <Layout.Section>
-            <Card>
-              <Box padding="5">
-                <VerticalStack gap="2">
-                  <Text variant="headingMd" as="h2">💡 Smart Recommendations</Text>
-                  <Text variant="bodySm" tone="subdued">
-                    Optimize your checkout experience with rules recommended specifically for your catalog.
-                  </Text>
-                  
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                    gap: "16px",
-                    marginTop: "12px"
-                  }}>
-                    {recommendations.map((rec) => (
-                      <div key={rec.id} style={{
-                        padding: "16px",
-                        borderRadius: "12px",
-                        border: "1px solid #e1e3e5",
-                        background: "#fafbfb",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                        gap: "12px",
-                        minHeight: "140px"
-                      }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
-                            <div style={{ fontWeight: "700", fontSize: "14px", color: "#202223" }}>{rec.title}</div>
-                            <Badge tone={rec.impact === "Critical" || rec.impact === "High" ? "attention" : "info"}>
-                              {rec.impact}
-                            </Badge>
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#6d7175", lineHeight: "1.4" }}>{rec.reason}</div>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
-                          <Button
-                            size="slim"
-                            primary
-                            onClick={() => navigate(`/rules/new?templateId=${rec.templateId}`)}
-                          >
-                            Apply Rule
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </VerticalStack>
-              </Box>
-            </Card>
-          </Layout.Section>
-        )}
+
         <Layout.Section>
           <Card>
             <Box padding="5">

@@ -30,7 +30,7 @@ export default function RuleTemplates({ navigate }) {
 
   if (loading) {
     return (
-      <Page title="Rule Templates">
+      <Page title="Pre-built Rules">
         <HorizontalStack align="center">
           <Spinner size="large" />
         </HorizontalStack>
@@ -42,15 +42,15 @@ export default function RuleTemplates({ navigate }) {
   const categories = ["All", ...new Set(templates.map(t => t.category))];
   const filteredTemplates = templates.filter(t => {
     const matchesCategory = filterCategory === "All" || t.category === filterCategory;
-    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          t.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
   return (
     <Page
-      title="Pre-built Rule Templates"
-      subtitle="Instantly launch pre-configured checkout validation templates with one click."
+      title="Pre-built Rules"
+      subtitle="Instantly launch pre-configured checkout validations with one click."
       backAction={{ content: "Rules", onAction: () => navigate("/rules") }}
     >
       <style>{`
@@ -59,7 +59,7 @@ export default function RuleTemplates({ navigate }) {
         }
         .template-card {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
-          height: 200px;
+          height: 260px;
           display: flex;
         }
         .template-card > * {
@@ -74,9 +74,9 @@ export default function RuleTemplates({ navigate }) {
 
       <div style={{ marginBottom: "16px" }}>
         <TextField
-          label="Search templates"
+          label="Search rules"
           labelHidden
-          placeholder="Search pre-built templates by title or description..."
+          placeholder="Search pre-built rules by title or description..."
           value={searchQuery}
           onChange={setSearchQuery}
           autoComplete="off"
@@ -131,7 +131,7 @@ export default function RuleTemplates({ navigate }) {
                       loading={applyingId === tmpl.id}
                       onClick={() => handleApply(tmpl.id, tmpl.title)}
                     >
-                      Apply Template
+                      Apply Rule
                     </Button>
                   </div>
                 </div>

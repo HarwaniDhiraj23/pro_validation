@@ -15,6 +15,8 @@ query CartValidationsGenerateRunInput {
     }
     buyerIdentity {
       isAuthenticated
+      email
+      phone
       purchasingCompany {
         company {
           id
@@ -31,9 +33,11 @@ query CartValidationsGenerateRunInput {
       deliveryAddress {
         address1
         address2
+        city
         provinceCode
         countryCode
         zip
+        phone
       }
     }
     lines {

@@ -384,7 +384,18 @@ router.get("/", async (req, res) => {
       "SELECT * FROM rules WHERE (shop = $1 OR target_shop = $1) AND status != 'deleted' ORDER BY priority DESC, id DESC",
       [shop]
     );
-    res.json(result.rows);
+    
+    const rules = result.rows || [];
+    const rulesWithVersion = await Promise.all(rules.map(async (rule) => {
+      const verRes = await dbQuery(
+        "SELECT COALESCE(MAX(version), 1) as max_version FROM rule_versions WHERE rule_id = $1",
+        [rule.id]
+      );
+      const version = verRes.rows[0]?.max_version || verRes.rows[0]?.max || 1;
+      return { ...rule, version };
+    }));
+
+    res.json(rulesWithVersion);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

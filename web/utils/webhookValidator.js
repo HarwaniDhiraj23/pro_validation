@@ -153,11 +153,32 @@ function evaluateCondition(cond, data) {
     }
 
     case "product_combinations": {
-      const restrictedProds = (cond.value || "").split(",").map(p => p.trim());
+      const cleanId = id => id.includes("gid://") ? id.split("/").pop() : id;
+      const restrictedProds = (cond.value || "").split(",").map(p => cleanId(p.trim()));
       if (restrictedProds.length < 2) return false;
-      const cartProdIds = lineItems.map(item => String(item.product_id));
+      const cartProdIds = lineItems.map(item => cleanId(String(item.product_id || item.product?.id || "")));
       const containsAll = restrictedProds.every(p => cartProdIds.includes(p));
       return containsAll;
+    }
+
+    case "has_hazardous_item": {
+      const hasItem = lineItems.some(item => {
+        const tags = (item.properties || []).map(p => String(p.name || p.key || "").toLowerCase());
+        const title = (item.title || "").toLowerCase();
+        return tags.includes("hazardous") || tags.includes("hazmat") || title.includes("hazardous") || title.includes("hazmat");
+      });
+      return cond.operator === "equals" ? hasItem : !hasItem;
+    }
+
+    case "has_subscription": {
+      const hasSub = lineItems.some(item => item.selling_plan_allocation !== null && item.selling_plan_allocation !== undefined);
+      return cond.operator === "equals" ? hasSub : !hasSub;
+    }
+
+    case "b2b_only": {
+      // B2B checkouts typically contain a company name or company ID in the checkout payload
+      const isNotB2B = !checkout.company || !checkout.company.id;
+      return cond.operator === "is_not_b2b" ? isNotB2B : !isNotB2B;
     }
 
     default:

@@ -20,7 +20,7 @@ export default function App() {
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/rules">Validation Rules</a>
-            <a href="/templates">Rule Templates</a>
+            <a href="/templates">Pre-built Rules</a>
           </NavMenu>
           <Routes pages={pages} />
         </QueryProvider>

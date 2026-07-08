@@ -176,8 +176,17 @@ const OPERATORS_BY_TYPE = {
 
 const ERROR_TARGETS = [
   { label: "Cart Summary (Generic)", value: "$.cart" },
-  { label: "Delivery Address Form", value: "$.cart.deliveryGroups[0].deliveryAddress.address1" },
-  { label: "First Line Item", value: "$.cart.lines[0].quantity" }
+  { label: "Contact Email Field", value: "$.cart.email" },
+  { label: "Contact Phone Field", value: "$.cart.buyerIdentity.phone" },
+  { label: "Delivery Address Form (General)", value: "$.cart.deliveryGroups[0].deliveryAddress" },
+  { label: "Address Line 1", value: "$.cart.deliveryGroups[0].deliveryAddress.address1" },
+  { label: "Address Line 2", value: "$.cart.deliveryGroups[0].deliveryAddress.address2" },
+  { label: "City Field", value: "$.cart.deliveryGroups[0].deliveryAddress.city" },
+  { label: "State/Province Field", value: "$.cart.deliveryGroups[0].deliveryAddress.provinceCode" },
+  { label: "ZIP/Postal Code Field", value: "$.cart.deliveryGroups[0].deliveryAddress.zip" },
+  { label: "Country Field", value: "$.cart.deliveryGroups[0].deliveryAddress.countryCode" },
+  { label: "Shipping Phone Field", value: "$.cart.deliveryGroups[0].deliveryAddress.phone" },
+  { label: "First Line Item Quantity", value: "$.cart.lines[0].quantity" }
 ];
 
 export default function RuleBuilder({ ruleId, navigate }) {
@@ -592,7 +601,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   />
 
                   <HorizontalStack gap="4">
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: "0 0 140px" }}>
                       <TextField
                         label="Priority"
                         type="number"
@@ -643,7 +652,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         }
                       }}
                     />
-                    
+
                     {enableScheduling && (
                       <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
                         <div style={{ flex: 1 }}>
@@ -815,43 +824,6 @@ export default function RuleBuilder({ ruleId, navigate }) {
             </Card>
           </VerticalStack>
         </Layout.Section>
-
-        {/* Visual Live Preview Widget */}
-        {/* <Layout.Section secondary>
-          <Card title="📱 Checkout UI Live Preview">
-            <Box padding="4" background="bg-surface-secondary" borderRadius="3">
-              <VerticalStack gap="2">
-                <Text variant="bodySm" tone="subdued">
-                  Below is a visual simulation of the error banner rendered inside the Shopify Checkout wrapper when this rule triggers:
-                </Text>
-
-                <Box padding="4" background="bg-surface" borderRadius="2" border="1px" borderColor="border">
-                  <Text variant="bodySm" tone="subdued" fontWeight="medium">
-                    🛒 Order Summary
-                  </Text>
-                  <HorizontalStack align="space-between" style={{ borderBottom: "1px solid #e1e3e5", padding: "8px 0" }}>
-                    <Text variant="bodyMd">Subtotal</Text>
-                    <Text variant="bodyMd" fontWeight="semibold">$120.00</Text>
-                  </HorizontalStack>
-
-                  <div className="checkout-banner">
-                    <span style={{ fontSize: "18px" }}>⚠️</span>
-                    <VerticalStack gap="1">
-                      <Text variant="bodyMd" fontWeight="bold">Cannot Complete Purchase</Text>
-                      <Text variant="bodySm">{errorMessage || "Custom validation error is displayed here."}</Text>
-                    </VerticalStack>
-                  </div>
-
-                  <Box marginTop="4">
-                    <Button fullWidth disabled>
-                      Pay Now ($120.00)
-                    </Button>
-                  </Box>
-                </Box>
-              </VerticalStack>
-            </Box>
-          </Card>
-        </Layout.Section> */}
       </Layout>
       <Modal
         open={browseModalOpen}

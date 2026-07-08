@@ -44,15 +44,15 @@ const WebhookHandlers = {
           console.log(`[Webhook] Block detected by rule "${triggeredRule.title}" (ID: ${triggeredRule.id}) for ${shop}`);
           await dbQuery(
             `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, $2, 'block', $3, $4)`,
-            [shop, triggeredRule.id, cartValue, cartId]
+             VALUES ($1, $2, $3, $4, $5)`,
+            [shop, triggeredRule.id, 'block', cartValue, cartId]
           );
         } else {
           // Otherwise, log as a normal "check" event (no block triggered)
           await dbQuery(
             `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, NULL, 'check', $2, $3)`,
-            [shop, cartValue, cartId]
+             VALUES ($1, $2, $3, $4, $5)`,
+            [shop, null, 'check', cartValue, cartId]
           );
         }
       } catch (err) {
@@ -85,8 +85,8 @@ const WebhookHandlers = {
         // Log as an "allow" event - order was successfully completed
         await dbQuery(
           `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-           VALUES ($1, NULL, 'allow', $2, $3)`,
-          [shop, cartValue, cartId]
+           VALUES ($1, $2, $3, $4, $5)`,
+          [shop, null, 'allow', cartValue, cartId]
         );
       } catch (err) {
         console.error("[Webhook] ORDERS_CREATE error:", err.message);

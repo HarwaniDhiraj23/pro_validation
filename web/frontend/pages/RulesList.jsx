@@ -140,7 +140,7 @@ export default function RulesList({ navigate }) {
       subtitle="Configure rules that prevent checkout based on cart attributes."
       backAction={{ content: "Dashboard", onAction: () => navigate("/") }}
       primaryAction={{ content: "＋ Create Rule", onAction: () => navigate("/rules/new") }}
-      secondaryActions={[{ content: "Pre-built Templates", onAction: () => navigate("/templates") }]}
+      secondaryActions={[{ content: "Pre-built Rules", onAction: () => navigate("/templates") }]}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -188,10 +188,11 @@ export default function RulesList({ navigate }) {
 
         /* Rule card */
         .rl-card {
-          display: flex;
+          display: grid;
+          grid-template-columns: 36px 1fr auto;
           align-items: center;
-          gap: 14px;
-          padding: 16px 20px;
+          gap: 20px;
+          padding: 18px 20px;
           border-bottom: 1px solid #f3f4f6;
           background: #fff;
           transition: background 0.15s;
@@ -239,30 +240,55 @@ export default function RulesList({ navigate }) {
           background: #e0e7ff;
           color: #3730a3;
         }
-        .rl-meta { font-size: 12px; color: #9ca3af; margin-top: 3px; }
+        .version-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 2px 9px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 600;
+          background: #f1f5f9;
+          color: #475569;
+          border: 1px solid #cbd5e1;
+        }
+        .rl-meta {
+          font-size: 12px;
+          color: #64748b;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
         .rl-conds {
           display: flex;
           flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 8px;
+          gap: 8px;
+          margin-top: 6px;
         }
         .cond-tag {
           display: inline-flex;
           align-items: center;
-          padding: 3px 10px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 500;
-          background: #f1f5f9;
-          color: #475569;
+          padding: 4px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          background: #f8fafc;
+          color: #334155;
           border: 1px solid #e2e8f0;
+          transition: all 0.15s ease;
+        }
+        .cond-tag:hover {
+          background: #f1f5f9;
+          border-color: #cbd5e1;
         }
         .cond-label {
           font-size: 11px;
-          font-weight: 600;
-          color: #6b7280;
-          margin-top: 6px;
-          margin-bottom: 2px;
+          font-weight: 700;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-top: 8px;
+          margin-bottom: 4px;
         }
         /* Priority adjuster */
         .priority-box {
@@ -396,33 +422,55 @@ export default function RulesList({ navigate }) {
               const isActive = rule.status === "active";
               return (
                 <div key={rule.id} className={`rl-card${isSelected ? " selected" : ""}`}>
-                  {/* Checkbox */}
-                  <div style={{ paddingTop: "2px" }}>
+                  {/* Column 1: Checkbox */}
+                  <div style={{ display: "flex", alignItems: "center" }}>
                     <Checkbox
                       checked={isSelected}
                       onChange={(checked) => handleSelectRule(rule.id, checked)}
                     />
                   </div>
 
-                  {/* Info */}
+                  {/* Column 2: Info */}
                   <div className="rl-info">
-                    <div className="rl-title">
+                    <div className="rl-title" style={{ fontSize: "16px", fontWeight: "700", color: "#111827" }}>
                       {rule.title}
+                    </div>
+                    <div className="rl-tags" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginTop: "6px", marginBottom: "4px" }}>
                       <span className={`status-pill ${isActive ? "active" : "inactive"}`}>
                         <span className="status-dot" />
                         {isActive ? "Active" : "Inactive"}
                       </span>
                       <span className="priority-pill">P{rule.priority || 0}</span>
+                      <span className="version-pill">v{rule.version || 1}</span>
                       {rule.target_shop ? (
                         <Badge tone="attention">{rule.target_shop}</Badge>
                       ) : (
                         <Badge tone="info">Global (All Stores)</Badge>
                       )}
                     </div>
-                    <div className="rl-meta">Target: {rule.error_target}</div>
+                    <div className="rl-meta">
+                      <span>Target:</span>
+                      <code style={{
+                        background: "#f1f5f9",
+                        color: "#475569",
+                        padding: "2px 6px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        fontFamily: "monospace",
+                        border: "1px solid #e2e8f0"
+                      }}>{rule.error_target}</code>
+                    </div>
+
                     {rule.conditions && rule.conditions.length > 0 && (
-                      <>
-                        <div className="cond-label">Conditions ({rule.conditions_operator}):</div>
+                      <div style={{
+                        borderLeft: "2px solid #e2e8f0",
+                        paddingLeft: "14px",
+                        marginLeft: "6px",
+                        marginTop: "10px",
+                        marginBottom: "4px"
+                      }}>
+                        <div className="cond-label">Conditions ({rule.conditions_operator})</div>
                         <div className="rl-conds">
                           {rule.conditions.map((cond, idx) => (
                             <span key={idx} className="cond-tag">
@@ -430,28 +478,24 @@ export default function RulesList({ navigate }) {
                             </span>
                           ))}
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
 
-                  {/* Priority adjuster */}
-                  <div className="priority-box" title="Priority Level (evaluated highest to lowest)">
-                    <button className="prio-btn" onClick={() => handlePriorityChange(rule, false)}>−</button>
-                    <span className="prio-num">{rule.priority || 0}</span>
-                    <button className="prio-btn" onClick={() => handlePriorityChange(rule, true)}>+</button>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="rl-actions">
-                    <button
-                      className={`act-btn ${isActive ? "toggle-on" : "toggle-off"}`}
-                      onClick={() => handleToggleSingle(rule)}
-                    >
-                      {isActive ? "Deactivate" : "Activate"}
-                    </button>
-                    <button className="act-btn ver" onClick={() => navigate(`/rules/${rule.id}/versions`)}>Versions</button>
-                    <button className="act-btn edit" onClick={() => navigate(`/rules/${rule.id}`)}>Edit</button>
-                    <button className="act-btn del" onClick={() => handleDeleteSingle(rule.id)}>Delete</button>
+                  {/* Column 3: Priority Adjuster & Actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", justifySelf: "end" }}>
+                    {/* Actions */}
+                    <div className="rl-actions">
+                      <button
+                        className={`act-btn ${isActive ? "toggle-on" : "toggle-off"}`}
+                        onClick={() => handleToggleSingle(rule)}
+                      >
+                        {isActive ? "Deactivate" : "Activate"}
+                      </button>
+                      <button className="act-btn ver" onClick={() => navigate(`/rules/${rule.id}/versions`)}>Versions</button>
+                      <button className="act-btn edit" onClick={() => navigate(`/rules/${rule.id}`)}>Edit</button>
+                      <button className="act-btn del" onClick={() => handleDeleteSingle(rule.id)}>Delete</button>
+                    </div>
                   </div>
                 </div>
               );
@@ -467,13 +511,10 @@ export default function RulesList({ navigate }) {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="empty-icon">📋</div>
+
               <div className="empty-title">No validation rules yet</div>
-              <div className="empty-sub">Create a custom rule or import from our pre-built template library.</div>
-              <div className="empty-btns">
-                <button className="empty-btn-primary" onClick={() => navigate("/rules/new")}>Create First Rule</button>
-                <button className="empty-btn-sec" onClick={() => navigate("/templates")}>Browse Templates</button>
-              </div>
+              <div className="empty-sub">Create a custom rule or import from our pre-built rules library.</div>
+
             </div>
           )}
         </div>

@@ -16,6 +16,196 @@ const __dirnameRoot = path.dirname(new URL(import.meta.url).pathname).replace(/^
 const FALLBACK_DB_PATH = path.join(__dirnameRoot, "fallback_db.json");
 
 // Helper to initialize fallback JSON DB if not exists
+const PREBUILT_TEMPLATES = [
+  {
+    id: 1,
+    title: "Block PO Box Addresses",
+    category: "Address",
+    description: "Prevents shipping to PO Box addresses by checking the address lines for PO Box indicators, ensuring orders are sent to physical locations suitable for standard carrier deliveries.",
+    conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
+    error_message: "We cannot ship to PO Box addresses. Please provide a physical shipping address.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+  },
+  {
+    id: 2,
+    title: "B2B Only Checkout",
+    category: "B2B",
+    description: "Restricts checkout access to recognized business accounts with an active company profile. Guest accounts and standard consumer checkout profiles will be blocked.",
+    conditions: [{ type: "b2b_only", operator: "is_not_b2b", value: "" }],
+    error_message: "Checkout is restricted to B2B customers only.",
+    error_target: "$.cart"
+  },
+  {
+    id: 3,
+    title: "Login Required to Checkout",
+    category: "Customer",
+    description: "Enforces user authentication before proceeding. Unauthenticated guest checkouts are blocked, prompting customers to log in or register an account.",
+    conditions: [{ type: "login_required", operator: "is_guest", value: "" }],
+    error_message: "Please log in to your account to complete checkout.",
+    error_target: "$.cart"
+  },
+  {
+    id: 4,
+    title: "Restricted States",
+    category: "Address",
+    description: "Blocks checkout for specific state or province codes (e.g. Alaska, Hawaii, or military zones) where shipping is unsupported or incurs excessive carrier rates.",
+    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    error_message: "We currently do not ship to Alaska or Hawaii.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+  },
+  {
+    id: 5,
+    title: "Block Specific Countries",
+    category: "Address",
+    description: "Restricts checkout access for specific countries or regions to comply with trade sanctions, high-risk fraud zones, or regions outside your shipping carrier networks.",
+    conditions: [{ type: "block_countries", operator: "in_countries", value: "KP,IR,SY" }],
+    error_message: "We do not ship to the selected country.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+  },
+  {
+    id: 6,
+    title: "Hazardous Items Shipping Restriction",
+    category: "Product",
+    description: "Ensures hazardous or safety-restricted products are not shipped to islands, remote territories, or specific state codes where air transport regulations prohibit them.",
+    conditions: [
+      { type: "has_hazardous_item", operator: "equals", value: "true" },
+      { type: "block_states", operator: "in_states", value: "AK,HI,PR" }
+    ],
+    error_message: "Hazardous items cannot be shipped to Alaska, Hawaii, or Puerto Rico.",
+    error_target: "$.cart"
+  },
+  {
+    id: 7,
+    title: "Minimum Order Value limit",
+    category: "Cart Value",
+    description: "Enforces a minimum cart subtotal requirement before allowing checkout, helping cover operational costs and logistics margins for small orders.",
+    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "50.00" }],
+    error_message: "The minimum order value to checkout is $50.00.",
+    error_target: "$.cart"
+  },
+  {
+    id: 8,
+    title: "Maximum Order Value limit",
+    category: "Cart Value",
+    description: "Sets an upper threshold limit on the order subtotal to reduce liability risks, prevent high-value fraud, or redirect bulk trade orders to direct sales representatives.",
+    conditions: [{ type: "maximum_order_value", operator: "greater_than", value: "1000.00" }],
+    error_message: "Orders exceeding $1,000.00 must be placed by phone or email.",
+    error_target: "$.cart"
+  },
+  {
+    id: 9,
+    title: "Limit Customer Age (18+)",
+    category: "Customer",
+    description: "Blocks checkout if the customer's age on file is under 18, ensuring legal compliance for age-restricted products like alcohol, tobacco, or mature content.",
+    conditions: [{ type: "customer_age", operator: "under_age", value: "18" }],
+    error_message: "You must be 18 years or older to purchase these items.",
+    error_target: "$.cart"
+  },
+  {
+    id: 10,
+    title: "Restrict Subscription Items",
+    category: "Product",
+    description: "Restricts subscription products to authorized customers with specific tags (e.g., VIP, wholesale), preventing general public signups for exclusive recurring plans.",
+    conditions: [
+      { type: "has_subscription", operator: "equals", value: "true" },
+      { type: "customer_tags", operator: "not_contains", value: "vip" }
+    ],
+    error_message: "Subscriptions are exclusive to VIP members.",
+    error_target: "$.cart"
+  },
+  {
+    id: 11,
+    title: "Customer Tags Validation",
+    category: "Customer",
+    description: "Restricts order placement to customers possessing specific account tags (like VIP, Wholesale, or Member), protecting exclusive catalog collections.",
+    conditions: [{ type: "customer_tags", operator: "contains", value: "vip,wholesale" }],
+    error_message: "This checkout is reserved for Wholesale or VIP customers only.",
+    error_target: "$.cart"
+  },
+  {
+    id: 12,
+    title: "Guest Checkout Restriction",
+    category: "Customer",
+    description: "Blocks checkout access for guest accounts, ensuring all orders are linked to registered customer profiles for loyalty tracking and communication.",
+    conditions: [{ type: "guest_checkout_restriction", operator: "is_guest", value: "" }],
+    error_message: "Guest checkout is disabled. Please create an account to purchase.",
+    error_target: "$.cart"
+  },
+  {
+    id: 13,
+    title: "Block Specific ZIP Codes",
+    category: "Address",
+    description: "Blocks shipping to specific ZIP/postal codes known for delivery failures, remote access surcharges, or where regional distributor exclusivity applies.",
+    conditions: [{ type: "block_zipcodes", operator: "in_zips", value: "90210,10001" }],
+    error_message: "We do not offer shipping to your ZIP code.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+  },
+  {
+    id: 14,
+    title: "Regex Address Format Validation",
+    category: "Address",
+    description: "Validates the shipping address format against a regular expression pattern to prevent special characters, typos, or gibberish entries that cause shipment failures.",
+    conditions: [{ type: "address_regex", operator: "matches_regex", value: "^[a-zA-Z0-9\\s,.-]+$" }],
+    error_message: "Please avoid special characters in your shipping address.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+  },
+  {
+    id: 15,
+    title: "Restricted Collections Validation",
+    category: "Product",
+    description: "Checks if cart items belong to restricted collection GIDs, blocking checkout for restricted product categories during shipping blackout periods or regional lockouts.",
+    conditions: [{ type: "restricted_collections", operator: "in_collections", value: "restricted_id" }],
+    error_message: "Items in your cart belong to a restricted collection and cannot be shipped.",
+    error_target: "$.cart"
+  },
+  {
+    id: 16,
+    title: "Restricted Vendors Validation",
+    category: "Product",
+    description: "Blocks purchase of items supplied by specific brand vendors, useful for enforcing distribution agreements, regional supply constraints, or seasonal inventory halts.",
+    conditions: [{ type: "restricted_vendors", operator: "in_vendors", value: "restricted_vendor" }],
+    error_message: "We cannot fulfill orders for products from this vendor.",
+    error_target: "$.cart"
+  },
+  {
+    id: 17,
+    title: "Incompatible Product Combinations",
+    category: "Product",
+    description: "Prevents incompatible items from being purchased in the same order (e.g., pre-order products mixed with in-stock items, or conflicting fragile/heavy items).",
+    conditions: [{ type: "product_combinations", operator: "cannot_combine", value: "prod_id_A,prod_id_B" }],
+    error_message: "Incompatible items found in your cart. These products cannot be shipped together.",
+    error_target: "$.cart"
+  },
+  {
+    id: 18,
+    title: "Cart Item Quantity Limit",
+    category: "Cart Value",
+    description: "Limits the maximum number of items (total item count) allowed in the cart to prevent bulk buying, retail arbitrage, or carrier parcel weight limit issues.",
+    conditions: [{ type: "quantity_limit", operator: "greater_than", value: "10" }],
+    error_message: "Maximum quantity of 10 items exceeded per order.",
+    error_target: "$.cart"
+  },
+  {
+    id: 19,
+    title: "Weight Limit Restriction",
+    category: "Cart Value",
+    description: "Enforces a maximum threshold on the total cart weight, ensuring order shipments do not exceed standard parcel carrier limits or trigger unexpected freight shipping.",
+    conditions: [{ type: "weight_limit", operator: "greater_than", value: "50" }],
+    error_message: "Order weight exceeds 50kg. Please contact us for a custom shipping quote.",
+    error_target: "$.cart"
+  },
+  {
+    id: 20,
+    title: "SKU Quantity Limit Check",
+    category: "Cart Value",
+    description: "Restricts the number of unique SKUs (different products/variants) permitted in the cart to control inventory runs, limit order complexity, or manage pack times.",
+    conditions: [{ type: "sku_limit", operator: "greater_than", value: "5" }],
+    error_message: "A maximum of 5 unique product SKUs can be purchased per order.",
+    error_target: "$.cart"
+  }
+];
+
+// Helper to initialize fallback JSON DB if not exists
 function initFallbackDB() {
   if (!fs.existsSync(FALLBACK_DB_PATH)) {
     const initialData = {
@@ -23,194 +213,7 @@ function initFallbackDB() {
       rules: [],
       rule_versions: [],
       rule_analytics: [],
-      rule_templates: [
-        {
-          id: 1,
-          title: "Block PO Box Addresses",
-          category: "Address",
-          description: "Prevents customers from shipping to Post Office Boxes.",
-          conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
-          error_message: "We cannot ship to PO Box addresses. Please provide a physical shipping address.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
-        },
-        {
-          id: 2,
-          title: "B2B Only Checkout",
-          category: "B2B",
-          description: "Restricts checkout to recognized business accounts (purchasing companies) only.",
-          conditions: [{ type: "b2b_only", operator: "is_not_b2b", value: "" }],
-          error_message: "Checkout is restricted to B2B customers only.",
-          error_target: "$.cart"
-        },
-        {
-          id: 3,
-          title: "Login Required to Checkout",
-          category: "Customer",
-          description: "Ensures that customers are logged in before proceeding to checkout.",
-          conditions: [{ type: "login_required", operator: "is_guest", value: "" }],
-          error_message: "Please log in to your account to complete checkout.",
-          error_target: "$.cart"
-        },
-        {
-          id: 4,
-          title: "Restricted States",
-          category: "Address",
-          description: "Blocks checkout for specific states/provinces (e.g., AK, HI).",
-          conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
-          error_message: "We currently do not ship to Alaska or Hawaii.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
-        },
-        {
-          id: 5,
-          title: "Block Specific Countries",
-          category: "Address",
-          description: "Blocks checkout for specific country codes.",
-          conditions: [{ type: "block_countries", operator: "in_countries", value: "KP,IR,SY" }],
-          error_message: "We do not ship to the selected country.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
-        },
-        {
-          id: 6,
-          title: "Hazardous Items Shipping Restriction",
-          category: "Product",
-          description: "Blocks hazardous items from being shipped to restricted states/regions.",
-          conditions: [
-            { type: "has_hazardous_item", operator: "equals", value: "true" },
-            { type: "block_states", operator: "in_states", value: "AK,HI,PR" }
-          ],
-          error_message: "Hazardous items cannot be shipped to Alaska, Hawaii, or Puerto Rico.",
-          error_target: "$.cart"
-        },
-        {
-          id: 7,
-          title: "Minimum Order Value limit",
-          category: "Cart Value",
-          description: "Forces a minimum subtotal value before completing checkout.",
-          conditions: [{ type: "minimum_order_value", operator: "less_than", value: "50.00" }],
-          error_message: "The minimum order value to checkout is $50.00.",
-          error_target: "$.cart"
-        },
-        {
-          id: 8,
-          title: "Maximum Order Value limit",
-          category: "Cart Value",
-          description: "Limits the maximum subtotal value allowed for safety/fraud reasons.",
-          conditions: [{ type: "maximum_order_value", operator: "greater_than", value: "1000.00" }],
-          error_message: "Orders exceeding $1,000.00 must be placed by phone or email.",
-          error_target: "$.cart"
-        },
-        {
-          id: 9,
-          title: "Limit Customer Age (18+)",
-          category: "Customer",
-          description: "Ensures that checkout is blocked if the customer is under 18.",
-          conditions: [{ type: "customer_age", operator: "under_age", value: "18" }],
-          error_message: "You must be 18 years or older to purchase these items.",
-          error_target: "$.cart"
-        },
-        {
-          id: 10,
-          title: "Restrict Subscription Items",
-          category: "Product",
-          description: "Limits subscription purchases to authenticated customers with a specific tag (e.g., VIP).",
-          conditions: [
-            { type: "has_subscription", operator: "equals", value: "true" },
-            { type: "customer_tags", operator: "not_contains", value: "vip" }
-          ],
-          error_message: "Subscriptions are exclusive to VIP members.",
-          error_target: "$.cart"
-        },
-        {
-          id: 11,
-          title: "Customer Tags Validation",
-          category: "Customer",
-          description: "Ensures customer has VIP or Wholesale tags to purchase.",
-          conditions: [{ type: "customer_tags", operator: "contains", value: "vip,wholesale" }],
-          error_message: "This checkout is reserved for Wholesale or VIP customers only.",
-          error_target: "$.cart"
-        },
-        {
-          id: 12,
-          title: "Guest Checkout Restriction",
-          category: "Customer",
-          description: "Disables guest checkout entirely.",
-          conditions: [{ type: "guest_checkout_restriction", operator: "is_guest", value: "" }],
-          error_message: "Guest checkout is disabled. Please create an account to purchase.",
-          error_target: "$.cart"
-        },
-        {
-          id: 13,
-          title: "Block Specific ZIP Codes",
-          category: "Address",
-          description: "Blocks checkout for selected ZIP/Postal codes.",
-          conditions: [{ type: "block_zipcodes", operator: "in_zips", value: "90210,10001" }],
-          error_message: "We do not offer shipping to your ZIP code.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
-        },
-        {
-          id: 14,
-          title: "Regex Address Format Validation",
-          category: "Address",
-          description: "Enforces correct formatting using regex to block invalid entries.",
-          conditions: [{ type: "address_regex", operator: "matches_regex", value: "^[a-zA-Z0-9\\s,.-]+$" }],
-          error_message: "Please avoid special characters in your shipping address.",
-          error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
-        },
-        {
-          id: 15,
-          title: "Restricted Collections Validation",
-          category: "Product",
-          description: "Blocks purchase of products in restricted collections.",
-          conditions: [{ type: "restricted_collections", operator: "in_collections", value: "restricted_id" }],
-          error_message: "Items in your cart belong to a restricted collection and cannot be shipped.",
-          error_target: "$.cart"
-        },
-        {
-          id: 16,
-          title: "Restricted Vendors Validation",
-          category: "Product",
-          description: "Blocks checkout for products from specific vendors.",
-          conditions: [{ type: "restricted_vendors", operator: "in_vendors", value: "restricted_vendor" }],
-          error_message: "We cannot fulfill orders for products from this vendor.",
-          error_target: "$.cart"
-        },
-        {
-          id: 17,
-          title: "Incompatible Product Combinations",
-          category: "Product",
-          description: "Prevents conflicting products from being bought together.",
-          conditions: [{ type: "product_combinations", operator: "cannot_combine", value: "prod_id_A,prod_id_B" }],
-          error_message: "Incompatible items found in your cart. These products cannot be shipped together.",
-          error_target: "$.cart"
-        },
-        {
-          id: 18,
-          title: "Cart Item Quantity Limit",
-          category: "Cart Value",
-          description: "Restricts the maximum total item count allowed in a single order.",
-          conditions: [{ type: "quantity_limit", operator: "greater_than", value: "10" }],
-          error_message: "Maximum quantity of 10 items exceeded per order.",
-          error_target: "$.cart"
-        },
-        {
-          id: 19,
-          title: "Weight Limit Restriction",
-          category: "Cart Value",
-          description: "Restricts total cart weight to prevent freight shipping errors.",
-          conditions: [{ type: "weight_limit", operator: "greater_than", value: "50" }],
-          error_message: "Order weight exceeds 50kg. Please contact us for a custom shipping quote.",
-          error_target: "$.cart"
-        },
-        {
-          id: 20,
-          title: "SKU Quantity Limit Check",
-          category: "Cart Value",
-          description: "Restricts the number of unique SKUs allowed in the cart.",
-          conditions: [{ type: "sku_limit", operator: "greater_than", value: "5" }],
-          error_message: "A maximum of 5 unique product SKUs can be purchased per order.",
-          error_target: "$.cart"
-        }
-      ]
+      rule_templates: PREBUILT_TEMPLATES
     };
     // Generate some simulated analytics data
     const now = new Date();
@@ -224,9 +227,17 @@ function initFallbackDB() {
     }
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
     fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(initialData, null, 2));
+  } else {
+    // Update templates inside existing fallback DB
+    try {
+      const existingData = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
+      existingData.rule_templates = PREBUILT_TEMPLATES;
+      fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(existingData, null, 2));
+    } catch (e) {
+      console.error("Failed to update fallback_db.json templates:", e.message);
+    }
   }
 }
-
 // Read database helper
 function readFallbackDB() {
   initFallbackDB();
@@ -325,6 +336,23 @@ export async function dbQuery(text, params = []) {
 
   if (lowerText.startsWith("select * from rule_templates")) {
     return { rows: db.rule_templates };
+  }
+
+  // Count active rules for analytics
+  if (lowerText.includes("count(*)") && lowerText.includes("rules") && lowerText.includes("active") && !lowerText.includes("rule_analytics")) {
+    const shop = params[0];
+    const count = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status === "active").length;
+    return { rows: [{ count }] };
+  }
+
+  // Count expired active rules for scheduled worker
+  if (lowerText.includes("select distinct shop from rules") && lowerText.includes("schedule_end")) {
+    const now = new Date();
+    const expiredShops = db.rules
+      .filter(r => r.status === "active" && r.schedule_end && new Date(r.schedule_end) < now)
+      .map(r => ({ shop: r.shop }));
+    const uniqueShops = [...new Set(expiredShops.map(s => s.shop))].map(shop => ({ shop }));
+    return { rows: uniqueShops };
   }
 
   if (lowerText.startsWith("select * from rules")) {
@@ -550,12 +578,95 @@ export async function dbQuery(text, params = []) {
     return { rowCount: beforeLen - db.rule_analytics.length };
   }
 
+  // Analytics: GROUP BY event_type with COUNT and SUM
+  if (lowerText.includes("rule_analytics") && lowerText.includes("group by event_type")) {
+    const shop = params[0];
+    const shopAnalytics = db.rule_analytics.filter(a => a.shop === shop);
+    const grouped = {};
+    shopAnalytics.forEach(a => {
+      if (!grouped[a.event_type]) {
+        grouped[a.event_type] = { event_type: a.event_type, count: 0, total_value: 0 };
+      }
+      grouped[a.event_type].count++;
+      grouped[a.event_type].total_value += parseFloat(a.cart_value) || 0;
+    });
+    return { rows: Object.values(grouped) };
+  }
+
+  // Analytics: Chart data — last 14 days grouped by date and event_type
+  if (lowerText.includes("rule_analytics") && lowerText.includes("group by") && lowerText.includes("date")) {
+    const shop = params[0];
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const shopAnalytics = db.rule_analytics.filter(a => {
+      if (a.shop !== shop) return false;
+      const createdAt = new Date(a.created_at);
+      return createdAt >= fourteenDaysAgo;
+    });
+    const grouped = {};
+    shopAnalytics.forEach(a => {
+      const dateStr = new Date(a.created_at).toISOString().split("T")[0];
+      const key = `${dateStr}_${a.event_type}`;
+      if (!grouped[key]) {
+        grouped[key] = { date: dateStr, event_type: a.event_type, count: 0 };
+      }
+      grouped[key].count++;
+    });
+    const rows = Object.values(grouped);
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+    return { rows };
+  }
+
+  // Analytics: Rules breakdown — JOIN rules, GROUP BY title, block events only
+  if (lowerText.includes("rule_analytics") && lowerText.includes("join rules") && lowerText.includes("group by")) {
+    const shop = params[0];
+    const blockEvents = db.rule_analytics.filter(a => a.shop === shop && a.event_type === "block" && a.rule_id);
+    const grouped = {};
+    blockEvents.forEach(a => {
+      const rule = db.rules.find(r => r.id === a.rule_id);
+      const title = rule ? rule.title : "Unknown Rule";
+      if (!grouped[title]) {
+        grouped[title] = { title, count: 0 };
+      }
+      grouped[title].count++;
+    });
+    const rows = Object.values(grouped);
+    rows.sort((a, b) => b.count - a.count);
+    return { rows: rows.slice(0, 5) };
+  }
+
+  // Analytics: Recent blocked checkouts — LEFT JOIN rules, block events, ordered by date DESC
+  if (lowerText.includes("rule_analytics") && lowerText.includes("left join") && lowerText.includes("block")) {
+    const shop = params[0];
+    const blockEvents = db.rule_analytics.filter(a => a.shop === shop && a.event_type === "block");
+    blockEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const rows = blockEvents.slice(0, 10).map(a => {
+      const rule = a.rule_id ? db.rules.find(r => r.id === a.rule_id) : null;
+      return {
+        id: a.id,
+        rule_title: rule ? rule.title : "Unknown/Deleted Rule",
+        cart_value: a.cart_value,
+        created_at: a.created_at
+      };
+    });
+    return { rows };
+  }
+
+  // Analytics: Deduplication check — SELECT id FROM rule_analytics WHERE shop AND cart_id
+  if (lowerText.includes("rule_analytics") && lowerText.includes("cart_id") && lowerText.includes("limit 1")) {
+    const shop = params[0];
+    const cartId = params[1];
+    const match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId);
+    return { rows: match ? [{ id: match.id }] : [] };
+  }
+
+  // Analytics: Generic count query
   if (lowerText.includes("count(*)") && lowerText.includes("rule_analytics")) {
     const shop = params[0];
     const count = db.rule_analytics.filter(a => a.shop === shop).length;
     return { rows: [{ count }] };
   }
 
+  // Analytics: Generic select fallback
   if (lowerText.includes("select") && lowerText.includes("rule_analytics")) {
     const shop = params[0];
     const shopAnalytics = db.rule_analytics.filter(a => a.shop === shop);

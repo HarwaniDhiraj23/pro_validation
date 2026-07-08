@@ -1,7 +1,56 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge } from "@shopify/polaris";
+import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge, Modal } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { formatDate } from "../utils/utils";
+
+const CONDITION_LABELS = {
+  minimum_order_value: "Minimum Order Value ($)",
+  maximum_order_value: "Maximum Order Value ($)",
+  customer_tags: "Customer Tags",
+  login_required: "Login Status Required",
+  b2b_only: "B2B / Wholesale Account",
+  guest_checkout_restriction: "Guest Checkout Restriction",
+  customer_age: "Customer Age Verification",
+  shipping_address_pobox: "Shipping Address (PO Box check)",
+  block_states: "Block State Codes",
+  block_countries: "Block Country Codes",
+  block_zipcodes: "Block ZIP Code Patterns",
+  address_regex: "Validate Shipping Address (Regex)",
+  restricted_collections: "Restricted Collections",
+  restricted_vendors: "Restricted Vendors",
+  product_combinations: "Incompatible Product Combinations",
+  has_hazardous_item: "Hazardous Item check",
+  has_subscription: "Subscription check",
+  quantity_limit: "Cart Item Quantity Limit",
+  weight_limit: "Weight Limit (kg)",
+  sku_limit: "SKU Count Limit"
+};
+
+const OPERATOR_LABELS = {
+  contains: "contains",
+  not_contains: "does not contain",
+  is_guest: "is guest",
+  is_not_guest: "is registered",
+  is_not_b2b: "is not B2B account",
+  under_age: "is under age",
+  greater_than: "is greater than or equal to",
+  less_than: "is less than",
+  is_pobox: "is PO box",
+  not_pobox: "is not PO box",
+  in_states: "is in state list",
+  not_in_states: "is not in state list",
+  in_countries: "is in country list",
+  not_in_countries: "is not in country list",
+  in_zips: "starts with ZIP list",
+  matches_regex: "matches regex pattern",
+  not_matches_regex: "does not match regex pattern",
+  in_collections: "contains products in collections",
+  not_in_collections: "does not contain products in collections",
+  in_vendors: "contains products from vendors",
+  not_in_vendors: "does not contain products from vendors",
+  cannot_combine: "contains all combinations together",
+  equals: "equals"
+};
 
 export default function RuleVersions({ ruleId, navigate }) {
   const shopify = useAppBridge();
@@ -9,6 +58,7 @@ export default function RuleVersions({ ruleId, navigate }) {
   const [versions, setVersions] = useState([]);
   const [rollingBackId, setRollingBackId] = useState(null);
   const [ruleName, setRuleName] = useState("Rule");
+  const [selectedVersion, setSelectedVersion] = useState(null);
 
   useEffect(() => {
     if (ruleId) {
@@ -113,7 +163,13 @@ export default function RuleVersions({ ruleId, navigate }) {
         .col-time { width: 180px; flex-shrink: 0; font-size: 13px; color: #4b5563; }
         .col-details { flex: 1; min-width: 0; padding-right: 16px; }
         .col-conds { width: 100px; flex-shrink: 0; }
-        .col-action { width: 100px; flex-shrink: 0; text-align: right; }
+        .col-action { 
+          width: 170px; 
+          flex-shrink: 0; 
+          display: flex; 
+          gap: 8px; 
+          justify-content: flex-end; 
+        }
 
         .ver-title {
           font-size: 14px;
@@ -128,6 +184,23 @@ export default function RuleVersions({ ruleId, navigate }) {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        .ver-preview-btn {
+          padding: 6px 14px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          background: #f3f4f6;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          transition: all 0.15s;
+        }
+
+        .ver-preview-btn:hover {
+          background: #e5e7eb;
+          border-color: #9ca3af;
         }
 
         .ver-restore-btn {
@@ -153,6 +226,18 @@ export default function RuleVersions({ ruleId, navigate }) {
           cursor: not-allowed;
         }
 
+        .ver-restore-btn.active-ver-btn {
+          background: #f0fdf4;
+          color: #166534;
+          border-color: #bbf7d0;
+          cursor: default;
+        }
+
+        .ver-restore-btn.active-ver-btn:hover {
+          background: #f0fdf4;
+          border-color: #bbf7d0;
+        }
+
         @media (max-width: 768px) {
           .ver-header { display: none; }
           .ver-item {
@@ -167,6 +252,7 @@ export default function RuleVersions({ ruleId, navigate }) {
           }
           .col-action {
             margin-top: 4px;
+            justify-content: flex-start;
           }
         }
       `}</style>
@@ -181,12 +267,16 @@ export default function RuleVersions({ ruleId, navigate }) {
         </div>
 
         {versions.length > 0 ? (
-          versions.map((ver) => {
+          versions.map((ver, idx) => {
             const numConds = ver.conditions ? ver.conditions.length : 0;
+            const isActive = idx === 0; // Sorted descending, first item is active version
             return (
               <div key={ver.version} className="ver-item">
                 <div className="col-ver">
-                  <Badge tone="info">v{ver.version}</Badge>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                    <Badge tone="info">v{ver.version}</Badge>
+                    {isActive && <Badge tone="success">Active</Badge>}
+                  </div>
                 </div>
                 <div className="col-time">
                   {formatDate(ver.created_at)}
@@ -202,12 +292,24 @@ export default function RuleVersions({ ruleId, navigate }) {
                 </div>
                 <div className="col-action">
                   <button
-                    className="ver-restore-btn"
-                    disabled={rollingBackId === ver.version}
-                    onClick={() => handleRollback(ver.version)}
+                    className="ver-preview-btn"
+                    onClick={() => setSelectedVersion(ver)}
                   >
-                    {rollingBackId === ver.version ? "Restoring..." : "Restore"}
+                    Review
                   </button>
+                  {isActive ? (
+                    <button className="ver-restore-btn active-ver-btn" disabled>
+                      Active
+                    </button>
+                  ) : (
+                    <button
+                      className="ver-restore-btn"
+                      disabled={rollingBackId === ver.version}
+                      onClick={() => handleRollback(ver.version)}
+                    >
+                      {rollingBackId === ver.version ? "Restoring..." : "Restore"}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -218,6 +320,136 @@ export default function RuleVersions({ ruleId, navigate }) {
           </Box>
         )}
       </div>
+
+      {selectedVersion && (
+        <Modal
+          open={selectedVersion !== null}
+          onClose={() => setSelectedVersion(null)}
+          title={`Review Rule Version v${selectedVersion.version}`}
+          primaryAction={
+            selectedVersion.version === versions[0].version
+              ? undefined
+              : {
+                  content: rollingBackId === selectedVersion.version ? "Restoring..." : "Restore this version",
+                  onAction: () => {
+                    handleRollback(selectedVersion.version);
+                    setSelectedVersion(null);
+                  },
+                  disabled: rollingBackId === selectedVersion.version
+                }
+          }
+          secondaryActions={[
+            {
+              content: "Close",
+              onAction: () => setSelectedVersion(null)
+            }
+          ]}
+        >
+          <Modal.Section>
+            <VerticalStack gap="4">
+              <Box>
+                <Text variant="headingSm" as="h3">General Settings</Text>
+                <div style={{ marginTop: "12px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Rule Title</Text>
+                    <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.title}</Text>
+                  </div>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Priority</Text>
+                    <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.priority}</Text>
+                  </div>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Target Store</Text>
+                    <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.target_shop || "All Stores (Global)"}</Text>
+                  </div>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Created At</Text>
+                    <Text variant="bodyMd" fontWeight="semibold">{formatDate(selectedVersion.created_at)}</Text>
+                  </div>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Version Status</Text>
+                    <div style={{ marginTop: "4px" }}>
+                      {selectedVersion.version === versions[0].version ? (
+                        <Badge tone="success">Active (Current)</Badge>
+                      ) : (
+                        <Badge tone="subdued">Inactive (Old Version)</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Box>
+
+              <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                <Text variant="headingSm" as="h3">
+                  Conditions ({selectedVersion.conditions_operator || "AND"})
+                </Text>
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {Array.isArray(selectedVersion.conditions) && selectedVersion.conditions.length > 0 ? (
+                    selectedVersion.conditions.map((cond, index) => (
+                      <div key={index} style={{
+                        padding: "12px",
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px"
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Text variant="bodyMd" fontWeight="semibold" tone="brand">
+                            {CONDITION_LABELS[cond.type] || cond.type.replace(/_/g, " ")}
+                          </Text>
+                          <Badge tone="attention">
+                            {OPERATOR_LABELS[cond.operator] || cond.operator.replace(/_/g, " ")}
+                          </Badge>
+                        </div>
+                        {cond.value && (
+                          <div style={{ marginTop: "4px" }}>
+                            <Text variant="bodySm" tone="subdued">Value: </Text>
+                            <span style={{ fontSize: "13px", fontWeight: "550", color: "#111827", wordBreak: "break-all" }}>
+                              {cond.value}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <Text variant="bodyMd" tone="subdued">No conditions defined.</Text>
+                  )}
+                </div>
+              </Box>
+
+              <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                <Text variant="headingSm" as="h3">Error Display</Text>
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Block Target Field</Text>
+                    <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.error_target || "$.cart"}</Text>
+                  </div>
+                  <div>
+                    <Text variant="bodyMd" tone="subdued">Custom Error Message</Text>
+                    <div style={{
+                      padding: "12px",
+                      background: "#fff0f0",
+                      border: "1px solid #ffc1c1",
+                      borderLeft: "4px solid #ff4d4d",
+                      borderRadius: "6px",
+                      color: "#b30000",
+                      fontSize: "13px",
+                      marginTop: "6px",
+                      fontWeight: "500",
+                      lineHeight: "1.4"
+                    }}>
+                      {selectedVersion.error_message}
+                    </div>
+                  </div>
+                </div>
+              </Box>
+            </VerticalStack>
+          </Modal.Section>
+        </Modal>
+      )}
     </Page>
   );
 }
+
