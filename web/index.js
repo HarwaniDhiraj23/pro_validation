@@ -242,5 +242,11 @@ const registerWebhooksForActiveShops = async () => {
 
 app.listen(PORT, () => {
   console.log(`[Server] Listening on port ${PORT}`);
-  registerWebhooksForActiveShops();
+  // In development, shopify app dev handles webhook registration automatically.
+  // Only register programmatically in production to avoid 403 errors from stale dev tokens.
+  if (process.env.NODE_ENV === "production") {
+    registerWebhooksForActiveShops();
+  } else {
+    console.log("[Webhook Registration] Skipped in development mode (handled by Shopify CLI).");
+  }
 });
