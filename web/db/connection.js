@@ -202,8 +202,57 @@ const PREBUILT_TEMPLATES = [
     conditions: [{ type: "sku_limit", operator: "greater_than", value: "5" }],
     error_message: "A maximum of 5 unique product SKUs can be purchased per order.",
     error_target: "$.cart"
+  },
+  {
+    id: 21,
+    title: "Block PO Box from Express Shipping",
+    category: "Shipping",
+    description: "Hides Express Shipping method at checkout if the shipping address contains a PO Box.",
+    conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
+    error_message: "",
+    error_target: "Express Shipping",
+    rule_type: "delivery",
+    delivery_action: "hide"
+  },
+  {
+    id: 22,
+    title: "Hide Express Shipping for Remote States",
+    category: "Shipping",
+    description: "Hides Express Shipping options for customers in remote states like Alaska (AK) and Hawaii (HI).",
+    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    error_message: "",
+    error_target: "Express Shipping",
+    rule_type: "delivery",
+    delivery_action: "hide"
+  },
+  {
+    id: 23,
+    title: "Hide Free Shipping Under Minimum Purchase",
+    category: "Shipping",
+    description: "Ensures Free Shipping is hidden if the cart subtotal is less than $75.",
+    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "75.00" }],
+    error_message: "",
+    error_target: "Free Shipping",
+    rule_type: "delivery",
+    delivery_action: "hide"
+  },
+  {
+    id: 24,
+    title: "Hide Local Pickup for Non-Local ZIP Codes",
+    category: "Local Pickup",
+    description: "Hides the Local Pickup option if the customer's shipping address ZIP/postal code is not within specified local ZIPs (e.g. 90210).",
+    conditions: [{ type: "block_zipcodes", operator: "not_in_zips", value: "90210,90211" }],
+    error_message: "",
+    error_target: "Local Pickup",
+    rule_type: "delivery",
+    delivery_action: "hide"
   }
 ];
+
+// Map over PREBUILT_TEMPLATES to ensure all have rule_type set
+PREBUILT_TEMPLATES.forEach(t => {
+  if (!t.rule_type) t.rule_type = "validation";
+});
 
 // Helper to initialize fallback JSON DB if not exists
 function initFallbackDB() {
@@ -278,6 +327,12 @@ if (pool && !useFallback) {
               client.query(
                 `ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
                  ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+                 ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
                  UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
                  UPDATE rules SET error_target = '$.cart.lines[0].quantity' WHERE error_target = '$.cart.lines[0]';`,
                 (migErr) => {
@@ -309,8 +364,15 @@ export async function dbQuery(text, params = []) {
       const res = await pool.query(text, params);
       return res;
     } catch (err) {
-      console.error("Database query error, reverting to fallback DB:", err.message);
-      useFallback = true;
+      console.error("Database query error:", err.message);
+      // Only fallback to JSON DB if it is a genuine connection error, not a query logic/syntax error
+      const connectionErrorCodes = ["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "57P01", "57P02", "57P03", "08000", "08003", "08006", "08001", "08004"];
+      if (err.code && (connectionErrorCodes.includes(err.code) || err.message.includes("connection"))) {
+        console.warn("Reverting to fallback DB due to connection failure.");
+        useFallback = true;
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -347,7 +409,7 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from rules")) {
     const shop = params[0];
     let filteredRules = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
-    
+
     // If the query specifies active status, filter by active status and date schedule
     if (lowerText.includes("status = 'active'") || lowerText.includes("status = $2") || lowerText.includes("status='active'")) {
       const now = new Date();
@@ -375,20 +437,29 @@ export async function dbQuery(text, params = []) {
   }
 
   if (lowerText.startsWith("insert into rules")) {
-    // Check if target_shop is part of params (length 11 instead of 10)
-    const hasTargetShop = params.length === 11;
-    const shop = params[0];
-    const target_shop = hasTargetShop ? params[1] : null;
-    const titleIdx = hasTargetShop ? 2 : 1;
-    const title = params[titleIdx];
-    const status = params[titleIdx + 1] || "active";
-    const priority = params[titleIdx + 2] || 0;
-    const conditions_operator = params[titleIdx + 3] || "AND";
-    const conditions = params[titleIdx + 4];
-    const error_message = params[titleIdx + 5];
-    const error_target = params[titleIdx + 6] || "$.cart";
-    const schedule_start = params[titleIdx + 7];
-    const schedule_end = params[titleIdx + 8];
+    let shop = params[0];
+    let target_shop = null;
+    let title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end;
+    let rule_type = "validation";
+    let delivery_action = null;
+
+    if (params.length === 13) {
+      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action] = params;
+    } else if (params.length === 11) {
+      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end] = params;
+      rule_type = "validation";
+      delivery_action = null;
+    } else {
+      title = params[1];
+      status = params[2];
+      priority = params[3];
+      conditions_operator = params[4];
+      conditions = params[5];
+      error_message = params[6];
+      error_target = params[7] || "$.cart";
+      schedule_start = params[8];
+      schedule_end = params[9];
+    }
 
     const newRule = {
       id: db.rules.length > 0 ? Math.max(...db.rules.map(r => r.id)) + 1 : 1,
@@ -403,6 +474,8 @@ export async function dbQuery(text, params = []) {
       error_target,
       schedule_start,
       schedule_end,
+      rule_type: rule_type || "validation",
+      delivery_action: delivery_action || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -411,11 +484,32 @@ export async function dbQuery(text, params = []) {
     return { rows: [newRule] };
   }
 
-  if (lowerText.startsWith("update rules set title = $1") || lowerText.startsWith("update rules set target_shop = $1")) {
-    // Check parameters mapping for update:
-    // If target_shop is part of update fields
+  if (lowerText.startsWith("update rules set title = $1") || lowerText.startsWith("update rules set target_shop = $1") || lowerText.includes("update rules set")) {
     let updated;
-    if (lowerText.includes("target_shop = $1")) {
+    if (params.length === 14) {
+      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, id, shop] = params;
+      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      if (ruleIdx !== -1) {
+        updated = {
+          ...db.rules[ruleIdx],
+          target_shop: target_shop || null,
+          title,
+          status,
+          priority: parseInt(priority) || 0,
+          conditions_operator,
+          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          error_message,
+          error_target,
+          schedule_start,
+          schedule_end,
+          rule_type: rule_type || "validation",
+          delivery_action: delivery_action || null,
+          updated_at: new Date().toISOString()
+        };
+        db.rules[ruleIdx] = updated;
+        writeFallbackDB(db);
+      }
+    } else if (lowerText.includes("target_shop = $1") && params.length === 12) {
       const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
       const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
       if (ruleIdx !== -1) {
@@ -511,17 +605,25 @@ export async function dbQuery(text, params = []) {
   }
 
   if (lowerText.startsWith("insert into rule_versions")) {
-    const hasTargetShop = params.length === 9;
-    const rule_id = params[0];
-    const version = params[1];
-    const target_shop = hasTargetShop ? params[2] : null;
-    const titleIdx = hasTargetShop ? 3 : 2;
-    const title = params[titleIdx];
-    const priority = params[titleIdx + 1] || 0;
-    const conditions_operator = params[titleIdx + 2];
-    const conditions = params[titleIdx + 3];
-    const error_message = params[titleIdx + 4];
-    const error_target = params[titleIdx + 5];
+    let rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target;
+    let rule_type = "validation";
+    let delivery_action = null;
+
+    if (params.length === 11) {
+      [rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action] = params;
+    } else {
+      const hasTargetShop = params.length === 9;
+      rule_id = params[0];
+      version = params[1];
+      target_shop = hasTargetShop ? params[2] : null;
+      const titleIdx = hasTargetShop ? 3 : 2;
+      title = params[titleIdx];
+      priority = params[titleIdx + 1] || 0;
+      conditions_operator = params[titleIdx + 2];
+      conditions = params[titleIdx + 3];
+      error_message = params[titleIdx + 4];
+      error_target = params[titleIdx + 5];
+    }
 
     const newVersion = {
       id: db.rule_versions.length > 0 ? Math.max(...db.rule_versions.map(v => v.id)) + 1 : 1,
@@ -534,6 +636,8 @@ export async function dbQuery(text, params = []) {
       conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
       error_message,
       error_target,
+      rule_type: rule_type || "validation",
+      delivery_action: delivery_action || null,
       created_at: new Date().toISOString()
     };
     db.rule_versions.push(newVersion);
@@ -574,7 +678,22 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("delete from rule_analytics")) {
     const shop = params[0];
     const beforeLen = db.rule_analytics.length;
-    db.rule_analytics = db.rule_analytics.filter(a => a.shop !== shop);
+
+    if (lowerText.includes("cart_id = $2")) {
+      const cartId = params[1];
+      if (lowerText.includes("event_type = 'check'")) {
+        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && a.event_type === 'check'));
+      } else if (lowerText.includes("event_type = 'block'")) {
+        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && a.event_type === 'block'));
+      } else if (lowerText.includes("event_type in ('check', 'block')") || lowerText.includes("event_type in ('check', 'block')")) {
+        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && (a.event_type === 'check' || a.event_type === 'block')));
+      } else {
+        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId));
+      }
+    } else {
+      db.rule_analytics = db.rule_analytics.filter(a => a.shop !== shop);
+    }
+
     writeFallbackDB(db);
     return { rowCount: beforeLen - db.rule_analytics.length };
   }
@@ -656,7 +775,19 @@ export async function dbQuery(text, params = []) {
   if (lowerText.includes("rule_analytics") && lowerText.includes("cart_id") && lowerText.includes("limit 1")) {
     const shop = params[0];
     const cartId = params[1];
-    const match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId);
+    let match;
+    if (lowerText.includes("event_type = 'block'") && lowerText.includes("rule_id = $3")) {
+      const ruleId = parseInt(params[2]);
+      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'block' && a.rule_id === ruleId);
+    } else if (lowerText.includes("event_type = 'allow'")) {
+      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'allow');
+    } else if (lowerText.includes("event_type = 'check'")) {
+      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'check');
+    } else if (lowerText.includes("event_type in ('check', 'allow')") || lowerText.includes("event_type in ('check', 'allow')")) {
+      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && (a.event_type === 'check' || a.event_type === 'allow'));
+    } else {
+      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId);
+    }
     return { rows: match ? [{ id: match.id }] : [] };
   }
 

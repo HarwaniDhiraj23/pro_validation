@@ -1,0 +1,62 @@
+query RunInput {
+  deliveryCustomization {
+    metafield(namespace: "cart-validation", key: "delivery-rules") {
+      value
+    }
+  }
+  cart {
+    cost {
+      subtotalAmount {
+        amount
+      }
+    }
+    buyerIdentity {
+      isAuthenticated
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+      customer {
+        metafield(namespace: "cart-validation", key: "metadata") {
+          value
+        }
+      }
+    }
+    deliveryGroups {
+      deliveryAddress {
+        address1
+        address2
+        provinceCode
+        countryCode
+        zip
+      }
+      deliveryOptions {
+        handle
+        title
+      }
+    }
+    lines {
+      quantity
+      sellingPlanAllocation {
+        sellingPlan {
+          id
+        }
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          sku
+          weight
+          product {
+            id
+            vendor
+            metafield(namespace: "cart-validation", key: "metadata") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}

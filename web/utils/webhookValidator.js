@@ -3,11 +3,20 @@
  * to determine if it would be blocked by any active rules.
  */
 export function validateCheckoutPayload(checkout, rules) {
-  const shippingAddress = checkout.shipping_address || {};
-  const customer = checkout.customer || {};
-  const isGuest = !checkout.customer || checkout.customer.state !== "enabled";
-  const lineItems = checkout.line_items || [];
-  const subtotal = parseFloat(checkout.subtotal_price || checkout.total_line_items_price || 0);
+  // Support both Shopify Admin API Webhook structures (shipping_address) and Extension simulation structures (deliveryGroups)
+  const shippingAddress = checkout.shipping_address || 
+                          checkout.shippingAddress || 
+                          checkout.cart?.deliveryGroups?.[0]?.deliveryAddress || 
+                          checkout.deliveryGroups?.[0]?.deliveryAddress || {};
+  const customer = checkout.customer || checkout.cart?.buyerIdentity?.customer || {};
+  const isGuest = !customer || customer.state !== "enabled";
+  const lineItems = checkout.line_items || checkout.lineItems || checkout.cart?.lines || [];
+  const subtotal = parseFloat(checkout.subtotal_price || checkout.total_line_items_price || checkout.totalPrice || checkout.cart?.cost?.subtotalAmount?.amount || 0);
+
+  console.log("[Validator Debug] Extracting payload elements:");
+  console.log(" - shippingAddress:", JSON.stringify(shippingAddress));
+  console.log(" - lineItems Count:", lineItems.length);
+  console.log(" - subtotal:", subtotal);
 
   for (const rule of rules) {
     if (rule.status !== "active") continue;
@@ -18,14 +27,17 @@ export function validateCheckoutPayload(checkout, rules) {
     const op = rule.conditions_operator || "AND";
     const results = conditions.map(cond => {
       try {
-        return evaluateCondition(cond, {
+        const res = evaluateCondition(cond, {
           shippingAddress,
           customer,
           isGuest,
           lineItems,
           subtotal
         });
+        console.log(` - Rule "${rule.title}" cond [${cond.type} ${cond.operator}] result:`, res);
+        return res;
       } catch (e) {
+        console.log(` - Rule "${rule.title}" evaluation error:`, e.message);
         return false;
       }
     });
@@ -33,6 +45,8 @@ export function validateCheckoutPayload(checkout, rules) {
     const isTriggered = op === "OR" 
       ? results.some(r => r === true)
       : results.every(r => r === true);
+
+    console.log(` - Rule "${rule.title}" final outcome: ${isTriggered}`);
 
     if (isTriggered) {
       return rule; // Returns the first rule that triggers a block
@@ -44,6 +58,7 @@ export function validateCheckoutPayload(checkout, rules) {
 
 function evaluateCondition(cond, data) {
   const { shippingAddress, customer, isGuest, lineItems, subtotal } = data;
+  const hasAddress = !!(shippingAddress.country_code || shippingAddress.countryCode || shippingAddress.province_code || shippingAddress.provinceCode || shippingAddress.zip || shippingAddress.zip_code || shippingAddress.address1 || shippingAddress.address_1);
 
   switch (cond.type) {
     case "login_required":
@@ -57,6 +72,7 @@ function evaluateCondition(cond, data) {
     }
 
     case "shipping_address_pobox": {
+      if (!hasAddress) return false;
       const addr1 = (shippingAddress.address1 || shippingAddress.address_1 || "").toLowerCase();
       const addr2 = (shippingAddress.address2 || shippingAddress.address_2 || "").toLowerCase();
       const poBoxRegex = /\b(p\s*o\s*box|post\s*office\s*box|p\.?\s*o\.?\s*box)\b/i;
@@ -65,6 +81,7 @@ function evaluateCondition(cond, data) {
     }
 
     case "block_states": {
+      if (!hasAddress) return false;
       const state = (shippingAddress.province_code || shippingAddress.provinceCode || "").toUpperCase().trim();
       const blocked = (cond.value || "").toUpperCase().split(",").map(s => s.trim());
       const inStates = blocked.includes(state);
@@ -72,6 +89,7 @@ function evaluateCondition(cond, data) {
     }
 
     case "block_countries": {
+      if (!hasAddress) return false;
       const country = (shippingAddress.country_code || shippingAddress.countryCode || "").toUpperCase().trim();
       const blocked = (cond.value || "").toUpperCase().split(",").map(c => c.trim());
       const inCountries = blocked.includes(country);
@@ -79,6 +97,7 @@ function evaluateCondition(cond, data) {
     }
 
     case "block_zipcodes": {
+      if (!hasAddress) return false;
       const zip = (shippingAddress.zip || shippingAddress.zip_code || "").toLowerCase().trim();
       const blocked = (cond.value || "").toLowerCase().split(",").map(z => z.trim());
       const inZips = blocked.some(z => zip.startsWith(z));
@@ -86,6 +105,7 @@ function evaluateCondition(cond, data) {
     }
 
     case "address_regex": {
+      if (!hasAddress) return false;
       const addr = (shippingAddress.address1 || shippingAddress.address_1 || "") + " " + (shippingAddress.address2 || shippingAddress.address_2 || "");
       try {
         let pattern = cond.value || "";

@@ -1,6 +1,6 @@
 import express from "express";
 import { dbQuery } from "../db/connection.js";
-import { syncRulesToShopify } from "./rules.js";
+import { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify } from "./rules.js";
 
 const router = express.Router();
 
@@ -8,12 +8,19 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
-    // Fetch active/inactive rules to exclude already applied templates (excluding deleted ones)
-    const existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [shop]);
-    const existingTitles = existingRulesRes.rows.map(r => r.title.toLowerCase());
-
-    const result = await dbQuery("SELECT * FROM rule_templates ORDER BY id ASC");
+    const ruleType = req.query.rule_type || "all";
     
+    let existingRulesRes;
+    let result;
+    if (ruleType === "all") {
+      existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [shop]);
+      result = await dbQuery("SELECT * FROM rule_templates ORDER BY id ASC");
+    } else {
+      existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND rule_type = $2 AND status != 'deleted'", [shop, ruleType]);
+      result = await dbQuery("SELECT * FROM rule_templates WHERE rule_type = $1 ORDER BY id ASC", [ruleType]);
+    }
+    
+    const existingTitles = existingRulesRes.rows.map(r => r.title.toLowerCase());
     const filteredTemplates = result.rows.filter(tmpl => 
       !existingTitles.includes(tmpl.title.toLowerCase())
     );
@@ -53,8 +60,8 @@ router.post("/:id/apply", async (req, res) => {
 
     // Create a new rule from template
     const ruleRes = await dbQuery(
-      `INSERT INTO rules (shop, title, status, priority, conditions_operator, conditions, error_message, error_target)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      `INSERT INTO rules (shop, title, status, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         shop,
         template.title,
@@ -63,15 +70,17 @@ router.post("/:id/apply", async (req, res) => {
         "AND",
         JSON.stringify(template.conditions),
         template.error_message,
-        template.error_target
+        template.error_target,
+        template.rule_type || "validation",
+        template.delivery_action || null
       ]
     );
     const newRule = ruleRes.rows[0];
 
     // Create version 1
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         newRule.id,
         1,
@@ -80,12 +89,16 @@ router.post("/:id/apply", async (req, res) => {
         newRule.conditions_operator,
         JSON.stringify(newRule.conditions),
         newRule.error_message,
-        newRule.error_target
+        newRule.error_target,
+        newRule.rule_type || "validation",
+        newRule.delivery_action || null
       ]
     );
 
     // Sync to Shopify
     await syncRulesToShopify(res.locals.shopify.session);
+    await syncDeliveryRulesToShopify(res.locals.shopify.session);
+    await syncPaymentRulesToShopify(res.locals.shopify.session);
 
     res.status(201).json(newRule);
   } catch (error) {

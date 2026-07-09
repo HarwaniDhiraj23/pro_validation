@@ -447,9 +447,30 @@ export default function RulesList({ navigate }) {
                       ) : (
                         <Badge tone="info">Global (All Stores)</Badge>
                       )}
+                      {rule.rule_type === "delivery" ? (
+                        <>
+                          <Badge tone="attention">Delivery Customization</Badge>
+                          {rule.delivery_action === "rename" ? (
+                            <Badge tone="attention">Rename</Badge>
+                          ) : (
+                            <Badge tone="critical">Hide</Badge>
+                          )}
+                        </>
+                      ) : rule.rule_type === "payment" ? (
+                        <>
+                          <Badge tone="attention">Payment Customization</Badge>
+                          {rule.delivery_action === "rename" ? (
+                            <Badge tone="attention">Rename</Badge>
+                          ) : (
+                            <Badge tone="critical">Hide</Badge>
+                          )}
+                        </>
+                      ) : (
+                        <Badge tone="info">Checkout Validation</Badge>
+                      )}
                     </div>
-                    <div className="rl-meta">
-                      <span>Target:</span>
+                    <div className="rl-meta" style={{ flexWrap: "wrap", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>{rule.rule_type === "delivery" ? "Target Method:" : rule.rule_type === "payment" ? "Target Payment:" : "Target:"}</span>
                       <code style={{
                         background: "#f1f5f9",
                         color: "#475569",
@@ -460,6 +481,13 @@ export default function RulesList({ navigate }) {
                         fontFamily: "monospace",
                         border: "1px solid #e2e8f0"
                       }}>{rule.error_target}</code>
+                      {(rule.rule_type === "delivery" || rule.rule_type === "payment") && rule.delivery_action === "rename" && (
+                        <>
+                          <span style={{ margin: "0 4px" }}>→</span>
+                          <span>Rename to:</span>
+                          <span style={{ fontWeight: "600", color: "#111827" }}>"{rule.error_message}"</span>
+                        </>
+                      )}
                     </div>
 
                     {rule.conditions && rule.conditions.length > 0 && (

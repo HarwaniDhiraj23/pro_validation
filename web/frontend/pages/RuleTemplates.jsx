@@ -113,9 +113,14 @@ export default function RuleTemplates({ navigate }) {
                   boxSizing: "border-box"
                 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <div style={{ display: "flex", justifyContent: "flex-start" }}>
-                      <Badge tone="info">{tmpl.category}</Badge>
-                    </div>
+                     <div style={{ display: "flex", justifyContent: "flex-start", gap: "6px", flexWrap: "wrap" }}>
+                       <Badge tone="info">{tmpl.category}</Badge>
+                       {tmpl.rule_type === "delivery" ? (
+                         <Badge tone="attention">Delivery</Badge>
+                       ) : (
+                         <Badge tone="info">Validation</Badge>
+                       )}
+                     </div>
                     <Text variant="headingMd" as="h3">
                       {tmpl.title}
                     </Text>

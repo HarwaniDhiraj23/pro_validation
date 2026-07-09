@@ -243,3 +243,21 @@ pnpm dev --tunnel-url https://randomly-generated-hostname.trycloudflare.com:3000
     - [`useTranslation` hook](https://react.i18next.com/latest/usetranslation-hook)
     - [`Trans` component usage with components array](https://react.i18next.com/latest/trans-component#alternative-usage-components-array)
   - [i18n-ally VS Code extension](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally)
+
+## Shipping Customization Tip
+
+> [!TIP]
+> **How to control Free Shipping Thresholds easily from the App:**
+> 
+> To avoid conflicts between Shopify's built-in shipping settings and this app's rules, follow these steps:
+> 
+> 1. **In Shopify Admin Settings**:
+>    * Go to **Settings > Shipping and delivery**.
+>    * Set your **"Free Shipping"** rate's minimum order price to **$0**. (This makes the rate theoretically eligible for all orders).
+> 
+> 2. **In This App**:
+>    * Create a **Delivery Customization** rule.
+>    * Set the target method to **"Free Shipping"** and set the action to **Hide**.
+>    * Add a **Minimum Order Value** condition (e.g. *Less than* `1000.00`).
+> 
+> **Result**: The app will handle hiding the rate dynamically, giving you 100% control over the threshold ($50, $1000, etc.) directly from the app dashboard!

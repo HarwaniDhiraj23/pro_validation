@@ -1,0 +1,57 @@
+query RunInput {
+  cart {
+    cost {
+      subtotalAmount {
+        amount
+      }
+    }
+    buyerIdentity {
+      isAuthenticated
+      email
+      phone
+      customer {
+        id
+        metafield(namespace: "cart-validation", key: "metadata") {
+          value
+        }
+      }
+    }
+    deliveryGroups {
+      deliveryAddress {
+        address1
+        address2
+        city
+        provinceCode
+        countryCode
+        zip
+        phone
+      }
+    }
+    lines {
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          id
+          sku
+          weight
+          product {
+            id
+            vendor
+            metafield(namespace: "cart-validation", key: "metadata") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+  paymentMethods {
+    id
+    name
+  }
+  paymentCustomization {
+    metafield(namespace: "cart-validation", key: "payment-rules") {
+      value
+    }
+  }
+}

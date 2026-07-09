@@ -284,7 +284,10 @@ export default function RuleVersions({ ruleId, navigate }) {
                 <div className="col-details">
                   <div className="ver-title">{ver.title}</div>
                   <div className="ver-error-msg" title={ver.error_message}>
-                    {ver.error_message}
+                    {ver.rule_type === "delivery"
+                      ? `Action: ${ver.delivery_action === "rename" ? `Rename "${ver.error_target}" to "${ver.error_message}"` : `Hide "${ver.error_target}"`}`
+                      : ver.error_message
+                    }
                   </div>
                 </div>
                 <div className="col-conds">
@@ -419,32 +422,74 @@ export default function RuleVersions({ ruleId, navigate }) {
                 </div>
               </Box>
 
-              <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
-                <Text variant="headingSm" as="h3">Error Display</Text>
-                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div>
-                    <Text variant="bodyMd" tone="subdued">Block Target Field</Text>
-                    <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.error_target || "$.cart"}</Text>
+              {selectedVersion.rule_type === "delivery" ? (
+                <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                  <Text variant="headingSm" as="h3">Delivery Customization Action</Text>
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Target Shipping Method</Text>
+                      <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.error_target}</Text>
+                    </div>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Action Type</Text>
+                      <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.delivery_action === "rename" ? "Rename" : "Hide"}</Text>
+                    </div>
+                    {selectedVersion.delivery_action === "rename" && (
+                      <div>
+                        <Text variant="bodyMd" tone="subdued">Rename To</Text>
+                        <Text variant="bodyMd" fontWeight="semibold">"{selectedVersion.error_message}"</Text>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <Text variant="bodyMd" tone="subdued">Custom Error Message</Text>
-                    <div style={{
-                      padding: "12px",
-                      background: "#fff0f0",
-                      border: "1px solid #ffc1c1",
-                      borderLeft: "4px solid #ff4d4d",
-                      borderRadius: "6px",
-                      color: "#b30000",
-                      fontSize: "13px",
-                      marginTop: "6px",
-                      fontWeight: "500",
-                      lineHeight: "1.4"
-                    }}>
-                      {selectedVersion.error_message}
+                </Box>
+              ) : selectedVersion.rule_type === "payment" ? (
+                <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                  <Text variant="headingSm" as="h3">Payment Customization Action</Text>
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Target Payment Method</Text>
+                      <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.error_target}</Text>
+                    </div>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Action Type</Text>
+                      <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.delivery_action === "rename" ? "Rename" : "Hide"}</Text>
+                    </div>
+                    {selectedVersion.delivery_action === "rename" && (
+                      <div>
+                        <Text variant="bodyMd" tone="subdued">Rename To</Text>
+                        <Text variant="bodyMd" fontWeight="semibold">"{selectedVersion.error_message}"</Text>
+                      </div>
+                    )}
+                  </div>
+                </Box>
+              ) : (
+                <Box style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+                  <Text variant="headingSm" as="h3">Error Display</Text>
+                  <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Block Target Field</Text>
+                      <Text variant="bodyMd" fontWeight="semibold">{selectedVersion.error_target || "$.cart"}</Text>
+                    </div>
+                    <div>
+                      <Text variant="bodyMd" tone="subdued">Custom Error Message</Text>
+                      <div style={{
+                        padding: "12px",
+                        background: "#fff0f0",
+                        border: "1px solid #ffc1c1",
+                        borderLeft: "4px solid #ff4d4d",
+                        borderRadius: "6px",
+                        color: "#b30000",
+                        fontSize: "13px",
+                        marginTop: "6px",
+                        fontWeight: "500",
+                        lineHeight: "1.4"
+                      }}>
+                        {selectedVersion.error_message}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Box>
+                </Box>
+              )}
             </VerticalStack>
           </Modal.Section>
         </Modal>

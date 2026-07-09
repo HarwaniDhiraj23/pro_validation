@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, Layout, FormLayout, TextField, Select, Button, HorizontalStack, VerticalStack, Box, Text, Spinner, Checkbox, Modal } from "@shopify/polaris";
+import { Page, Card, Layout, FormLayout, TextField, Select, Button, HorizontalStack, VerticalStack, Box, Text, Spinner, Checkbox, Modal, Banner } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 const US_STATES = [
@@ -200,6 +200,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [targetShop, setTargetShop] = useState(""); // "" means All Stores / Default
   const [installedShops, setInstalledShops] = useState([]);
   const [conditionsOperator, setConditionsOperator] = useState("AND");
+  const [ruleType, setRuleType] = useState("validation"); // validation or delivery
+  const [deliveryAction, setDeliveryAction] = useState("hide"); // hide or rename
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
   const [errorTarget, setErrorTarget] = useState("$.cart");
   const [conditions, setConditions] = useState([
@@ -217,7 +219,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [scheduleEnd, setScheduleEnd] = useState("");
   const [enableScheduling, setEnableScheduling] = useState(false);
 
-  // Fetch installed active stores on component mount
+  const [shippingMethods, setShippingMethods] = useState(["Standard", "Express", "Local Pickup", "Free Shipping"]);
+  const [customShippingMethod, setCustomShippingMethod] = useState("");
+  const [selectShippingValue, setSelectShippingValue] = useState("");
+
+  // Fetch installed active stores and shipping methods on component mount
   useEffect(() => {
     fetch("/api/rules/installed-shops")
       .then(res => res.json())
@@ -227,6 +233,15 @@ export default function RuleBuilder({ ruleId, navigate }) {
         }
       })
       .catch(err => console.error("Error fetching installed shops:", err));
+
+    fetch("/api/rules/shipping-methods")
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setShippingMethods(data);
+        }
+      })
+      .catch(err => console.error("Error fetching shipping methods:", err));
   }, []);
 
   useEffect(() => {
@@ -243,6 +258,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setPriority(String(data.priority || 0));
             setStatus(data.status);
             setTargetShop(data.target_shop || "");
+            setRuleType(data.rule_type || "validation");
+            setDeliveryAction(data.delivery_action || "hide");
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
@@ -282,6 +299,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setPriority("0");
             setStatus("active");
             setTargetShop("");
+            setRuleType(data.rule_type || "validation");
+            setDeliveryAction(data.delivery_action || "hide");
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
@@ -296,6 +315,17 @@ export default function RuleBuilder({ ruleId, navigate }) {
         });
     }
   }, [ruleId]);
+
+  useEffect(() => {
+    if (ruleType === "delivery") {
+      if (shippingMethods.includes(errorTarget)) {
+        setSelectShippingValue(errorTarget);
+      } else if (errorTarget && errorTarget !== "custom") {
+        setSelectShippingValue("custom");
+        setCustomShippingMethod(errorTarget);
+      }
+    }
+  }, [errorTarget, shippingMethods, ruleType]);
 
   const handleAddCondition = () => {
     setConditions([
@@ -418,9 +448,20 @@ export default function RuleBuilder({ ruleId, navigate }) {
       shopify.toast.show("Title is required", { isError: true });
       return;
     }
-    if (!errorMessage.trim()) {
-      shopify.toast.show("Error message is required", { isError: true });
-      return;
+    if (ruleType === "delivery" || ruleType === "payment") {
+      if (!errorTarget.trim()) {
+        shopify.toast.show(`Target ${ruleType} method name is required`, { isError: true });
+        return;
+      }
+      if (deliveryAction === "rename" && !errorMessage.trim()) {
+        shopify.toast.show("Renamed title is required for rename action", { isError: true });
+        return;
+      }
+    } else {
+      if (!errorMessage.trim()) {
+        shopify.toast.show("Error message is required", { isError: true });
+        return;
+      }
     }
     if (conditions.length === 0) {
       shopify.toast.show("At least one condition must be specified", { isError: true });
@@ -489,8 +530,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
       status,
       conditions_operator: conditionsOperator,
       conditions,
-      error_message: errorMessage,
+      error_message: (ruleType === "delivery" || ruleType === "payment") && deliveryAction === "hide" ? "" : errorMessage,
       error_target: errorTarget,
+      rule_type: ruleType,
+      delivery_action: (ruleType === "delivery" || ruleType === "payment") ? deliveryAction : null,
       schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
       schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null
     };
@@ -530,7 +573,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
 
   return (
     <Page
-      title={ruleId && ruleId !== "new" ? "Edit Validation Rule" : "Create Validation Rule"}
+      title={ruleId && ruleId !== "new"
+        ? (ruleType === "delivery" ? "Edit Delivery Customization" : ruleType === "payment" ? "Edit Payment Customization" : "Edit Validation Rule")
+        : (ruleType === "delivery" ? "Create Delivery Customization" : ruleType === "payment" ? "Create Payment Customization" : "Create Validation Rule")
+      }
       backAction={{ content: "Rules", onAction: () => navigate("/rules") }}
       primaryAction={{
         content: saving ? "Saving..." : "Save Rule",
@@ -598,6 +644,29 @@ export default function RuleBuilder({ ruleId, navigate }) {
                     onChange={setTitle}
                     placeholder="e.g. Block PO Box Orders"
                     autoComplete="off"
+                  />
+
+                  <Select
+                    label="Rule Type"
+                    options={[
+                      { label: "Checkout Validation", value: "validation" },
+                      { label: "Delivery Customization", value: "delivery" },
+                      { label: "Payment Customization", value: "payment" }
+                    ]}
+                    value={ruleType}
+                    onChange={(val) => {
+                      setRuleType(val);
+                      if (val === "delivery") {
+                        setErrorTarget("Express");
+                        setErrorMessage("");
+                      } else if (val === "payment") {
+                        setErrorTarget("Cash on Delivery (COD)");
+                        setErrorMessage("");
+                      } else {
+                        setErrorTarget("$.cart");
+                        setErrorMessage("We cannot complete your checkout with the current items or address details.");
+                      }
+                    }}
                   />
 
                   <HorizontalStack gap="4">
@@ -800,28 +869,156 @@ export default function RuleBuilder({ ruleId, navigate }) {
               </Box>
             </Card>
 
-            {/* Checkout Block Response Settings */}
-            <Card title="Error Message Display">
-              <Box padding="5">
-                <FormLayout>
-                  <TextField
-                    label="Custom Error Message *"
-                    value={errorMessage}
-                    onChange={setErrorMessage}
-                    multiline={2}
-                    helpText="This is what the customer will see when checkout is blocked."
-                    autoComplete="off"
-                  />
-                  <Select
-                    label="Block Target Field"
-                    options={ERROR_TARGETS}
-                    value={errorTarget}
-                    onChange={setErrorTarget}
-                    helpText="Specifies where the error badge will be attached in the checkout UI."
-                  />
-                </FormLayout>
-              </Box>
-            </Card>
+            {/* Checkout Block Response Settings / Delivery & Payment Customization Logic */}
+            {ruleType === "delivery" ? (
+              <Card title="Customization Logic">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Target Shipping Method Name *"
+                      options={[
+                        ...shippingMethods.map(m => ({ label: m, value: m })),
+                        { label: "Custom (Type manually)...", value: "custom" }
+                      ]}
+                      value={selectShippingValue}
+                      onChange={(val) => {
+                        setSelectShippingValue(val);
+                        if (val !== "custom") {
+                          setErrorTarget(val);
+                        } else {
+                          setErrorTarget(customShippingMethod || "");
+                        }
+                      }}
+                      helpText="Select from active shipping methods on your store, or select Custom to type manually."
+                    />
+
+                    {selectShippingValue === "custom" && (
+                      <TextField
+                        label="Custom Shipping Method Name *"
+                        placeholder="e.g. Economy Post"
+                        value={customShippingMethod}
+                        onChange={(val) => {
+                          setCustomShippingMethod(val);
+                          setErrorTarget(val);
+                        }}
+                        autoComplete="off"
+                        helpText="Enter the exact or partial shipping method name to target."
+                      />
+                    )}
+
+                    <Select
+                      label="Delivery Action"
+                      options={[
+                        { label: "Hide Method", value: "hide" },
+                        { label: "Rename Method", value: "rename" }
+                      ]}
+                      value={deliveryAction}
+                      onChange={setDeliveryAction}
+                    />
+
+                    {deliveryAction === "rename" && (
+                      <TextField
+                        label="Rename To *"
+                        placeholder="e.g. Expedited Carrier Shipping"
+                        value={errorMessage}
+                        onChange={setErrorMessage}
+                        autoComplete="off"
+                      />
+                    )}
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : ruleType === "payment" ? (
+              <Card title="Payment Customization Logic">
+                <Box padding="5">
+                  <FormLayout>
+                    {deliveryAction !== "rename" && ["Credit Card", "(for testing) Bogus Gateway"].some(m => errorTarget.toLowerCase().includes(m.toLowerCase())) && (
+                      <Banner tone="warning" title="Shopify Plus Required">
+                        <p>
+                          Hiding credit card payment methods (e.g. Credit Card, Bogus Gateway) at checkout is only supported on <strong>Shopify Plus</strong> stores.
+                          On non-Plus stores, Shopify will silently ignore the hide operation for credit card gateways.
+                          Non-credit-card methods like COD and PayPal can be hidden on all plans.
+                        </p>
+                      </Banner>
+                    )}
+                    <Select
+                      label="Target Payment Method Name *"
+                      options={[
+                        { label: "Cash on Delivery (COD)", value: "Cash on Delivery (COD)" },
+                        { label: "PayPal", value: "PayPal" },
+                        { label: "Credit Card", value: "Credit Card" },
+                        { label: "(for testing) Bogus Gateway", value: "(for testing) Bogus Gateway" },
+                        { label: "Custom (Type manually)...", value: "custom" }
+                      ]}
+                      value={["Cash on Delivery (COD)", "PayPal", "Credit Card", "(for testing) Bogus Gateway"].includes(errorTarget) ? errorTarget : "custom"}
+                      onChange={(val) => {
+                        if (val !== "custom") {
+                          setErrorTarget(val);
+                        } else {
+                          setErrorTarget("");
+                        }
+                      }}
+                      helpText="Select or enter the payment method name to customize."
+                    />
+
+                    {!["Cash on Delivery (COD)", "PayPal", "Credit Card", "(for testing) Bogus Gateway"].includes(errorTarget) && (
+                      <TextField
+                        label="Custom Payment Method Name *"
+                        placeholder="e.g. Bank Deposit"
+                        value={errorTarget}
+                        onChange={setErrorTarget}
+                        autoComplete="off"
+                        helpText="Enter the exact or partial payment method name to target."
+                      />
+                    )}
+
+                    <Select
+                      label="Payment Action"
+                      options={[
+                        { label: "Hide Method", value: "hide" },
+                        { label: "Rename Method", value: "rename" }
+                      ]}
+                      value={deliveryAction || "hide"}
+                      onChange={setDeliveryAction}
+                    />
+
+                    {deliveryAction === "rename" && (
+                      <TextField
+                        label="Rename To *"
+                        placeholder="e.g. Pay with Cash"
+                        value={errorMessage}
+                        onChange={setErrorMessage}
+                        autoComplete="off"
+                      />
+                    )}
+
+
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : (
+              <Card title="Error Message Display">
+                <Box padding="5">
+                  <FormLayout>
+                    <TextField
+                      label="Custom Error Message *"
+                      value={errorMessage}
+                      onChange={setErrorMessage}
+                      multiline={2}
+                      helpText="This is what the customer will see when checkout is blocked."
+                      autoComplete="off"
+                    />
+                    <Select
+                      label="Block Target Field"
+                      options={ERROR_TARGETS}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                      helpText="Specifies where the error badge will be attached in the checkout UI."
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            )}
           </VerticalStack>
         </Layout.Section>
       </Layout>
