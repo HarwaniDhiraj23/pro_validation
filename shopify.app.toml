@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "a076a9af36e2033b90fd58de755d8184"
+client_id = "a6ac69ec33ef3bd63db0fec6e865bfe9"
 name = "pro-validation"
 application_url = "https://example.com"
 embedded = true
@@ -13,7 +13,7 @@ scopes = "write_products,write_validations,read_checkouts,read_orders,write_deli
 redirect_urls = [ "https://example.com/api/auth" ]
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-10"
 
 [[webhooks.subscriptions]]
 topics = [ "checkouts/create", "checkouts/update" ]
@@ -28,4 +28,5 @@ topics = [ "app/uninstalled" ]
 uri = "/api/webhooks"
 
 [build]
+include_config_on_deploy = true
 automatically_update_urls_on_dev = true
