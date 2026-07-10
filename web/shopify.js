@@ -20,7 +20,7 @@ const shopify = shopifyApp({
   api: {
     apiVersion: LATEST_API_VERSION,
     restResources,
-    allowedClockSkew: 60,
+    allowedClockSkew: 3600,
     future: {
       customerAddressDefaultFix: true,
       lineItemBilling: true,

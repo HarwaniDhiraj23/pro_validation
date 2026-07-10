@@ -421,8 +421,10 @@ export async function dbQuery(text, params = []) {
       });
     }
 
-    // Order by priority desc, id desc
+    // Order by status (active first), priority desc, id desc
     filteredRules.sort((a, b) => {
+      if (a.status === 'active' && b.status !== 'active') return -1;
+      if (a.status !== 'active' && b.status === 'active') return 1;
       if (b.priority !== a.priority) return b.priority - a.priority;
       return b.id - a.id;
     });

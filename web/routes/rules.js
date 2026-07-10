@@ -723,12 +723,12 @@ router.get("/", async (req, res) => {
     let result;
     if (ruleType === "all") {
       result = await dbQuery(
-        "SELECT * FROM rules WHERE (shop = $1 OR target_shop = $1) AND status != 'deleted' ORDER BY priority DESC, id DESC",
+        "SELECT * FROM rules WHERE (shop = $1 OR target_shop = $1) AND status != 'deleted' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END ASC, priority DESC, id DESC",
         [shop]
       );
     } else {
       result = await dbQuery(
-        "SELECT * FROM rules WHERE (shop = $1 OR target_shop = $1) AND rule_type = $2 AND status != 'deleted' ORDER BY priority DESC, id DESC",
+        "SELECT * FROM rules WHERE (shop = $1 OR target_shop = $1) AND rule_type = $2 AND status != 'deleted' ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END ASC, priority DESC, id DESC",
         [shop, ruleType]
       );
     }
