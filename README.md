@@ -1,250 +1,31 @@
-# Shopify App Template for Node
+# Pro Validation & Checkout Customizations
 
-This is a template for building a [Shopify app](https://shopify.dev/docs/apps/getting-started) using Node and React. It contains the basics for building a Shopify app.
+A comprehensive Shopify app designed to give merchants complete control over checkout validations, checkout UI banners, delivery customizations, and payment customizations. Built on Node.js, Express, React, Vite, and Polaris, using the latest Shopify CLI and app extension framework.
 
-Rather than cloning this repo, you can use your preferred package manager and the Shopify CLI with [these steps](#installing-the-template).
+---
 
-## Benefits
+## 🚀 Key Features
 
-Shopify apps are built on a variety of Shopify tools to create a great merchant experience. The [create an app](https://shopify.dev/docs/apps/getting-started/create) tutorial in our developer documentation will guide you through creating a Shopify app using this template.
+* **Cart & Checkout Validations**: Create rules to block or warn customers during checkout based on cart contents, customer details, or order values.
+* **Checkout UI Extensions**: Dynamically render warnings, critical banners, and error messages directly on the checkout page to guide buyers.
+* **Delivery Customizations**: Rename, reorder, or hide shipping methods at checkout based on customized conditions (e.g., hiding express or free shipping).
+* **Payment Customizations**: Hide, reorder, or rename payment methods based on checkout data.
+* **Rule Builder Dashboard**: A user-friendly React/Polaris interface to manage, template, and version checkout validation and customization rules.
+* **Version Control & Rollbacks**: Automatically track historical versions of configuration rules and perform instant rollbacks from the dashboard.
 
-The Node app template comes with the following out-of-the-box functionality:
+---
 
-- OAuth: Installing the app and granting permissions
-- GraphQL Admin API: Querying or mutating Shopify admin data
-- REST Admin API: Resource classes to interact with the API
-- Shopify-specific tooling:
-  - AppBridge
-  - Polaris
-  - Webhooks
+## ⚠️ Important Configuration Steps
 
-## Tech Stack
-
-This template combines a number of third party open-source tools:
-
-- [Express](https://expressjs.com/) builds the backend.
-- [Vite](https://vitejs.dev/) builds the [React](https://reactjs.org/) frontend.
-- [React Router](https://reactrouter.com/) is used for routing. We wrap this with file-based routing.
-- [React Query](https://react-query.tanstack.com/) queries the Admin API.
-- [`i18next`](https://www.i18next.com/) and related libraries are used to internationalize the frontend.
-  - [`react-i18next`](https://react.i18next.com/) is used for React-specific i18n functionality.
-  - [`i18next-resources-to-backend`](https://github.com/i18next/i18next-resources-to-backend) is used to dynamically load app translations.
-  - [`@formatjs/intl-localematcher`](https://formatjs.io/docs/polyfills/intl-localematcher/) is used to match the user locale with supported app locales.
-  - [`@formatjs/intl-locale`](https://formatjs.io/docs/polyfills/intl-locale) is used as a polyfill for [`Intl.Locale`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale) if necessary.
-  - [`@formatjs/intl-pluralrules`](https://formatjs.io/docs/polyfills/intl-pluralrules) is used as a polyfill for [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules) if necessary.
-
-The following Shopify tools complement these third-party tools to ease app development:
-
-- [Shopify API library](https://github.com/Shopify/shopify-node-api) adds OAuth to the Express backend. This lets users install the app and grant scope permissions.
-- [App Bridge React](https://shopify.dev/docs/apps/tools/app-bridge/getting-started/using-react) adds [authentication to API requests](https://shopify.dev/docs/api/app-bridge-library/apis/resource-fetching) in the frontend and renders components outside of the App’s iFrame.
-- [Polaris React](https://polaris.shopify.com/) is a powerful design system and component library that helps developers build high quality, consistent experiences for Shopify merchants.
-- [File-based routing](https://github.com/Shopify/shopify-frontend-template-react/blob/main/Routes.jsx) makes creating new pages easier.
-- [`@shopify/i18next-shopify`](https://github.com/Shopify/i18next-shopify) is a plugin for [`i18next`](https://www.i18next.com/) that allows translation files to follow the same JSON schema used by Shopify [app extensions](https://shopify.dev/docs/apps/checkout/best-practices/localizing-ui-extensions#how-it-works) and [themes](https://shopify.dev/docs/themes/architecture/locales/storefront-locale-files#usage).
-
-## Getting started
-
-### Requirements
-
-1. You must [download and install Node.js](https://nodejs.org/en/download/) if you don't already have it.
-1. You must [create a Shopify partner account](https://partners.shopify.com/signup) if you don’t have one.
-1. You must create a store for testing if you don't have one, either a [development store](https://help.shopify.com/en/partners/dashboard/development-stores#create-a-development-store) or a [Shopify Plus sandbox store](https://help.shopify.com/en/partners/dashboard/managing-stores/plus-sandbox-store).
-
-### Installing the template
-
-This template can be installed using your preferred package manager:
-
-Using yarn:
-
-```shell
-yarn create @shopify/app --template=node
-```
-
-Using npm:
-
-```shell
-npm init @shopify/app@latest -- --template=node
-```
-
-Using pnpm:
-
-```shell
-pnpm create @shopify/app@latest --template=node
-```
-
-This will clone the template and install the required dependencies.
-
-#### Local Development
-
-[The Shopify CLI](https://shopify.dev/docs/apps/tools/cli) connects to an app in your Partners dashboard. It provides environment variables, runs commands in parallel, and updates application URLs for easier development.
-
-You can develop locally using your preferred package manager. Run one of the following commands from the root of your app.
-
-Using yarn:
-
-```shell
-yarn dev
-```
-
-Using npm:
-
-```shell
-npm run dev
-```
-
-Using pnpm:
-
-```shell
-pnpm run dev
-```
-
-Open the URL generated in your console. Once you grant permission to the app, you can start development.
+To ensure that the validation rules and shipping customization rules work seamlessly without errors or conflicts, pay close attention to these two configurations:
 
 > [!IMPORTANT]
-> **Enable Checkout Rules**: Go to Shopify Admin -> Settings -> Checkout -> Checkout Rules and make sure you click **Add Rule**, select your validation rule, and activate it.
-
-## Deployment
-
-### Application Storage
-
-This template uses [SQLite](https://www.sqlite.org/index.html) to store session data. The database is a file called `database.sqlite` which is automatically created in the root. This use of SQLite works in production if your app runs as a single instance.
-
-The database that works best for you depends on the data your app needs and how it is queried. You can run your database of choice on a server yourself or host it with a SaaS company. Here’s a short list of databases providers that provide a free tier to get started:
-
-| Database   | Type             | Hosters                                                                                                                                                                                                                               |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MySQL      | SQL              | [Digital Ocean](https://www.digitalocean.com/try/managed-databases-mysql), [Planet Scale](https://planetscale.com/), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql) |
-| PostgreSQL | SQL              | [Digital Ocean](https://www.digitalocean.com/try/managed-databases-postgresql), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres)                                   |
-| Redis      | Key-value        | [Digital Ocean](https://www.digitalocean.com/try/managed-databases-redis), [Amazon MemoryDB](https://aws.amazon.com/memorydb/)                                                                                                        |
-| MongoDB    | NoSQL / Document | [Digital Ocean](https://www.digitalocean.com/try/managed-databases-mongodb), [MongoDB Atlas](https://www.mongodb.com/atlas/database)                                                                                                  |
-
-To use one of these, you need to change your session storage configuration. To help, here’s a list of [SessionStorage adapter packages](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
-
-### Build
-
-The frontend is a single page app. It requires the `SHOPIFY_API_KEY`, which you can find on the page for your app in your partners dashboard. Paste your app’s key in the command for the package manager of your choice:
-
-Using yarn:
-
-```shell
-cd web/frontend/ && SHOPIFY_API_KEY=REPLACE_ME yarn build
-```
-
-Using npm:
-
-```shell
-cd web/frontend/ && SHOPIFY_API_KEY=REPLACE_ME npm run build
-```
-
-Using pnpm:
-
-```shell
-cd web/frontend/ && SHOPIFY_API_KEY=REPLACE_ME pnpm run build
-```
-
-You do not need to build the backend.
-
-## Hosting
-
-When you're ready to set up your app in production, you can follow [our deployment documentation](https://shopify.dev/docs/apps/deployment/web) to host your app on a cloud provider like [Heroku](https://www.heroku.com/) or [Fly.io](https://fly.io/).
-
-When you reach the step for [setting up environment variables](https://shopify.dev/docs/apps/deployment/web#set-env-vars), you also need to set the variable `NODE_ENV=production`.
-
-## Known issues
-
-### Hot module replacement and Firefox
-
-When running the app with the CLI in development mode on Firefox, you might see your app constantly reloading when you access it.
-That happened in previous versions of the CLI, because of the way HMR websocket requests work.
-
-We fixed this issue with v3.4.0 of the CLI, so after updating it, you can make the following changes to your app's `web/frontend/vite.config.js` file:
-
-1. Change the definition `hmrConfig` object to be:
-
-   ```js
-   const host = process.env.HOST
-     ? process.env.HOST.replace(/https?:\/\//, "")
-     : "localhost";
-
-   let hmrConfig;
-   if (host === "localhost") {
-     hmrConfig = {
-       protocol: "ws",
-       host: "localhost",
-       port: 64999,
-       clientPort: 64999,
-     };
-   } else {
-     hmrConfig = {
-       protocol: "wss",
-       host: host,
-       port: process.env.FRONTEND_PORT,
-       clientPort: 443,
-     };
-   }
-   ```
-
-1. Change the `server.host` setting in the configs to `"localhost"`:
-
-   ```js
-   server: {
-     host: "localhost",
-     ...
-   ```
-
-### I can't get past the ngrok "Visit site" page
-
-When you’re previewing your app or extension, you might see an ngrok interstitial page with a warning:
-
-```text
-You are about to visit <id>.ngrok.io: Visit Site
-```
-
-If you click the `Visit Site` button, but continue to see this page, then you should run dev using an alternate tunnel URL that you run using tunneling software.
-We've validated that [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/run-tunnel/trycloudflare/) works with this template.
-
-To do that, you can [install the `cloudflared` CLI tool](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/), and run:
-
-```shell
-# Note that you can also use a different port
-cloudflared tunnel --url http://localhost:3000
-```
-
-Out of the logs produced by cloudflare you will notice a https URL where the domain ends with `trycloudflare.com`. This is your tunnel URL. You need to copy this URL as you will need it in the next step.
-
-```shell
-2022-11-11T19:57:55Z INF Requesting new quick Tunnel on trycloudflare.com...
-2022-11-11T19:57:58Z INF +--------------------------------------------------------------------------------------------+
-2022-11-11T19:57:58Z INF |  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
-2022-11-11T19:57:58Z INF |  https://randomly-generated-hostname.trycloudflare.com                                     |
-2022-11-11T19:57:58Z INF +--------------------------------------------------------------------------------------------+
-```
-
-Below you would replace `randomly-generated-hostname` with what you have copied from the terminal. In a different terminal window, navigate to your app's root and with the URL from above you would call:
-
-```shell
-# Using yarn
-yarn dev --tunnel-url https://randomly-generated-hostname.trycloudflare.com:3000
-# or using npm
-npm run dev --tunnel-url https://randomly-generated-hostname.trycloudflare.com:3000
-# or using pnpm
-pnpm dev --tunnel-url https://randomly-generated-hostname.trycloudflare.com:3000
-```
-
-## Developer resources
-
-- [Introduction to Shopify apps](https://shopify.dev/docs/apps/getting-started)
-- [App authentication](https://shopify.dev/docs/apps/auth)
-- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli)
-- [Shopify API Library documentation](https://github.com/Shopify/shopify-api-js#readme)
-- [Getting started with internationalizing your app](https://shopify.dev/docs/apps/best-practices/internationalization/getting-started)
-  - [i18next](https://www.i18next.com/)
-    - [Configuration options](https://www.i18next.com/overview/configuration-options)
-  - [react-i18next](https://react.i18next.com/)
-    - [`useTranslation` hook](https://react.i18next.com/latest/usetranslation-hook)
-    - [`Trans` component usage with components array](https://react.i18next.com/latest/trans-component#alternative-usage-components-array)
-  - [i18n-ally VS Code extension](https://marketplace.visualstudio.com/items?itemName=Lokalise.i18n-ally)
-
-## Shipping Customization Tip
+> **Enable Checkout Rules**: 
+> 1. Go to your **Shopify Admin** -> **Settings** -> **Checkout** -> **Checkout Rules**.
+> 2. Click **Add Rule**.
+> 3. Select your validation rule (`cart-checkout-validation`) and click **Activate**.
+> 
+> *Without this step, Shopify will not execute the custom validation function at checkout.*
 
 > [!TIP]
 > **How to control Free Shipping Thresholds easily from the App:**
@@ -261,3 +42,112 @@ pnpm dev --tunnel-url https://randomly-generated-hostname.trycloudflare.com:3000
 >    * Add a **Minimum Order Value** condition (e.g. *Less than* `1000.00`).
 > 
 > **Result**: The app will handle hiding the rate dynamically, giving you 100% control over the threshold ($50, $1000, etc.) directly from the app dashboard!
+
+---
+
+## 🔍 Deep-Dive: How the App Works
+
+This application utilizes Shopify's modern **Checkout Extensibility** architecture to execute customizations and validations with zero performance impact on the checkout experience.
+
+### 1. Unified Rules & Conditions Engine
+You can build complex logical rules using either `AND` or `OR` operator combinations. The engine checks:
+* **Order & Cart Values**: Minimum/Maximum Order Value, Cart Item Quantity Limits, Weight Limit (kg), SKU Count Limits.
+* **Customer Attributes**: Customer Tags, Login status requirement, B2B/Wholesale account checking, Age Verification.
+* **Shipping & Location Constraints**: PO Box detection, Blocked State/Country codes, Blocked ZIP Code patterns, and custom Shipping Address regular expressions (regex).
+* **Product & Inventory Constraints**: Restricted Collections, Restricted Vendors, Incompatible Product Combinations (e.g. cannot mix hazardous items with normal shipping), Subscription checks, and Hazardous item checks.
+
+### 2. Extension Architecture & Data Flow
+
+#### **Cart & Checkout Validation Function (`cart-checkout-validation`)**
+* **Type**: Shopify Function (`cart.validations.generate.run`)
+* **Behavior**: Runs securely in WebAssembly (Wasm) directly on Shopify's servers. It retrieves active validation rules stored in the `cart-validation` metafields. If conditions match, it returns validation errors matching the target field (e.g. `$.cart` or address fields), which Shopify displays to block the checkout progress.
+
+#### **Checkout UI Extension (`checkout-ui`)**
+* **Type**: UI Extension (`purchase.checkout.block.render`)
+* **Behavior**: Automatically reads the configuration rules. It renders warning banners, notices, and instructions inline on the checkout screen to guide customers prior to submission.
+
+#### **Delivery Customization Function (`delivery-customization`)**
+* **Type**: Shopify Function (`purchase.delivery-customization.run`)
+* **Behavior**: Intercepts shipping rates during checkout. Allows you to:
+  * **Hide**: Suppress delivery options based on cart thresholds, dimensions, or addresses.
+  * **Rename**: Dynamically rewrite shipping rate titles (e.g., change "Standard Shipping" to "Express Shipping (Free Upgrade)").
+
+#### **Payment Customization Function (`payment-customization`)**
+* **Type**: Shopify Function (`purchase.payment-customization.run`)
+* **Behavior**: Intercepts payment options. Hides or reorders specific payment methods based on checkout parameters.
+
+### 3. Rule Versioning & Database Sync
+Every time you update a rule inside the Rule Builder, the app:
+1. Validates the configuration.
+2. Writes the active configuration rules into Shopify **Metafields** so the checkout functions can read them instantly.
+3. Automatically increments the version number and archives the older configuration in the database (`database.sqlite`).
+4. Allows merchants to inspect previous settings and trigger an instant rollback to restore past configurations.
+
+---
+
+## 🛠️ Project Structure
+
+This project is structured as a monorepo using npm workspaces:
+
+```text
+├── extensions/
+│   ├── cart-checkout-validation/  # Shopify Function to validate carts/checkouts
+│   ├── checkout-ui/               # Shopify UI extension for checkout banners/notices
+│   ├── delivery-customization/    # Shopify Function to customize delivery options
+│   └── payment-customization/     # Shopify Function to customize payment methods
+├── web/
+│   ├── index.js                   # Node/Express Backend server
+│   ├── routes/                    # API endpoints (rules, templates, webhooks)
+│   └── frontend/                  # React/Vite/Polaris Admin Dashboard
+├── shopify.app.toml               # Shopify App Configuration file
+└── package.json                   # Root package dependencies and scripts
+```
+
+---
+
+## 💻 Local Development
+
+### Requirements
+
+1. **Node.js**: Download and install [Node.js](https://nodejs.org/en/download/) (v18+ recommended).
+2. **Shopify Partners Account**: Create a [Shopify Partner account](https://partners.shopify.com/signup).
+3. **Development/Sandbox Store**: Set up a Shopify development store or Shopify Plus sandbox store with Checkout Extensibility enabled.
+
+### Setup & Run
+
+1. Clone or navigate to the project directory.
+2. Install the workspace dependencies:
+   ```shell
+   npm install
+   ```
+3. Run the Shopify development server:
+   ```shell
+   npm run dev
+   ```
+4. Follow the prompt to log in to your Shopify Partner account and link this project to your development app.
+5. Open the generated tunnel URL to install the app on your development store.
+
+---
+
+## 📦 Deployment & Hosting
+
+### 1. Build the Frontend
+To build the React frontend production bundle:
+```shell
+cd web/frontend && SHOPIFY_API_KEY=YOUR_API_KEY npm run build
+```
+
+### 2. Host the Application
+This app can be hosted on platforms like Heroku, Fly.io, or AWS. Make sure to:
+* Configure your production database (e.g., MySQL, PostgreSQL) and update the session storage adapter if needed.
+* Set the environment variable `NODE_ENV=production`.
+* Set your `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, and `HOST` environment variables.
+
+---
+
+## 📚 Developer Resources
+
+* [Shopify Functions Documentation](https://shopify.dev/docs/apps/functions)
+* [Checkout UI Extensions Documentation](https://shopify.dev/docs/api/checkout-ui-extensions)
+* [Shopify App Bridge React](https://shopify.dev/docs/apps/tools/app-bridge/getting-started/using-react)
+* [Polaris Component Library](https://polaris.shopify.com/)
