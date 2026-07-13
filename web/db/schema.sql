@@ -184,4 +184,12 @@ VALUES
 
 ('Rename PayPal for VIP Customers', 'Payment', 'Renames PayPal payment option to ''PayPal (Express VIP Checkout)'' for customers tagged with ''vip''.',
  '[{"type": "customer_tags", "operator": "contains", "value": "vip"}]',
- 'PayPal (Express VIP Checkout)', 'PayPal', 'payment', 'rename');
+ 'PayPal (Express VIP Checkout)', 'PayPal', 'payment', 'rename'),
+
+('Weekend Delivery Surcharge Note', 'Shipping', 'Renames ''Standard Shipping'' to ''Standard Shipping (Includes Weekend Delivery Surcharge)'' during checkout validation.',
+ '[{"type": "day_of_week", "operator": "in_days", "value": "Sat,Sun"}]',
+ 'Standard Shipping (Includes Weekend Delivery Surcharge)', 'Standard Shipping', 'delivery', 'rename'),
+
+('Block Orders with High Weight in Express Shipping', 'Shipping', 'Hides Express Shipping options if the total cart weight exceeds 20kg.',
+ '[{"type": "weight_limit", "operator": "greater_than", "value": "20"}]',
+ '', 'Express Shipping', 'delivery', 'hide');

@@ -9,11 +9,26 @@ export default function RulesList({ navigate }) {
   const [rules, setRules] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterStore, setFilterStore] = useState("all");
+  const [filterType, setFilterType] = useState("all");
 
-  const filteredRules = rules.filter(r =>
-    r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (r.error_message && r.error_message.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Get unique stores from rules to populate store filter options
+  const uniqueStores = [...new Set(rules.map(r => r.target_shop).filter(Boolean))];
+
+  const filteredRules = rules.filter(r => {
+    const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.error_message && r.error_message.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = filterStatus === "all" || r.status === filterStatus;
+    const matchesPriority = filterPriority === "all" || String(r.priority || 0) === filterPriority;
+    const matchesStore = filterStore === "all" || 
+      (filterStore === "global" && !r.target_shop) || 
+      (r.target_shop === filterStore);
+    const matchesType = filterType === "all" || r.rule_type === filterType;
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesStore && matchesType;
+  });
 
   const fetchRules = async () => {
     try {
@@ -380,16 +395,123 @@ export default function RulesList({ navigate }) {
       `}</style>
 
       <div className="rl-wrap">
-        {/* Search Bar */}
-        <div style={{ marginBottom: "16px" }}>
-          <TextField
-            label="Search rules"
-            labelHidden
-            placeholder="Search rules by title or error message..."
-            value={searchQuery}
-            onChange={setSearchQuery}
-            autoComplete="off"
-          />
+        {/* Search & Multiple Filters */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+          <div>
+            <TextField
+              label="Search rules"
+              labelHidden
+              placeholder="Search rules by title or error message..."
+              value={searchQuery}
+              onChange={setSearchQuery}
+              autoComplete="off"
+            />
+          </div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {/* Status Filter */}
+            <div style={{ flex: 1, minWidth: "120px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                style={{
+                  width: "100%",
+                  height: "36px",
+                  padding: "0 10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#fff",
+                  fontSize: "13px",
+                  color: "#1e293b",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Priority Filter */}
+            <div style={{ flex: 1, minWidth: "120px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Priority</label>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                style={{
+                  width: "100%",
+                  height: "36px",
+                  padding: "0 10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#fff",
+                  fontSize: "13px",
+                  color: "#1e293b",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="all">All Priorities</option>
+                {[...new Set(rules.map(r => r.priority || 0))].sort((a, b) => b - a).map(prio => (
+                  <option key={prio} value={String(prio)}>Priority P{prio}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Store (target_shop) Filter */}
+            <div style={{ flex: 1.5, minWidth: "180px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Store</label>
+              <select
+                value={filterStore}
+                onChange={(e) => setFilterStore(e.target.value)}
+                style={{
+                  width: "100%",
+                  height: "36px",
+                  padding: "0 10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#fff",
+                  fontSize: "13px",
+                  color: "#1e293b",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="all">All Stores</option>
+                <option value="global">Global (All Stores)</option>
+                {uniqueStores.map(store => (
+                  <option key={store} value={store}>{store}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Rule Type Filter */}
+            <div style={{ flex: 1.5, minWidth: "180px" }}>
+              <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Rule Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                style={{
+                  width: "100%",
+                  height: "36px",
+                  padding: "0 10px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#fff",
+                  fontSize: "13px",
+                  color: "#1e293b",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="all">All Rule Types</option>
+                <option value="validation">Checkout Validation</option>
+                <option value="delivery">Delivery Customization</option>
+                <option value="payment">Payment Customization</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Bulk Action Bar */}
@@ -532,9 +654,15 @@ export default function RulesList({ navigate }) {
             <div className="empty-state">
               <div className="empty-icon">🔍</div>
               <div className="empty-title">No matching rules found</div>
-              <div className="empty-sub">Try modifying your search keywords or clear the filter.</div>
+              <div className="empty-sub">Try modifying your search keywords or clear the filters.</div>
               <div className="empty-btns">
-                <button className="empty-btn-sec" onClick={() => setSearchQuery("")}>Clear Search</button>
+                <button className="empty-btn-sec" onClick={() => {
+                  setSearchQuery("");
+                  setFilterStatus("all");
+                  setFilterPriority("all");
+                  setFilterStore("all");
+                  setFilterType("all");
+                }}>Clear Filters</button>
               </div>
             </div>
           ) : (

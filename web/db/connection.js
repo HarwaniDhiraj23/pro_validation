@@ -246,6 +246,72 @@ const PREBUILT_TEMPLATES = [
     error_target: "Local Pickup",
     rule_type: "delivery",
     delivery_action: "hide"
+  },
+  {
+    id: 25,
+    title: "Disable COD for Remote States",
+    category: "Payment",
+    description: "Disables Cash on Delivery (COD) payment option for remote states (e.g. Alaska, Hawaii) to avoid shipping collect risks.",
+    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    error_message: "",
+    error_target: "Cash on Delivery (COD)",
+    rule_type: "payment",
+    delivery_action: "hide"
+  },
+  {
+    id: 26,
+    title: "Disable PayPal for Low Cart Value",
+    category: "Payment",
+    description: "Disables PayPal payment option if the order total is below $20 to encourage credit card usage on small transactions.",
+    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "20.00" }],
+    error_message: "",
+    error_target: "PayPal",
+    rule_type: "payment",
+    delivery_action: "hide"
+  },
+  {
+    id: 27,
+    title: "Disable COD for High Cart Value",
+    category: "Payment",
+    description: "Disables Cash on Delivery (COD) payment option for orders exceeding $500 to minimize cash collection risks on delivery.",
+    conditions: [{ type: "maximum_order_value", operator: "greater_than", value: "500.00" }],
+    error_message: "",
+    error_target: "Cash on Delivery (COD)",
+    rule_type: "payment",
+    delivery_action: "hide"
+  },
+  {
+    id: 28,
+    title: "Rename PayPal for VIP Customers",
+    category: "Payment",
+    description: "Renames PayPal payment option to 'PayPal (Express VIP Checkout)' for customers tagged with 'vip'.",
+    conditions: [{ type: "customer_tags", operator: "contains", value: "vip" }],
+    error_message: "PayPal (Express VIP Checkout)",
+    error_target: "PayPal",
+    rule_type: "payment",
+    delivery_action: "rename"
+  },
+  {
+    id: 29,
+    title: "Weekend Delivery Surcharge Note",
+    category: "Shipping",
+    description: "Renames 'Standard Shipping' to 'Standard Shipping (Includes Weekend Delivery Surcharge)' during checkout validation.",
+    conditions: [{ type: "day_of_week", operator: "in_days", value: "Sat,Sun" }],
+    error_message: "Standard Shipping (Includes Weekend Delivery Surcharge)",
+    error_target: "Standard Shipping",
+    rule_type: "delivery",
+    delivery_action: "rename"
+  },
+  {
+    id: 30,
+    title: "Block Orders with High Weight in Express Shipping",
+    category: "Shipping",
+    description: "Hides Express Shipping options if the total cart weight exceeds 20kg.",
+    conditions: [{ type: "weight_limit", operator: "greater_than", value: "20" }],
+    error_message: "",
+    error_target: "Express Shipping",
+    rule_type: "delivery",
+    delivery_action: "hide"
   }
 ];
 
