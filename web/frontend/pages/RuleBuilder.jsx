@@ -205,7 +205,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
   const [errorTarget, setErrorTarget] = useState("$.cart");
   const [warningBanner, setWarningBanner] = useState(false);
-  const [customIcon, setCustomIcon] = useState("warning");
+  const [customIcon, setCustomIcon] = useState("none");
   const [bannerStyle, setBannerStyle] = useState("warning");
   const [guidanceMessage, setGuidanceMessage] = useState("");
   const [displayInCheckout, setDisplayInCheckout] = useState(true);
@@ -270,7 +270,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setErrorTarget(data.error_target || "$.cart");
             setConditions(data.conditions || []);
             setWarningBanner(!!data.warning_banner);
-            setCustomIcon(data.custom_icon || "warning");
+            setCustomIcon(data.custom_icon || "none");
             setBannerStyle(data.banner_style || "warning");
             setGuidanceMessage(data.guidance_message || "");
             setDisplayInCheckout(data.display_in_checkout !== false);
@@ -316,7 +316,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setErrorTarget(data.error_target || "$.cart");
             setConditions(data.conditions || []);
             setWarningBanner(!!data.warning_banner);
-            setCustomIcon(data.custom_icon || "warning");
+            setCustomIcon(data.custom_icon || "none");
             setBannerStyle(data.banner_style || "warning");
             setGuidanceMessage(data.guidance_message || "");
             setDisplayInCheckout(data.display_in_checkout !== false);
@@ -538,6 +538,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
     }
 
     setSaving(true);
+    const isFieldTarget = ruleType === "validation" && errorTarget !== "$.cart";
     const body = {
       target_shop: targetShop || null,
       title,
@@ -551,9 +552,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
       delivery_action: (ruleType === "delivery" || ruleType === "payment") ? deliveryAction : null,
       schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
       schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null,
-      warning_banner: warningBanner,
+      warning_banner: false,
       custom_icon: customIcon,
-      banner_style: bannerStyle,
+      banner_style: isFieldTarget ? "critical" : bannerStyle,
       guidance_message: guidanceMessage,
       display_in_checkout: displayInCheckout
     };
@@ -1017,152 +1018,193 @@ export default function RuleBuilder({ ruleId, navigate }) {
                 </Box>
               </Card>
             ) : (
-              <Card title="Error Message & Banner Settings">
+              <Card>
                 <Box padding="5">
-                  <FormLayout>
-                    <TextField
-                      label="Custom Message *"
-                      value={errorMessage}
-                      onChange={setErrorMessage}
-                      multiline={2}
-                      helpText="This is what the customer will see when checkout is blocked or warned."
-                      autoComplete="off"
-                    />
-                    <Select
-                      label="Block Target Field"
-                      options={ERROR_TARGETS}
-                      value={errorTarget}
-                      onChange={setErrorTarget}
-                      helpText="Specifies where the error badge will be attached in the checkout UI."
-                    />
-
-                    <div style={{ marginTop: "16px", borderTop: "1px solid #e1e3e5", paddingTop: "16px" }}>
-                      <Checkbox
-                        label="Display as Warning Banner (instead of blocking checkout completion)"
-                        checked={warningBanner}
-                        onChange={setWarningBanner}
-                      />
-                    </div>
-
-                    <Checkbox
-                      label="Show Banner / Message in Checkout UI Extension"
-                      checked={displayInCheckout}
-                      onChange={setDisplayInCheckout}
-                    />
-
-                    {displayInCheckout && (
-                      <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
-                        <div style={{ flex: 1 }}>
-                          <Select
-                            label="Banner Tone / Style"
-                            options={[
-                              { label: "Critical (Error / Red)", value: "critical" },
-                              { label: "Warning (Alert / Orange)", value: "warning" },
-                              { label: "Information (Info / Blue)", value: "info" },
-                              { label: "Success (Completed / Green)", value: "success" }
-                            ]}
-                            value={bannerStyle}
-                            onChange={setBannerStyle}
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <Select
-                            label="Custom Icon"
-                            options={[
-                              { label: "Tone Default Icon", value: "default" },
-                              { label: "None", value: "none" },
-                              { label: "Warning (⚠️)", value: "warning" },
-                              { label: "Critical / Error (🚨)", value: "critical" },
-                              { label: "Information (ℹ️)", value: "info" },
-                              { label: "Checkmark (✅)", value: "success" },
-                              { label: "Security Lock (🔒)", value: "lock" },
-                              { label: "Shipping/Delivery (🚚)", value: "delivery" },
-                              { label: "Payment/Card (💳)", value: "payment" },
-                              { label: "Calendar (📅)", value: "calendar" }
-                            ]}
-                            value={customIcon}
-                            onChange={setCustomIcon}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {displayInCheckout && (
+                  <VerticalStack gap="4">
+                    <VerticalStack gap="3">
+                      <Text variant="headingMd" as="h3">Error Message & Placement</Text>
                       <TextField
-                        label="Customer Guidance / Instructions"
-                        value={guidanceMessage}
-                        onChange={setGuidanceMessage}
-                        placeholder="e.g. Please change your shipping address to a physical location or add $15 more to cart."
+                        label="Custom Message *"
+                        value={errorMessage}
+                        onChange={setErrorMessage}
                         multiline={2}
-                        helpText="Helpful instructions to assist the customer in resolving the block/warning."
+                        placeholder="e.g. We cannot complete your checkout with the current items or address details."
+                        helpText="This is the main block message displayed to the customer."
                         autoComplete="off"
                       />
-                    )}
+                      <Select
+                        label="Block Target Field"
+                        options={ERROR_TARGETS}
+                        value={errorTarget}
+                        onChange={setErrorTarget}
+                        helpText="Specifies where the error badge will be attached in the checkout UI."
+                      />
+                    </VerticalStack>
 
-                    {/* Rule Preview Block */}
+                    <div style={{ margin: "8px 0", borderTop: "1px solid #e1e3e5" }} />
+
+                    {/* Section 2: Behavior Settings */}
+                    <VerticalStack gap="3">
+                      <Text variant="headingMd" as="h3">Behavior & Visibility</Text>
+                      <Checkbox
+                        label="Show Banner / Message in Checkout UI Extension"
+                        checked={displayInCheckout}
+                        onChange={setDisplayInCheckout}
+                      />
+                    </VerticalStack>
+
+                    {/* Section 3: Nested Customizer Panel */}
                     {displayInCheckout && (
-                      <div style={{ marginTop: "20px", borderTop: "1px solid #e1e3e5", paddingTop: "16px" }}>
-                        <Text variant="headingSm">Live Checkout Banner Preview</Text>
-                        <div style={{
-                          marginTop: "12px",
-                          padding: "16px",
-                          borderRadius: "8px",
-                          backgroundColor:
-                            bannerStyle === "critical" ? "#FFF5F5" :
-                            bannerStyle === "warning" ? "#FFFAF0" :
-                            bannerStyle === "info" ? "#EBF8FF" :
-                            "#F0FFF4",
-                          borderLeft: `5px solid ${
-                            bannerStyle === "critical" ? "#E53E3E" :
-                            bannerStyle === "warning" ? "#DD6B20" :
-                            bannerStyle === "info" ? "#3182CE" :
-                            "#38A169"
-                          }`,
-                          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.05)",
-                          display: "flex",
-                          gap: "12px",
-                          alignItems: "flex-start"
-                        }}>
-                          <span style={{ fontSize: "20px", lineHeight: "1" }}>
-                            {(() => {
-                              const iconName = customIcon === "default" ? bannerStyle : customIcon;
-                              switch (iconName) {
-                                case "none": return "";
-                                case "lock": return "🔒";
-                                case "delivery": return "🚚";
-                                case "payment": return "💳";
-                                case "calendar": return "📅";
-                                case "info": return "ℹ️";
-                                case "warning": return "⚠️";
-                                case "critical": return "🚨";
-                                case "success": return "✅";
-                                default: return "⚠️";
-                              }
-                            })()}
-                          </span>
-                          <div style={{ flex: 1, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
-                            <div style={{
-                              fontWeight: "600",
-                              fontSize: "14px",
-                              color:
-                                bannerStyle === "critical" ? "#9B2C2C" :
-                                bannerStyle === "warning" ? "#9C4221" :
-                                bannerStyle === "info" ? "#2B6CB0" :
-                                "#2F855A"
-                            }}>
-                              {errorMessage || "Checkout is blocked by validation rules."}
-                            </div>
-                            {guidanceMessage && (
-                              <div style={{ marginTop: "4px", fontSize: "13px", color: "#4A5568", lineHeight: "1.4" }}>
-                                {guidanceMessage}
-                              </div>
+                      <div style={{
+                        marginTop: "8px",
+                        padding: "16px",
+                        backgroundColor: "#f9fafb",
+                        border: "1px solid #e1e3e5",
+                        borderRadius: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "16px"
+                      }}>
+                        <Text variant="headingSm" as="h4">Checkout UI Extension Styling</Text>
+
+                        <div style={{ display: "flex", gap: "24px", width: "100%", alignItems: "stretch" }}>
+                          {/* Left Column: Controls */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
+                            {ruleType === "validation" && errorTarget !== "$.cart" && (
+                              <Banner tone="warning">
+                                <p>Banner Tone / Style is disabled because it will not work with this block target field.</p>
+                              </Banner>
                             )}
+
+                            <div style={{ display: "flex", gap: "16px" }}>
+                              <div style={{ flex: 1 }}>
+                                <Select
+                                  label="Banner Tone / Style"
+                                  disabled={ruleType === "validation" && errorTarget !== "$.cart"}
+                                  options={[
+                                    { label: "Critical (Error / Red)", value: "critical" },
+                                    { label: "Warning (Alert / Orange)", value: "warning" },
+                                    { label: "Information (Info / Blue)", value: "info" },
+                                    { label: "Success (Completed / Green)", value: "success" }
+                                  ]}
+                                  value={ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle}
+                                  onChange={setBannerStyle}
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <Select
+                                  label="Custom Icon"
+                                  options={[
+                                    { label: "Tone Default Icon", value: "default" },
+                                    { label: "None", value: "none" },
+                                    { label: "Warning (⚠️)", value: "warning" },
+                                    { label: "Critical / Error (🚨)", value: "critical" },
+                                    { label: "Information (ℹ️)", value: "info" },
+                                    { label: "Checkmark (✅)", value: "success" },
+                                    { label: "Security Lock (🔒)", value: "lock" },
+                                    { label: "Shipping/Delivery (🚚)", value: "delivery" },
+                                    { label: "Payment/Card (💳)", value: "payment" },
+                                    { label: "Calendar (📅)", value: "calendar" }
+                                  ]}
+                                  value={customIcon}
+                                  onChange={setCustomIcon}
+                                />
+                              </div>
+                            </div>
+
+                            <TextField
+                              label="Customer Guidance / Instructions"
+                              value={guidanceMessage}
+                              onChange={setGuidanceMessage}
+                              placeholder="e.g. Please change your shipping address to a physical location or add $15 more to cart."
+                              multiline={2}
+                              helpText="Helpful instructions to assist the customer in resolving the block/warning."
+                              autoComplete="off"
+                            />
+                          </div>
+
+                          {/* Vertical Divider */}
+                          <div style={{ borderLeft: "1px solid #e1e3e5" }} />
+
+                          {/* Right Column: Preview */}
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px", justifyContent: "flex-start" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <Text variant="headingSm">Live Checkout Banner Preview</Text>
+                              <span style={{
+                                fontSize: "11px",
+                                fontWeight: "600",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                                color: "#6d7175",
+                                backgroundColor: "#e1e3e5",
+                                padding: "2px 8px",
+                                borderRadius: "4px"
+                              }}>
+                                Checkout Preview
+                              </span>
+                            </div>
+                            <div style={{
+                              padding: "16px",
+                              borderRadius: "8px",
+                              backgroundColor:
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#FFF5F5" :
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#FFFAF0" :
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#EBF8FF" :
+                                "#F0FFF4",
+                              borderLeft: `5px solid ${
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#E53E3E" :
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#DD6B20" :
+                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#3182CE" :
+                                "#38A169"
+                              }`,
+                              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+                              display: "flex",
+                              gap: "12px",
+                              alignItems: "flex-start",
+                              marginTop: "4px"
+                            }}>
+                              <span style={{ fontSize: "20px", lineHeight: "1" }}>
+                                {(() => {
+                                  const previewStyle = ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle;
+                                  const iconName = customIcon === "default" ? previewStyle : customIcon;
+                                  switch (iconName) {
+                                    case "none": return "";
+                                    case "lock": return "🔒";
+                                    case "delivery": return "🚚";
+                                    case "payment": return "💳";
+                                    case "calendar": return "📅";
+                                    case "info": return "ℹ️";
+                                    case "warning": return "⚠️";
+                                    case "critical": return "🚨";
+                                    case "success": return "✅";
+                                    default: return "⚠️";
+                                  }
+                                })()}
+                              </span>
+                              <div style={{ flex: 1, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                                <div style={{
+                                  fontWeight: "600",
+                                  fontSize: "14px",
+                                  color:
+                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#9B2C2C" :
+                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#9C4221" :
+                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#2B6CB0" :
+                                    "#2F855A"
+                                }}>
+                                  {errorMessage || "Checkout is blocked by validation rules."}
+                                </div>
+                                {guidanceMessage && (
+                                  <div style={{ marginTop: "4px", fontSize: "13px", color: "#4A5568", lineHeight: "1.4" }}>
+                                    {guidanceMessage}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     )}
-
-                  </FormLayout>
+                  </VerticalStack>
                 </Box>
               </Card>
             )}

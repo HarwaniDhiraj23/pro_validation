@@ -57,16 +57,15 @@ function Extension() {
   for (const rule of activeRules) {
     if (rule.status !== "active") continue;
     if (rule.display_in_checkout === false) continue;
-    if (rule.warning_banner !== true && rule.warning_banner !== "true") {
-      // Blocking rules (warning_banner = false) are handled by the backend function blocking checkout and showing Shopify's default validation banner.
-      continue;
-    }
+
 
     const isTriggered = evaluateRule(rule, cartState);
     if (isTriggered) {
       // Build banner properties
       let tone = rule.banner_style || "warning";
-      if (!rule.banner_style && !rule.warning_banner) {
+      if (rule.rule_type === "validation" && rule.error_target && rule.error_target !== "$.cart") {
+        tone = "critical";
+      } else if (!rule.banner_style && !rule.warning_banner) {
         tone = "critical"; // Default validation rules block checkout (critical/red)
       } else if (!rule.banner_style && rule.warning_banner) {
         tone = "warning"; // Warning banners default to orange/warning
