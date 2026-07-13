@@ -40,6 +40,10 @@ export function cartValidationsGenerateRun(input) {
 
   for (const rule of rules) {
     if (rule.status !== "active") continue;
+    if (rule.warning_banner === true || rule.warning_banner === "true") {
+      // Soft warnings are handled solely by the Checkout UI Extension banner, not blocking the backend completion.
+      continue;
+    }
     
     // Check schedule rules if set
     if (rule.schedule_start || rule.schedule_end) {
@@ -50,13 +54,34 @@ export function cartValidationsGenerateRun(input) {
 
     const isTriggered = evaluateRule(rule, input);
     if (isTriggered) {
+      // Prepend custom emoji icons
+      let titlePrefix = "";
+      const iconName = rule.custom_icon === "default" || !rule.custom_icon ? "critical" : rule.custom_icon;
+      switch (iconName) {
+        case "none": titlePrefix = ""; break;
+        case "lock": titlePrefix = "🔒 "; break;
+        case "delivery": titlePrefix = "🚚 "; break;
+        case "payment": titlePrefix = "💳 "; break;
+        case "calendar": titlePrefix = "📅 "; break;
+        case "info": titlePrefix = "ℹ️ "; break;
+        case "warning": titlePrefix = "⚠️ "; break;
+        case "critical": titlePrefix = "🚨 "; break;
+        case "success": titlePrefix = "✅ "; break;
+        default: titlePrefix = "";
+      }
+
+      let errorMsg = titlePrefix + (rule.error_message || "Checkout is blocked by validation rules.");
+      if (rule.guidance_message) {
+        errorMsg += "\n" + rule.guidance_message;
+      }
+
       let errorTarget = rule.error_target || "$.cart";
       // Shift global cart errors to the first line item for unauthenticated buyers to avoid locking the email/login form
       if (errorTarget === "$.cart" && !input.cart?.buyerIdentity?.isAuthenticated && input.cart?.lines?.[0]?.merchandise?.id) {
         errorTarget = "$.cart.lines[0].quantity";
       }
       errors.push({
-        message: rule.error_message || "Checkout is blocked by validation rules.",
+        message: errorMsg,
         target: errorTarget,
       });
     }

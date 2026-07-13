@@ -57,6 +57,10 @@ function Extension() {
   for (const rule of activeRules) {
     if (rule.status !== "active") continue;
     if (rule.display_in_checkout === false) continue;
+    if (rule.warning_banner !== true && rule.warning_banner !== "true") {
+      // Blocking rules (warning_banner = false) are handled by the backend function blocking checkout and showing Shopify's default validation banner.
+      continue;
+    }
 
     const isTriggered = evaluateRule(rule, cartState);
     if (isTriggered) {
