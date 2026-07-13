@@ -399,6 +399,19 @@ if (pool && !useFallback) {
                  ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
                  ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
                  ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+                 
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
+
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
+
                  UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
                  UPDATE rules SET error_target = '$.cart.lines[0].quantity' WHERE error_target = '$.cart.lines[0]';`,
                 (migErr) => {
@@ -510,8 +523,15 @@ export async function dbQuery(text, params = []) {
     let title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end;
     let rule_type = "validation";
     let delivery_action = null;
+    let warning_banner = false;
+    let custom_icon = null;
+    let banner_style = null;
+    let guidance_message = null;
+    let display_in_checkout = true;
 
-    if (params.length === 13) {
+    if (params.length === 18) {
+      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout] = params;
+    } else if (params.length === 13) {
       [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action] = params;
     } else if (params.length === 11) {
       [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end] = params;
@@ -544,6 +564,11 @@ export async function dbQuery(text, params = []) {
       schedule_end,
       rule_type: rule_type || "validation",
       delivery_action: delivery_action || null,
+      warning_banner: !!warning_banner,
+      custom_icon: custom_icon || null,
+      banner_style: banner_style || null,
+      guidance_message: guidance_message || null,
+      display_in_checkout: display_in_checkout !== false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -554,7 +579,35 @@ export async function dbQuery(text, params = []) {
 
   if (lowerText.startsWith("update rules set title = $1") || lowerText.startsWith("update rules set target_shop = $1") || lowerText.includes("update rules set")) {
     let updated;
-    if (params.length === 14) {
+    if (params.length === 19) {
+      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop] = params;
+      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      if (ruleIdx !== -1) {
+        updated = {
+          ...db.rules[ruleIdx],
+          target_shop: target_shop || null,
+          title,
+          status,
+          priority: parseInt(priority) || 0,
+          conditions_operator,
+          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          error_message,
+          error_target,
+          schedule_start,
+          schedule_end,
+          rule_type: rule_type || "validation",
+          delivery_action: delivery_action || null,
+          warning_banner: !!warning_banner,
+          custom_icon: custom_icon || null,
+          banner_style: banner_style || null,
+          guidance_message: guidance_message || null,
+          display_in_checkout: display_in_checkout !== false,
+          updated_at: new Date().toISOString()
+        };
+        db.rules[ruleIdx] = updated;
+        writeFallbackDB(db);
+      }
+    } else if (params.length === 14) {
       const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, id, shop] = params;
       const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
       if (ruleIdx !== -1) {
@@ -676,8 +729,15 @@ export async function dbQuery(text, params = []) {
     let rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target;
     let rule_type = "validation";
     let delivery_action = null;
+    let warning_banner = false;
+    let custom_icon = null;
+    let banner_style = null;
+    let guidance_message = null;
+    let display_in_checkout = true;
 
-    if (params.length === 11) {
+    if (params.length === 16) {
+      [rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout] = params;
+    } else if (params.length === 11) {
       [rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action] = params;
     } else {
       const hasTargetShop = params.length === 9;
@@ -706,6 +766,11 @@ export async function dbQuery(text, params = []) {
       error_target,
       rule_type: rule_type || "validation",
       delivery_action: delivery_action || null,
+      warning_banner: !!warning_banner,
+      custom_icon: custom_icon || null,
+      banner_style: banner_style || null,
+      guidance_message: guidance_message || null,
+      display_in_checkout: display_in_checkout !== false,
       created_at: new Date().toISOString()
     };
     db.rule_versions.push(newVersion);

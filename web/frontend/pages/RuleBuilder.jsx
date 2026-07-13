@@ -204,6 +204,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [deliveryAction, setDeliveryAction] = useState("hide"); // hide or rename
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
   const [errorTarget, setErrorTarget] = useState("$.cart");
+  const [warningBanner, setWarningBanner] = useState(false);
+  const [customIcon, setCustomIcon] = useState("warning");
+  const [bannerStyle, setBannerStyle] = useState("warning");
+  const [guidanceMessage, setGuidanceMessage] = useState("");
+  const [displayInCheckout, setDisplayInCheckout] = useState(true);
   const [conditions, setConditions] = useState([
     { type: "minimum_order_value", operator: "less_than", value: "50" }
   ]);
@@ -264,6 +269,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
             setConditions(data.conditions || []);
+            setWarningBanner(!!data.warning_banner);
+            setCustomIcon(data.custom_icon || "warning");
+            setBannerStyle(data.banner_style || "warning");
+            setGuidanceMessage(data.guidance_message || "");
+            setDisplayInCheckout(data.display_in_checkout !== false);
             const toLocalDateTimeString = (dateInput) => {
               if (!dateInput) return "";
               const d = new Date(dateInput);
@@ -305,6 +315,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
             setConditions(data.conditions || []);
+            setWarningBanner(!!data.warning_banner);
+            setCustomIcon(data.custom_icon || "warning");
+            setBannerStyle(data.banner_style || "warning");
+            setGuidanceMessage(data.guidance_message || "");
+            setDisplayInCheckout(data.display_in_checkout !== false);
           }
         })
         .catch(err => {
@@ -535,7 +550,12 @@ export default function RuleBuilder({ ruleId, navigate }) {
       rule_type: ruleType,
       delivery_action: (ruleType === "delivery" || ruleType === "payment") ? deliveryAction : null,
       schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
-      schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null
+      schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null,
+      warning_banner: warningBanner,
+      custom_icon: customIcon,
+      banner_style: bannerStyle,
+      guidance_message: guidanceMessage,
+      display_in_checkout: displayInCheckout
     };
 
     try {
@@ -997,15 +1017,15 @@ export default function RuleBuilder({ ruleId, navigate }) {
                 </Box>
               </Card>
             ) : (
-              <Card title="Error Message Display">
+              <Card title="Error Message & Banner Settings">
                 <Box padding="5">
                   <FormLayout>
                     <TextField
-                      label="Custom Error Message *"
+                      label="Custom Message *"
                       value={errorMessage}
                       onChange={setErrorMessage}
                       multiline={2}
-                      helpText="This is what the customer will see when checkout is blocked."
+                      helpText="This is what the customer will see when checkout is blocked or warned."
                       autoComplete="off"
                     />
                     <Select
@@ -1015,6 +1035,133 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       onChange={setErrorTarget}
                       helpText="Specifies where the error badge will be attached in the checkout UI."
                     />
+
+                    <div style={{ marginTop: "16px", borderTop: "1px solid #e1e3e5", paddingTop: "16px" }}>
+                      <Checkbox
+                        label="Display as Warning Banner (instead of blocking checkout completion)"
+                        checked={warningBanner}
+                        onChange={setWarningBanner}
+                      />
+                    </div>
+
+                    <Checkbox
+                      label="Show Banner / Message in Checkout UI Extension"
+                      checked={displayInCheckout}
+                      onChange={setDisplayInCheckout}
+                    />
+
+                    {displayInCheckout && (
+                      <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
+                        <div style={{ flex: 1 }}>
+                          <Select
+                            label="Banner Tone / Style"
+                            options={[
+                              { label: "Critical (Error / Red)", value: "critical" },
+                              { label: "Warning (Alert / Orange)", value: "warning" },
+                              { label: "Information (Info / Blue)", value: "info" },
+                              { label: "Success (Completed / Green)", value: "success" }
+                            ]}
+                            value={bannerStyle}
+                            onChange={setBannerStyle}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <Select
+                            label="Custom Icon"
+                            options={[
+                              { label: "Tone Default Icon", value: "default" },
+                              { label: "None", value: "none" },
+                              { label: "Warning (⚠️)", value: "warning" },
+                              { label: "Critical / Error (🚨)", value: "critical" },
+                              { label: "Information (ℹ️)", value: "info" },
+                              { label: "Checkmark (✅)", value: "success" },
+                              { label: "Security Lock (🔒)", value: "lock" },
+                              { label: "Shipping/Delivery (🚚)", value: "delivery" },
+                              { label: "Payment/Card (💳)", value: "payment" },
+                              { label: "Calendar (📅)", value: "calendar" }
+                            ]}
+                            value={customIcon}
+                            onChange={setCustomIcon}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {displayInCheckout && (
+                      <TextField
+                        label="Customer Guidance / Instructions"
+                        value={guidanceMessage}
+                        onChange={setGuidanceMessage}
+                        placeholder="e.g. Please change your shipping address to a physical location or add $15 more to cart."
+                        multiline={2}
+                        helpText="Helpful instructions to assist the customer in resolving the block/warning."
+                        autoComplete="off"
+                      />
+                    )}
+
+                    {/* Rule Preview Block */}
+                    {displayInCheckout && (
+                      <div style={{ marginTop: "20px", borderTop: "1px solid #e1e3e5", paddingTop: "16px" }}>
+                        <Text variant="headingSm">Live Checkout Banner Preview</Text>
+                        <div style={{
+                          marginTop: "12px",
+                          padding: "16px",
+                          borderRadius: "8px",
+                          backgroundColor:
+                            bannerStyle === "critical" ? "#FFF5F5" :
+                            bannerStyle === "warning" ? "#FFFAF0" :
+                            bannerStyle === "info" ? "#EBF8FF" :
+                            "#F0FFF4",
+                          borderLeft: `5px solid ${
+                            bannerStyle === "critical" ? "#E53E3E" :
+                            bannerStyle === "warning" ? "#DD6B20" :
+                            bannerStyle === "info" ? "#3182CE" :
+                            "#38A169"
+                          }`,
+                          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.05)",
+                          display: "flex",
+                          gap: "12px",
+                          alignItems: "flex-start"
+                        }}>
+                          <span style={{ fontSize: "20px", lineHeight: "1" }}>
+                            {(() => {
+                              const iconName = customIcon === "default" ? bannerStyle : customIcon;
+                              switch (iconName) {
+                                case "none": return "";
+                                case "lock": return "🔒";
+                                case "delivery": return "🚚";
+                                case "payment": return "💳";
+                                case "calendar": return "📅";
+                                case "info": return "ℹ️";
+                                case "warning": return "⚠️";
+                                case "critical": return "🚨";
+                                case "success": return "✅";
+                                default: return "⚠️";
+                              }
+                            })()}
+                          </span>
+                          <div style={{ flex: 1, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                            <div style={{
+                              fontWeight: "600",
+                              fontSize: "14px",
+                              color:
+                                bannerStyle === "critical" ? "#9B2C2C" :
+                                bannerStyle === "warning" ? "#9C4221" :
+                                bannerStyle === "info" ? "#2B6CB0" :
+                                "#2F855A"
+                            }}>
+                              {errorMessage || "Checkout is blocked by validation rules."}
+                            </div>
+                            {guidanceMessage && (
+                              <div style={{ marginTop: "4px", fontSize: "13px", color: "#4A5568", lineHeight: "1.4" }}>
+                                {guidanceMessage}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                   </FormLayout>
                 </Box>
               </Card>

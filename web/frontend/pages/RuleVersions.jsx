@@ -275,7 +275,6 @@ export default function RuleVersions({ ruleId, navigate }) {
                 <div className="col-ver">
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
                     <Badge tone="info">v{ver.version}</Badge>
-                    {isActive && <Badge tone="success">Active</Badge>}
                   </div>
                 </div>
                 <div className="col-time">
@@ -333,13 +332,13 @@ export default function RuleVersions({ ruleId, navigate }) {
             selectedVersion.version === versions[0].version
               ? undefined
               : {
-                  content: rollingBackId === selectedVersion.version ? "Restoring..." : "Restore this version",
-                  onAction: () => {
-                    handleRollback(selectedVersion.version);
-                    setSelectedVersion(null);
-                  },
-                  disabled: rollingBackId === selectedVersion.version
-                }
+                content: rollingBackId === selectedVersion.version ? "Restoring..." : "Restore this version",
+                onAction: () => {
+                  handleRollback(selectedVersion.version);
+                  setSelectedVersion(null);
+                },
+                disabled: rollingBackId === selectedVersion.version
+              }
           }
           secondaryActions={[
             {

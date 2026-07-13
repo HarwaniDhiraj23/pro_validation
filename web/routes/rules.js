@@ -115,7 +115,17 @@ async function syncRulesToShopify(session) {
       return;
     }
 
-    // 5. Update metafield on the validation customization
+    // 5. Update metafield on the validation customization and the shop
+    const shopQuery = `
+      query {
+        shop {
+          id
+        }
+      }
+    `;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
     const metafieldMutation = `
       mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
@@ -131,17 +141,29 @@ async function syncRulesToShopify(session) {
       }
     `;
 
+    const metafields = [
+      {
+        ownerId: validationId,
+        namespace: "cart-validation",
+        key: "rules",
+        value: rulesJson,
+        type: "json"
+      }
+    ];
+
+    if (shopId) {
+      metafields.push({
+        ownerId: shopId,
+        namespace: "cart-validation",
+        key: "rules",
+        value: rulesJson,
+        type: "json"
+      });
+    }
+
     const setRes = await client.request(metafieldMutation, {
       variables: {
-        metafields: [
-          {
-            ownerId: validationId,
-            namespace: "cart-validation",
-            key: "rules",
-            value: rulesJson,
-            type: "json"
-          }
-        ]
+        metafields
       }
     });
 
@@ -252,7 +274,17 @@ async function syncDeliveryRulesToShopify(session) {
       return;
     }
 
-    // 5. Update metafield on the delivery customization
+    // 5. Update metafield on the delivery customization and shop
+    const shopQuery = `
+      query {
+        shop {
+          id
+        }
+      }
+    `;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
     const metafieldMutation = `
       mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
@@ -268,17 +300,29 @@ async function syncDeliveryRulesToShopify(session) {
       }
     `;
 
+    const metafields = [
+      {
+        ownerId: customizationId,
+        namespace: "cart-validation",
+        key: "delivery-rules",
+        value: rulesJson,
+        type: "json"
+      }
+    ];
+
+    if (shopId) {
+      metafields.push({
+        ownerId: shopId,
+        namespace: "cart-validation",
+        key: "delivery-rules",
+        value: rulesJson,
+        type: "json"
+      });
+    }
+
     const setRes = await client.request(metafieldMutation, {
       variables: {
-        metafields: [
-          {
-            ownerId: customizationId,
-            namespace: "cart-validation",
-            key: "delivery-rules",
-            value: rulesJson,
-            type: "json"
-          }
-        ]
+        metafields
       }
     });
 
@@ -439,7 +483,17 @@ async function syncPaymentRulesToShopify(session) {
       console.log(`[Payment Sync] Customization is already enabled.`);
     }
 
-    // 5. Update metafield on the payment customization
+    // 5. Update metafield on the payment customization and shop
+    const shopQuery = `
+      query {
+        shop {
+          id
+        }
+      }
+    `;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
     const metafieldMutation = `
       mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
@@ -455,17 +509,29 @@ async function syncPaymentRulesToShopify(session) {
       }
     `;
 
+    const metafields = [
+      {
+        ownerId: customizationId,
+        namespace: "cart-validation",
+        key: "payment-rules",
+        value: rulesJson,
+        type: "json"
+      }
+    ];
+
+    if (shopId) {
+      metafields.push({
+        ownerId: shopId,
+        namespace: "cart-validation",
+        key: "payment-rules",
+        value: rulesJson,
+        type: "json"
+      });
+    }
+
     const setRes = await client.request(metafieldMutation, {
       variables: {
-        metafields: [
-          {
-            ownerId: customizationId,
-            namespace: "cart-validation",
-            key: "payment-rules",
-            value: rulesJson,
-            type: "json"
-          }
-        ]
+        metafields
       }
     });
 
@@ -833,21 +899,21 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Insert rule
     const ruleRes = await dbQuery(
-      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action]
+      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
     const newRule = ruleRes.rows[0];
 
     // Create version 1
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action]
+      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
 
     // Sync product collections metafields if needed
@@ -867,7 +933,7 @@ router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Check if exists
     const checkRes = await dbQuery("SELECT * FROM rules WHERE id = $1 AND shop = $2", [id, shop]);
@@ -888,17 +954,17 @@ router.put("/:id", async (req, res) => {
     // Update rule
     const ruleRes = await dbQuery(
       `UPDATE rules 
-       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $13 AND shop = $14 RETURNING *`,
-      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, id, shop]
+       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, warning_banner = $13, custom_icon = $14, banner_style = $15, guidance_message = $16, display_in_checkout = $17, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $18 AND shop = $19 RETURNING *`,
+      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop]
     );
     const updatedRule = ruleRes.rows[0];
 
     // Insert version history
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action]
+      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
 
     // Sync product collections metafields if needed
@@ -1036,9 +1102,9 @@ router.post("/:id/rollback", async (req, res) => {
     // Update main rule
     const ruleRes = await dbQuery(
       `UPDATE rules 
-       SET title = $1, priority = $2, conditions_operator = $3, conditions = $4, error_message = $5, error_target = $6, rule_type = $7, delivery_action = $8, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9 AND shop = $10 RETURNING *`,
-      [ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, ver.rule_type || 'validation', ver.delivery_action || null, id, shop]
+       SET title = $1, priority = $2, conditions_operator = $3, conditions = $4, error_message = $5, error_target = $6, rule_type = $7, delivery_action = $8, warning_banner = $9, custom_icon = $10, banner_style = $11, guidance_message = $12, display_in_checkout = $13, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $14 AND shop = $15 RETURNING *`,
+      [ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, ver.rule_type || 'validation', ver.delivery_action || null, ver.warning_banner || false, ver.custom_icon || null, ver.banner_style || null, ver.guidance_message || null, ver.display_in_checkout !== false, id, shop]
     );
 
     // Insert new version history step
@@ -1046,9 +1112,9 @@ router.post("/:id/rollback", async (req, res) => {
     const nextVersion = (maxVerRes.rows[0]?.max || 0) + 1;
 
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [id, nextVersion, ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, ver.rule_type || 'validation', ver.delivery_action || null]
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [id, nextVersion, ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, ver.rule_type || 'validation', ver.delivery_action || null, ver.warning_banner || false, ver.custom_icon || null, ver.banner_style || null, ver.guidance_message || null, ver.display_in_checkout !== false]
     );
 
     // Sync to Shopify
