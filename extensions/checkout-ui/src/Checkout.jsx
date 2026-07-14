@@ -1,5 +1,6 @@
 import '@shopify/ui-extensions/preact';
 import { render } from "preact";
+import { useState, useEffect, useRef } from "preact/hooks";
 
 // 1. Export the extension
 export default async () => {
@@ -7,6 +8,8 @@ export default async () => {
 };
 
 function Extension() {
+  const [showErrors, setShowErrors] = useState(false);
+
   // 2. Fetch stateful values from the shopify context
   const lines = shopify.lines?.value || [];
   const shippingAddress = shopify.shippingAddress?.value || {};
@@ -51,6 +54,50 @@ function Extension() {
     console.error("[Checkout UI] Error parsing rules:", e);
   }
 
+  // Intercept the buyer journey to block progress on submit
+  const stateRef = useRef({ activeRules, cartState });
+  stateRef.current = { activeRules, cartState };
+
+  useEffect(() => {
+    const unsubscribe = shopify.buyerJourney.intercept(({ canBlockProgress }) => {
+      const { activeRules: currentRules, cartState: currentState } = stateRef.current;
+      
+      let shouldBlock = false;
+      for (const rule of currentRules) {
+        if (rule.status !== "active") continue;
+        if (rule.display_in_checkout === false) continue;
+        if (rule.warning_banner !== true && rule.warning_banner !== "true") {
+          if (evaluateRule(rule, currentState)) {
+            shouldBlock = true;
+            break;
+          }
+        }
+      }
+
+      if (shouldBlock) {
+        if (canBlockProgress) {
+          setShowErrors(true);
+          return {
+            behavior: "block",
+            reason: "Validation rules triggered"
+          };
+        }
+      } else {
+        setShowErrors(false);
+      }
+
+      return {
+        behavior: "allow"
+      };
+    });
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, []);
+
   // 4. Evaluate which rules are triggered
   const triggeredBanners = [];
 
@@ -58,6 +105,11 @@ function Extension() {
     if (rule.status !== "active") continue;
     if (rule.display_in_checkout === false) continue;
 
+    // Do not show blocking error banners until the user attempts to submit checkout (Pay now)
+    const isWarning = rule.warning_banner === true || rule.warning_banner === "true";
+    if (!isWarning && !showErrors) {
+      continue;
+    }
 
     const isTriggered = evaluateRule(rule, cartState);
     if (isTriggered) {
@@ -121,11 +173,12 @@ function Extension() {
   return (
     <s-stack gap="base">
       {triggeredBanners.map((banner) => (
-        <s-banner key={banner.id} heading={banner.heading} tone={banner.tone}>
+        <s-stack key={banner.id} gap="base">
+          <s-banner heading={banner.heading} tone={banner.tone} />
           {banner.guidance && (
-            <s-text size="small">{banner.guidance}</s-text>
+            <s-banner heading={banner.guidance} tone="info" />
           )}
-        </s-banner>
+        </s-stack>
       ))}
     </s-stack>
   );

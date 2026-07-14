@@ -15,7 +15,7 @@ import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import CheckoutWebhookHandlers from "./routes/webhookHandlers.js";
 
-import rulesRouter, { syncRulesToShopify, syncDeliveryRulesToShopify } from "./routes/rules.js";
+import rulesRouter, { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify } from "./routes/rules.js";
 import templatesRouter from "./routes/templates.js";
 import analyticsRouter from "./routes/analytics.js";
 import recommendationsRouter from "./routes/recommendations.js";
@@ -269,8 +269,40 @@ const registerWebhooksForActiveShops = async () => {
   }
 };
 
+// Auto active rule sync when server restart/start
+const syncAllActiveShopsOnStartup = async () => {
+  try {
+    const activeShops = await dbQuery("SELECT shop FROM shops WHERE uninstalled = FALSE");
+    console.log(`[Startup Sync] Found ${activeShops.rows?.length || 0} active shops. Triggering rule synchronization...`);
+
+    for (const row of (activeShops.rows || [])) {
+      const shop = row.shop;
+      try {
+        const sessionId = shopify.api.session.getOfflineId(shop);
+        const session = await shopify.config.sessionStorage.loadSession(sessionId);
+        if (session) {
+          console.log(`[Startup Sync] Syncing rules to Shopify for shop: ${shop}`);
+          await syncRulesToShopify(session);
+          await syncDeliveryRulesToShopify(session);
+          await syncPaymentRulesToShopify(session);
+        } else {
+          console.warn(`[Startup Sync] No offline session found for ${shop}`);
+        }
+      } catch (shopErr) {
+        console.error(`[Startup Sync] Failed for shop ${shop}:`, shopErr.message);
+      }
+    }
+  } catch (err) {
+    console.error("[Startup Sync] Error in startup sync loop:", err.message);
+  }
+};
+
 app.listen(PORT, () => {
   console.log(`[Server] Listening on port ${PORT}`);
+  
+  // Auto active rule sync when server restart
+  syncAllActiveShopsOnStartup();
+
   // In development, shopify app dev handles webhook registration automatically.
   // Only register programmatically in production to avoid 403 errors from stale dev tokens.
   if (process.env.NODE_ENV === "production") {

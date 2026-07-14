@@ -1143,63 +1143,145 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                 Checkout Preview
                               </span>
                             </div>
-                            <div style={{
-                              padding: "16px",
-                              borderRadius: "8px",
-                              backgroundColor:
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#FFF5F5" :
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#FFFAF0" :
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#EBF8FF" :
-                                "#F0FFF4",
-                              borderLeft: `5px solid ${
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#E53E3E" :
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#DD6B20" :
-                                (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#3182CE" :
-                                "#38A169"
-                              }`,
-                              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                              display: "flex",
-                              gap: "12px",
-                              alignItems: "flex-start",
-                              marginTop: "4px"
-                            }}>
-                              <span style={{ fontSize: "20px", lineHeight: "1" }}>
-                                {(() => {
-                                  const previewStyle = ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle;
-                                  const iconName = customIcon === "default" ? previewStyle : customIcon;
-                                  switch (iconName) {
-                                    case "none": return "";
-                                    case "lock": return "🔒";
-                                    case "delivery": return "🚚";
-                                    case "payment": return "💳";
-                                    case "calendar": return "📅";
-                                    case "info": return "ℹ️";
-                                    case "warning": return "⚠️";
-                                    case "critical": return "🚨";
-                                    case "success": return "✅";
-                                    default: return "⚠️";
-                                  }
-                                })()}
-                              </span>
-                              <div style={{ flex: 1, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                            {ruleType === "validation" && errorTarget !== "$.cart" ? (
+                              <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                                {/* Mock Input Field */}
                                 <div style={{
-                                  fontWeight: "600",
-                                  fontSize: "14px",
-                                  color:
-                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "critical" ? "#9B2C2C" :
-                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "warning" ? "#9C4221" :
-                                    (ruleType === "validation" && errorTarget !== "$.cart" ? "critical" : bannerStyle) === "info" ? "#2B6CB0" :
-                                    "#2F855A"
+                                  border: "1px solid #c91414",
+                                  borderRadius: "8px",
+                                  padding: "10px 14px",
+                                  backgroundColor: "#ffffff",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  marginBottom: "6px"
                                 }}>
-                                  {errorMessage || "Checkout is blocked by validation rules."}
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                    <span style={{ fontSize: "11px", color: "#707070" }}>
+                                      {(() => {
+                                        if (errorTarget.includes("email")) return "Email";
+                                        if (errorTarget.includes("phone")) return "Phone";
+                                        if (errorTarget.includes("firstName")) return "First name";
+                                        if (errorTarget.includes("lastName")) return "Last name";
+                                        if (errorTarget.includes("address1")) return "Address";
+                                        if (errorTarget.includes("address2")) return "Apartment, suite, etc. (optional)";
+                                        if (errorTarget.includes("city")) return "City";
+                                        if (errorTarget.includes("provinceCode")) return "State/Province";
+                                        if (errorTarget.includes("zip")) return "ZIP/Postal Code";
+                                        if (errorTarget.includes("countryCode")) return "Country/Region";
+                                        if (errorTarget.includes("company")) return "Company";
+                                        if (errorTarget.includes("poNumber")) return "Purchase Order (PO) Number";
+                                        if (errorTarget.includes("discountCodes")) return "Discount code or gift card";
+                                        if (errorTarget.includes("lines[0]")) return "Quantity";
+                                        return "Field";
+                                      })()}
+                                    </span>
+                                    <span style={{ fontSize: "14px", color: "#111111" }}>
+                                      {(() => {
+                                        if (errorTarget.includes("email")) return "qizywiz@mailinator.com";
+                                        if (errorTarget.includes("phone")) return "1234567890";
+                                        if (errorTarget.includes("firstName")) return "Erica";
+                                        if (errorTarget.includes("lastName")) return "Diaz";
+                                        if (errorTarget.includes("address1")) return "Po Box";
+                                        if (errorTarget.includes("city")) return "New York";
+                                        if (errorTarget.includes("provinceCode")) return "New York";
+                                        if (errorTarget.includes("zip")) return "90210";
+                                        if (errorTarget.includes("countryCode")) return "United States";
+                                        if (errorTarget.includes("company")) return "Acme Corp";
+                                        return "invalid value";
+                                      })()}
+                                    </span>
+                                  </div>
+                                  {errorTarget.includes("address1") && (
+                                    <span style={{ color: "#707070", fontSize: "16px" }}>🔍</span>
+                                  )}
                                 </div>
+                                {/* Error Messages */}
+                                <div style={{ color: "#c91414", fontSize: "14px", lineHeight: "1.4", display: "flex", flexDirection: "column", gap: "2px" }}>
+                                  <div>{errorMessage || "Checkout is blocked by validation rules."}</div>
+                                  {guidanceMessage && <div>{guidanceMessage}</div>}
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                {/* Main Banner */}
+                                <div style={{
+                                  padding: "12px 16px",
+                                  borderRadius: "12px",
+                                  backgroundColor:
+                                    bannerStyle === "critical" ? "#FFF5F5" :
+                                    bannerStyle === "warning" ? "#FFFAF0" :
+                                    bannerStyle === "info" ? "#EBF8FF" :
+                                    "#F0FFF4",
+                                  border: `1px solid ${
+                                    bannerStyle === "critical" ? "#FED7D7" :
+                                    bannerStyle === "warning" ? "#FEEBC8" :
+                                    bannerStyle === "info" ? "#BEE3F8" :
+                                    "#C6F6D5"
+                                  }`,
+                                  display: "flex",
+                                  gap: "10px",
+                                  alignItems: "center"
+                                }}>
+                                  <span style={{ fontSize: "18px", display: "flex", alignItems: "center" }}>
+                                    {(() => {
+                                      const iconName = customIcon === "default" ? bannerStyle : customIcon;
+                                      switch (iconName) {
+                                        case "none": return "";
+                                        case "lock": return "🔒";
+                                        case "delivery": return "🚚";
+                                        case "payment": return "💳";
+                                        case "calendar": return "📅";
+                                        case "info": return "ℹ️";
+                                        case "warning": return "⚠️";
+                                        case "critical": return "🚨";
+                                        case "success": return "✅";
+                                        default: return "⚠️";
+                                      }
+                                    })()}
+                                  </span>
+                                  <div style={{
+                                    flex: 1,
+                                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                                    fontWeight: "500",
+                                    fontSize: "14px",
+                                    color:
+                                      bannerStyle === "critical" ? "#9B2C2C" :
+                                      bannerStyle === "warning" ? "#9C4221" :
+                                      bannerStyle === "info" ? "#2B6CB0" :
+                                      "#22543D"
+                                  }}>
+                                    {errorMessage || "Checkout is blocked by validation rules."}
+                                  </div>
+                                </div>
+
+                                {/* Guidance/Guideline Banner */}
                                 {guidanceMessage && (
-                                  <div style={{ marginTop: "4px", fontSize: "13px", color: "#4A5568", lineHeight: "1.4" }}>
-                                    {guidanceMessage}
+                                  <div style={{
+                                    padding: "12px 16px",
+                                    borderRadius: "12px",
+                                    backgroundColor: "#F7F9FA",
+                                    border: "1px solid #E2E8F0",
+                                    display: "flex",
+                                    gap: "10px",
+                                    alignItems: "center"
+                                  }}>
+                                    <span style={{ fontSize: "18px", display: "flex", alignItems: "center" }}>
+                                      ℹ️
+                                    </span>
+                                    <div style={{
+                                      flex: 1,
+                                      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                                      fontWeight: "500",
+                                      fontSize: "14px",
+                                      color: "#4A5568"
+                                    }}>
+                                      {guidanceMessage}
+                                    </div>
                                   </div>
                                 )}
                               </div>
-                            </div>
+                            )}
                           </div>
                         </div>
                       </div>
