@@ -126,6 +126,35 @@ app.post("/api/products", async (_req, res) => {
   res.status(status).send({ success: status === 200, error });
 });
 
+app.get("/api/config/status", async (_req, res) => {
+  try {
+    const client = new shopify.api.clients.Graphql({
+      session: res.locals.shopify.session,
+    });
+
+    const validationData = await client.request(`
+      query getCheckoutValidations {
+        validations(first: 10) {
+          nodes {
+            id
+            title
+            enabled
+          }
+        }
+      }
+    `);
+
+    const validations = validationData?.data?.validations?.nodes || [];
+    // Shopify returns validations specifically for the current app
+    const isActive = validations.some(node => node.enabled);
+
+    res.status(200).send({ active: isActive });
+  } catch (e) {
+    console.error(`Failed to get validation status: ${e.message}`);
+    res.status(500).send({ active: false, error: e.message });
+  }
+});
+
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 

@@ -869,12 +869,18 @@ export async function dbQuery(text, params = []) {
     return { rows };
   }
 
-  // Analytics: Rules breakdown — JOIN rules, GROUP BY title, block events only
+  // Analytics: Rules breakdown — JOIN rules, GROUP BY title, block or check events
   if (lowerText.includes("rule_analytics") && lowerText.includes("join rules") && lowerText.includes("group by")) {
     const shop = params[0];
-    const blockEvents = db.rule_analytics.filter(a => a.shop === shop && a.event_type === "block" && a.rule_id);
+    let eventTypes = ["block"];
+    if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
+      eventTypes = ["block", "check"];
+    } else if (lowerText.includes("event_type = 'check'")) {
+      eventTypes = ["check"];
+    }
+    const filteredEvents = db.rule_analytics.filter(a => a.shop === shop && eventTypes.includes(a.event_type) && a.rule_id);
     const grouped = {};
-    blockEvents.forEach(a => {
+    filteredEvents.forEach(a => {
       const rule = db.rules.find(r => r.id === a.rule_id);
       const title = rule ? rule.title : "Unknown Rule";
       if (!grouped[title]) {
@@ -887,17 +893,22 @@ export async function dbQuery(text, params = []) {
     return { rows: rows.slice(0, 5) };
   }
 
-  // Analytics: Recent blocked checkouts — LEFT JOIN rules, block events, ordered by date DESC
-  if (lowerText.includes("rule_analytics") && lowerText.includes("left join") && lowerText.includes("block")) {
+  // Analytics: Recent checkout activity — LEFT JOIN rules, ordered by date DESC
+  if (lowerText.includes("rule_analytics") && lowerText.includes("left join") && lowerText.includes("order by a.created_at desc")) {
     const shop = params[0];
-    const blockEvents = db.rule_analytics.filter(a => a.shop === shop && a.event_type === "block");
-    blockEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const rows = blockEvents.slice(0, 10).map(a => {
+    let eventTypes = ["block"];
+    if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
+      eventTypes = ["block", "check"];
+    }
+    const filteredEvents = db.rule_analytics.filter(a => a.shop === shop && eventTypes.includes(a.event_type));
+    filteredEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const rows = filteredEvents.slice(0, 10).map(a => {
       const rule = a.rule_id ? db.rules.find(r => r.id === a.rule_id) : null;
       return {
         id: a.id,
         rule_title: rule ? rule.title : "Unknown/Deleted Rule",
         cart_value: a.cart_value,
+        event_type: a.event_type,
         created_at: a.created_at
       };
     });

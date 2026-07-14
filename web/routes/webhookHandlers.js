@@ -34,8 +34,10 @@ const WebhookHandlers = {
           "SELECT * FROM rules WHERE shop = $1 AND status = 'active'",
           [shop]
         );
-        const activeRules = rulesRes.rows || [];
-        console.log(`[Webhook] Active rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
+        let activeRules = rulesRes.rows || [];
+        // Only validation rules actually block checkouts. Delivery/Payment rules just alter options.
+        activeRules = activeRules.filter(r => !r.rule_type || r.rule_type === 'validation');
+        console.log(`[Webhook] Active validation rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
 
         // 2. Validate payload against active rules
         const triggeredRule = validateCheckoutPayload(payload, activeRules);
@@ -66,27 +68,20 @@ const WebhookHandlers = {
           );
         } else {
           // If not blocked:
-          // Remove any previous block event
+          // Remove any previous block or check event to prevent duplicates (fixing the 2 entry bug)
           await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block'",
+            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type IN ('check', 'block')",
             [shop, cartId]
           );
 
-          // First check if any check event is already logged
-          const existingCheck = await dbQuery(
-            "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check' LIMIT 1",
-            [shop, cartId]
-          );
-          if (existingCheck.rows && existingCheck.rows.length > 0) {
-            return;
+          if (activeRules.length > 0) {
+            console.log(`[Webhook] Logging check event for ${shop}`);
+            await dbQuery(
+              `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [shop, activeRules[0].id, 'check', cartValue, cartId]
+            );
           }
-
-          console.log(`[Webhook] Logging check event for ${shop}`);
-          await dbQuery(
-            `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [shop, null, 'check', cartValue, cartId]
-          );
         }
       } catch (err) {
         console.error("[Webhook] CHECKOUTS_CREATE error:", err.stack || err.message);
@@ -121,8 +116,10 @@ const WebhookHandlers = {
           "SELECT * FROM rules WHERE shop = $1 AND status = 'active'",
           [shop]
         );
-        const activeRules = rulesRes.rows || [];
-        console.log(`[Webhook] CHECKOUTS_UPDATE Active rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
+        let activeRules = rulesRes.rows || [];
+        // Only validation rules actually block checkouts. Delivery/Payment rules just alter options.
+        activeRules = activeRules.filter(r => !r.rule_type || r.rule_type === 'validation');
+        console.log(`[Webhook] CHECKOUTS_UPDATE Active validation rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
 
         // 2. Validate payload against active rules
         const triggeredRule = validateCheckoutPayload(payload, activeRules);
@@ -153,27 +150,20 @@ const WebhookHandlers = {
           );
         } else {
           // If not blocked:
-          // Remove any previous block event
+          // Remove any previous block or check event to prevent duplicates (fixing the 2 entry bug)
           await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block'",
+            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type IN ('check', 'block')",
             [shop, cartId]
           );
 
-          // For check/allow events, only log if no check is currently in DB for this cartId
-          const existingCheck = await dbQuery(
-            "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check' LIMIT 1",
-            [shop, cartId]
-          );
-          if (existingCheck.rows && existingCheck.rows.length > 0) {
-            return;
+          if (activeRules.length > 0) {
+            console.log(`[Webhook] Logging check event for ${shop}`);
+            await dbQuery(
+              `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [shop, activeRules[0].id, 'check', cartValue, cartId]
+            );
           }
-
-          console.log(`[Webhook] Logging check event for ${shop}`);
-          await dbQuery(
-            `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [shop, null, 'check', cartValue, cartId]
-          );
         }
       } catch (err) {
         console.error("[Webhook] CHECKOUTS_UPDATE error:", err.stack || err.message);
@@ -208,12 +198,8 @@ const WebhookHandlers = {
           [shop, cartId]
         );
 
-        // Log as an "allow" event - order was successfully completed
-        await dbQuery(
-          `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [shop, null, 'allow', cartValue, cartId]
-        );
+        // DO NOT log 'allow' event to database (per user request: on event_type = allow then do not update database)
+        console.log(`[Webhook] Order completed successfully. Skipping allow event insert.`);
       } catch (err) {
         console.error("[Webhook] ORDERS_CREATE error:", err.message);
       }

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { NavMenu } from "@shopify/app-bridge-react";
 import Routes from "./Routes";
 
-import { QueryProvider, PolarisProvider } from "./components";
+import { QueryProvider, PolarisProvider, OnboardingModal } from "./components";
 
 export default function App() {
   // Any .tsx or .jsx files in /pages will become a route
@@ -22,6 +22,7 @@ export default function App() {
             <a href="/rules">Validation Rules</a>
             <a href="/templates">Pre-built Rules</a>
           </NavMenu>
+          <OnboardingModal />
           <Routes pages={pages} />
         </QueryProvider>
       </BrowserRouter>

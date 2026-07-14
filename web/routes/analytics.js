@@ -20,11 +20,11 @@ router.get("/", async (req, res) => {
     let blockedValue = 0;
 
     (analyticsRes.rows || []).forEach(row => {
-      if (row.event_type === "block") {
-        totalBlocks = row.count;
-        blockedValue = row.total_value;
+      if (row.event_type === "block" || row.event_type === "check") {
+        totalBlocks += row.count;
+        blockedValue += row.total_value;
       } else if (row.event_type === "allow") {
-        totalAllows = row.count;
+        totalAllows += row.count;
       }
       // Sum all events into totalChecks for aggregate
       totalChecks += row.count;
@@ -60,34 +60,34 @@ router.get("/", async (req, res) => {
       if (!dailyStats[dateStr]) {
         dailyStats[dateStr] = { date: dateStr, blocks: 0, allows: 0, total: 0 };
       }
-      if (row.event_type === "block") {
-        dailyStats[dateStr].blocks = row.count;
+      if (row.event_type === "block" || row.event_type === "check") {
+        dailyStats[dateStr].blocks += row.count;
       } else if (row.event_type === "allow") {
-        dailyStats[dateStr].allows = row.count;
+        dailyStats[dateStr].allows += row.count;
       }
       dailyStats[dateStr].total += row.count;
     });
 
     const chartData = Object.values(dailyStats);
 
-    // 4. Breakdown by triggered rules
+    // 4. Breakdown by triggered rules (blocks + checks as one)
     const rulesBreakdownRes = await dbQuery(
       `SELECT r.title, COUNT(a.id)::int as count 
        FROM rule_analytics a 
        JOIN rules r ON a.rule_id = r.id 
-       WHERE a.shop = $1 AND a.event_type = 'block'
+       WHERE a.shop = $1 AND a.event_type IN ('block', 'check')
        GROUP BY r.title 
        ORDER BY count DESC 
        LIMIT 5`,
       [shop]
     );
 
-    // 5. Recent blocked checkouts list
+    // 5. Recent checkouts list (both blocks and checks)
     const recentBlocksRes = await dbQuery(
-      `SELECT a.id, r.title as rule_title, a.cart_value, a.created_at 
+      `SELECT a.id, r.title as rule_title, a.cart_value, a.created_at, a.event_type 
        FROM rule_analytics a
        LEFT JOIN rules r ON a.rule_id = r.id
-       WHERE a.shop = $1 AND a.event_type = 'block'
+       WHERE a.shop = $1 AND a.event_type IN ('block', 'check')
        ORDER BY a.created_at DESC
        LIMIT 10`,
       [shop]
@@ -138,7 +138,7 @@ router.post("/simulate", async (req, res) => {
 
     const cartValue = (Math.random() * 150 + 10).toFixed(2);
     const cartId = `sim_${eventType}_${Date.now()}`;
-    const ruleId = eventType === "block" && activeRule ? activeRule.id : null;
+    const ruleId = activeRule ? activeRule.id : null;
 
     await dbQuery(
       `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
@@ -223,10 +223,11 @@ router.post("/seed", async (req, res) => {
         eventDate.setHours(hour, minute, Math.floor(Math.random() * 60));
         const cartId = `seed_check_${dayOffset}_${i}_${Date.now()}`;
 
+        const ruleId = activeRules.length > 0 ? activeRules[0].id : null;
         await dbQuery(
           `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id, created_at)
            VALUES ($1, $2, $3, $4, $5, $6)`,
-          [shop, null, 'check', cartValue, cartId, eventDate.toISOString()]
+          [shop, ruleId, 'check', cartValue, cartId, eventDate.toISOString()]
         );
         eventCount++;
       }

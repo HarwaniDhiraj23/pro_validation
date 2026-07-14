@@ -13,6 +13,8 @@ export default function RulesList({ navigate }) {
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterStore, setFilterStore] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [togglingRuleId, setTogglingRuleId] = useState(null);
+  const [bulkToggling, setBulkToggling] = useState(null);
 
   // Get unique stores from rules to populate store filter options
   const uniqueStores = [...new Set(rules.map(r => r.target_shop).filter(Boolean))];
@@ -54,6 +56,7 @@ export default function RulesList({ navigate }) {
 
   const handleBulkToggle = async (status) => {
     if (selectedIds.length === 0) return;
+    setBulkToggling(status);
     try {
       const res = await fetch("/api/rules/bulk-toggle", {
         method: "POST",
@@ -63,13 +66,15 @@ export default function RulesList({ navigate }) {
       if (res.ok) {
         shopify.toast.show(`Rules updated to ${status}`);
         setSelectedIds([]);
-        fetchRules();
+        await fetchRules();
       } else {
         const errorData = await res.json();
         shopify.toast.show(errorData.error || "Bulk update failed", { isError: true });
       }
     } catch (e) {
       shopify.toast.show("Bulk operation failed", { isError: true });
+    } finally {
+      setBulkToggling(null);
     }
   };
 
@@ -93,6 +98,7 @@ export default function RulesList({ navigate }) {
   };
 
   const handleToggleSingle = async (rule) => {
+    setTogglingRuleId(rule.id);
     const nextStatus = rule.status === "active" ? "inactive" : "active";
     try {
       const res = await fetch(`/api/rules/${rule.id}`, {
@@ -102,13 +108,15 @@ export default function RulesList({ navigate }) {
       });
       if (res.ok) {
         shopify.toast.show(`Rule ${nextStatus === "active" ? "activated" : "deactivated"}`);
-        fetchRules();
+        await fetchRules();
       } else {
         const errorData = await res.json();
         shopify.toast.show(errorData.error || "Update failed", { isError: true });
       }
     } catch (e) {
       shopify.toast.show("Update failed", { isError: true });
+    } finally {
+      setTogglingRuleId(null);
     }
   };
 
@@ -161,6 +169,18 @@ export default function RulesList({ navigate }) {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
         .rl-wrap { font-family: 'Inter', sans-serif; }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .tiny-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(0,0,0,0.15);
+          border-top-color: currentColor;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
 
         /* Bulk bar */
         .bulk-bar {
@@ -519,8 +539,30 @@ export default function RulesList({ navigate }) {
           <div className="bulk-bar">
             <span className="bulk-bar-label">✓ {selectedIds.length} rule{selectedIds.length > 1 ? "s" : ""} selected</span>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button className="bulk-btn green" onClick={() => handleBulkToggle("active")}>Activate All</button>
-              <button className="bulk-btn gray" onClick={() => handleBulkToggle("inactive")}>Deactivate All</button>
+              <button 
+                className="bulk-btn green" 
+                onClick={() => handleBulkToggle("active")}
+                disabled={bulkToggling === "active"}
+                style={{ opacity: bulkToggling === "active" ? 0.7 : 1 }}
+              >
+                {bulkToggling === "active" ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="tiny-spinner" /> Activating...
+                  </span>
+                ) : "Activate All"}
+              </button>
+              <button 
+                className="bulk-btn gray" 
+                onClick={() => handleBulkToggle("inactive")}
+                disabled={bulkToggling === "inactive"}
+                style={{ opacity: bulkToggling === "inactive" ? 0.7 : 1 }}
+              >
+                {bulkToggling === "inactive" ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="tiny-spinner" /> Deactivating...
+                  </span>
+                ) : "Deactivate All"}
+              </button>
               <button className="bulk-btn red" onClick={handleBulkDelete}>Delete All</button>
             </div>
           </div>
@@ -543,7 +585,24 @@ export default function RulesList({ navigate }) {
               const isSelected = selectedIds.includes(rule.id);
               const isActive = rule.status === "active";
               return (
-                <div key={rule.id} className={`rl-card${isSelected ? " selected" : ""}`}>
+                <div key={rule.id} className={`rl-card${isSelected ? " selected" : ""}`} style={{ position: "relative" }}>
+                  {/* Loading Overlay Backdrop */}
+                  {togglingRuleId === rule.id && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                      zIndex: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 'inherit',
+                      backdropFilter: 'blur(1px)'
+                    }}>
+                      <div className="tiny-spinner" style={{ width: '24px', height: '24px', borderWidth: '3px', color: '#4f46e5' }} />
+                    </div>
+                  )}
+
                   {/* Column 1: Checkbox */}
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <Checkbox
@@ -639,6 +698,7 @@ export default function RulesList({ navigate }) {
                       <button
                         className={`act-btn ${isActive ? "toggle-on" : "toggle-off"}`}
                         onClick={() => handleToggleSingle(rule)}
+                        disabled={togglingRuleId === rule.id}
                       >
                         {isActive ? "Deactivate" : "Activate"}
                       </button>

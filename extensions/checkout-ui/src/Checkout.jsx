@@ -62,13 +62,15 @@ function Extension() {
     const isTriggered = evaluateRule(rule, cartState);
     if (isTriggered) {
       // Build banner properties
-      let tone = rule.banner_style || "warning";
-      if (rule.rule_type === "validation" && rule.error_target && rule.error_target !== "$.cart") {
-        tone = "critical";
-      } else if (!rule.banner_style && !rule.warning_banner) {
-        tone = "critical"; // Default validation rules block checkout (critical/red)
-      } else if (!rule.banner_style && rule.warning_banner) {
-        tone = "warning"; // Warning banners default to orange/warning
+      let tone = rule.banner_style;
+      if (!tone) {
+        if (rule.rule_type === "validation" && rule.error_target && rule.error_target !== "$.cart") {
+          tone = "critical";
+        } else if (!rule.warning_banner) {
+          tone = "critical"; // Default validation rules block checkout (critical/red)
+        } else {
+          tone = "warning"; // Warning banners default to orange/warning
+        }
       }
 
       // Prepend custom emoji icons
