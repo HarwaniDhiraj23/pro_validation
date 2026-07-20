@@ -625,6 +625,9 @@ if (pool && !useFallback) {
     } else {
       console.log("Successfully connected to PostgreSQL Database.");
       syncTemplatesToPostgres();
+      client.query("ALTER TABLE shops ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE").catch(e => {
+        console.error("Failed to alter shops table:", e.message);
+      });
       release();
     }
   });
@@ -1163,6 +1166,7 @@ export async function dbQuery(text, params = []) {
         id: db.shops.length > 0 ? Math.max(...db.shops.map(s => s.id)) + 1 : 1,
         shop,
         uninstalled: false,
+        onboarded: false,
         installed_at: now,
         uninstalled_at: null,
         created_at: now,
@@ -1183,6 +1187,29 @@ export async function dbQuery(text, params = []) {
         ...db.shops[shopIdx],
         uninstalled: true,
         uninstalled_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      writeFallbackDB(db);
+      return { rows: [db.shops[shopIdx]] };
+    }
+    return { rows: [] };
+  }
+
+  if (lowerText.startsWith("select onboarded from shops")) {
+    const shop = params[0];
+    const match = db.shops ? db.shops.find(s => s.shop === shop) : null;
+    return { rows: [{ onboarded: match ? !!match.onboarded : false }] };
+  }
+
+  if (lowerText.includes("update shops set onboarded")) {
+    const onboardedVal = params[0] === true || params[0] === 'true' || params[0] === 1;
+    const shop = params[1];
+    if (!db.shops) db.shops = [];
+    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    if (shopIdx !== -1) {
+      db.shops[shopIdx] = {
+        ...db.shops[shopIdx],
+        onboarded: onboardedVal,
         updated_at: new Date().toISOString()
       };
       writeFallbackDB(db);

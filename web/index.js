@@ -155,6 +155,29 @@ app.get("/api/config/status", async (_req, res) => {
   }
 });
 
+app.get("/api/onboarding/status", async (_req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    const result = await dbQuery("SELECT onboarded FROM shops WHERE shop = $1", [shop]);
+    const onboarded = result.rows && result.rows.length > 0 ? !!result.rows[0].onboarded : false;
+    res.status(200).send({ onboarded });
+  } catch (e) {
+    console.error(`Failed to check onboarding status: ${e.message}`);
+    res.status(500).send({ onboarded: false, error: e.message });
+  }
+});
+
+app.post("/api/onboarding/complete", async (_req, res) => {
+  try {
+    const shop = res.locals.shopify.session.shop;
+    await dbQuery("UPDATE shops SET onboarded = $1, updated_at = CURRENT_TIMESTAMP WHERE shop = $2", [true, shop]);
+    res.status(200).send({ success: true });
+  } catch (e) {
+    console.error(`Failed to complete onboarding: ${e.message}`);
+    res.status(500).send({ success: false, error: e.message });
+  }
+});
+
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
