@@ -189,7 +189,13 @@ function evaluateCondition(cond, data) {
     }
 
     case "has_hazardous_item": {
+      const cleanId = id => id.includes("gid://") ? id.split("/").pop() : id;
+      const restrictedProds = (cond.value || "").split(",").map(p => cleanId(p.trim())).filter(Boolean);
       const hasItem = lineItems.some(item => {
+        const prodId = cleanId(String(item.product_id || item.product?.id || ""));
+        if (restrictedProds.length > 0 && restrictedProds.includes(prodId)) {
+          return true;
+        }
         const tags = (item.properties || []).map(p => String(p.name || p.key || "").toLowerCase());
         const title = (item.title || "").toLowerCase();
         return tags.includes("hazardous") || tags.includes("hazmat") || title.includes("hazardous") || title.includes("hazmat");

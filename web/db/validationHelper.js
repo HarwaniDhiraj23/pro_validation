@@ -156,9 +156,14 @@ function evaluateCondition(cond, cartInput) {
     }
 
     case "has_hazardous_item": {
-      // Check product tags for "hazardous" or "hazmat" or similar
+      const restrictedProds = (cond.value || "").split(",").map(p => p.trim()).filter(Boolean);
       const isHaz = lines.some(line => {
-        const tags = line.merchandise?.product?.tags || [];
+        const prod = line.merchandise?.product || {};
+        const prodId = prod.id || prod;
+        if (restrictedProds.length > 0 && restrictedProds.includes(prodId)) {
+          return true;
+        }
+        const tags = prod.tags || [];
         return tags.some(t => t.toLowerCase() === "hazardous" || t.toLowerCase() === "hazmat");
       });
       return cond.operator === "equals" ? isHaz : !isHaz;

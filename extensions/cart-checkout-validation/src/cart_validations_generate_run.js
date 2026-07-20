@@ -258,8 +258,13 @@ function evaluateCondition(cond, cartInput) {
     }
 
     case "has_hazardous_item": {
+      const restrictedProds = (cond.value || "").split(",").map(p => p.trim()).filter(Boolean);
       const hasItem = lines.some(line => {
-        const prodMetaVal = line.merchandise?.product?.metafield?.value;
+        const prod = line.merchandise?.product || {};
+        if (restrictedProds.length > 0 && restrictedProds.includes(prod.id)) {
+          return true;
+        }
+        const prodMetaVal = prod.metafield?.value;
         if (prodMetaVal) {
           try {
             const parsed = JSON.parse(prodMetaVal);

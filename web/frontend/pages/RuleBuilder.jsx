@@ -855,21 +855,21 @@ export default function RuleBuilder({ ruleId, navigate }) {
                           cond.type !== "login_required" &&
                           cond.type !== "b2b_only" &&
                           cond.type !== "guest_checkout_restriction" &&
-                          cond.type !== "has_hazardous_item" &&
                           cond.type !== "has_subscription" ? (
                           <TextField
-                            label="Value *"
+                            label="Value"
                             placeholder={
                               cond.type === "block_states" ? "e.g. AK,HI,PR" :
                                 cond.type === "block_countries" ? "e.g. KP,IR,SY" :
                                   cond.type === "product_combinations" ? "e.g. prod_A,prod_B" :
-                                    "value"
+                                    cond.type === "has_hazardous_item" ? "Select products considered hazardous (optional)" :
+                                      "value"
                             }
                             value={cond.value}
                             onChange={(val) => handleConditionChange(idx, "value", val)}
                             autoComplete="off"
                             connectedRight={
-                              (cond.type === "product_combinations" || cond.type === "restricted_collections") ? (
+                              (cond.type === "product_combinations" || cond.type === "restricted_collections" || cond.type === "has_hazardous_item") ? (
                                 <Button onClick={() => handleSelectResources(idx, cond.type)}>
                                   {cond.type === "restricted_collections" ? "Browse Collections" : "Browse Products"}
                                 </Button>
