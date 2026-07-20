@@ -24,8 +24,8 @@ export default function RulesList({ navigate }) {
       (r.error_message && r.error_message.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = filterStatus === "all" || r.status === filterStatus;
     const matchesPriority = filterPriority === "all" || String(r.priority || 0) === filterPriority;
-    const matchesStore = filterStore === "all" || 
-      (filterStore === "global" && !r.target_shop) || 
+    const matchesStore = filterStore === "all" ||
+      (filterStore === "global" && !r.target_shop) ||
       (r.target_shop === filterStore);
     const matchesType = filterType === "all" || r.rule_type === filterType;
 
@@ -163,10 +163,69 @@ export default function RulesList({ navigate }) {
       subtitle="Configure rules that prevent checkout based on cart attributes."
       backAction={{ content: "Dashboard", onAction: () => navigate("/") }}
       primaryAction={{ content: "＋ Create Rule", onAction: () => navigate("/rules/new") }}
-      secondaryActions={[{ content: "Pre-built Rules", onAction: () => navigate("/templates") }]}
+      secondaryActions={[
+        { content: "Pre-built Rules", onAction: () => navigate("/templates") },
+        { content: "＋ Create Checkbox Rule", onAction: () => navigate("/rules/new?type=checkbox&fixed=true") },
+      ]}
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        /* Force individual header action buttons to stay inline and hide 'More actions' rollup dropdown */
+        div[class*="Rollup"], div[class*="rollup"],
+        button[class*="Rollup"], button[class*="rollup"],
+        .Polaris-Page-Header__Rollup, .Polaris-Page-Header__RollupActions {
+          display: none !important;
+        }
+        div[class*="IndividualActions"], div[class*="individualActions"],
+        .Polaris-Page-Header__IndividualActions {
+          display: flex !important;
+          visibility: visible !important;
+          align-items: center !important;
+          gap: 8px !important;
+        }
+
+        /* Style the '＋ Create Checkbox Rule' button as a primary green button */
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button,
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a,
+        div[class*="IndividualActions"] > *:nth-child(2) button,
+        div[class*="IndividualActions"] > *:nth-child(2) a,
+        .Polaris-Header-Action:nth-child(2) button,
+        .Polaris-Header-Action:nth-child(2) a {
+          background: #008060 !important;
+          background-color: #008060 !important;
+          color: #ffffff !important;
+          border-color: #008060 !important;
+          font-weight: 600 !important;
+          border-radius: 6px !important;
+          padding: 6px 12px !important;
+          box-shadow: 0 1px 0 rgba(0,0,0,.05) !important;
+        }
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button *,
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a *,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button *,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a *,
+        div[class*="IndividualActions"] > *:nth-child(2) button *,
+        div[class*="IndividualActions"] > *:nth-child(2) a *,
+        .Polaris-Header-Action:nth-child(2) button *,
+        .Polaris-Header-Action:nth-child(2) a * {
+          color: #ffffff !important;
+        }
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button:hover,
+        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a:hover,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button:hover,
+        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a:hover,
+        div[class*="IndividualActions"] > *:nth-child(2) button:hover,
+        div[class*="IndividualActions"] > *:nth-child(2) a:hover,
+        .Polaris-Header-Action:nth-child(2) button:hover,
+        .Polaris-Header-Action:nth-child(2) a:hover {
+          background: #006e52 !important;
+          background-color: #006e52 !important;
+          border-color: #006e52 !important;
+          color: #ffffff !important;
+        }
 
         .rl-wrap { font-family: 'Inter', sans-serif; }
 
@@ -527,6 +586,7 @@ export default function RulesList({ navigate }) {
               >
                 <option value="all">All Rule Types</option>
                 <option value="validation">Checkout Validation</option>
+                <option value="checkbox">Checkout Checkbox</option>
                 <option value="delivery">Delivery Customization</option>
                 <option value="payment">Payment Customization</option>
               </select>
@@ -539,8 +599,8 @@ export default function RulesList({ navigate }) {
           <div className="bulk-bar">
             <span className="bulk-bar-label">✓ {selectedIds.length} rule{selectedIds.length > 1 ? "s" : ""} selected</span>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button 
-                className="bulk-btn green" 
+              <button
+                className="bulk-btn green"
                 onClick={() => handleBulkToggle("active")}
                 disabled={bulkToggling === "active"}
                 style={{ opacity: bulkToggling === "active" ? 0.7 : 1 }}
@@ -551,8 +611,8 @@ export default function RulesList({ navigate }) {
                   </span>
                 ) : "Activate All"}
               </button>
-              <button 
-                className="bulk-btn gray" 
+              <button
+                className="bulk-btn gray"
                 onClick={() => handleBulkToggle("inactive")}
                 disabled={bulkToggling === "inactive"}
                 style={{ opacity: bulkToggling === "inactive" ? 0.7 : 1 }}
@@ -646,6 +706,8 @@ export default function RulesList({ navigate }) {
                             <Badge tone="critical">Hide</Badge>
                           )}
                         </>
+                      ) : rule.rule_type === "checkbox" ? (
+                        <Badge tone="attention">Checkout Checkbox</Badge>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>
                       )}

@@ -323,6 +323,171 @@
       ],
       "error_message": "A maximum of 5 unique product SKUs can be purchased per order.",
       "error_target": "$.cart"
+    },
+    {
+      "id": 21,
+      "title": "Require Terms & Conditions Acceptance",
+      "category": "Checkbox",
+      "description": "Requires customers to check an explicit box confirming they agree to the store's Terms of Service and Privacy Policy before checking out.",
+      "conditions": [],
+      "error_message": "You must accept the Terms of Service to complete your order.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I agree to the Terms of Service and Privacy Policy.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 22,
+      "title": "Age 18+ Legal Declaration",
+      "category": "Checkbox",
+      "description": "Adds a mandatory checkbox for customers to confirm they are at least 18 years of age for age-restricted items.",
+      "conditions": [],
+      "error_message": "You must confirm you are 18 years of age or older to proceed.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I confirm I am 18 years of age or older.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 23,
+      "title": "Age 21+ Alcohol & Tobacco Verification",
+      "category": "Checkbox",
+      "description": "Requires buyers to confirm they are 21 years of age or older to purchase regulated items like alcohol or tobacco.",
+      "conditions": [],
+      "error_message": "You must be 21 or older to complete checkout for these items.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I verify that I am 21 years of age or older.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 24,
+      "title": "Final Sale & Non-Refundable Acknowledgment",
+      "category": "Checkbox",
+      "description": "Ensures customers acknowledge that items in their cart are final sale and non-refundable prior to placing the order.",
+      "conditions": [],
+      "error_message": "Please confirm your acknowledgment of our final sale policy.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I understand that clearance and final sale items cannot be returned or exchanged.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 25,
+      "title": "Pre-Order Shipping Timeline Consent",
+      "category": "Checkbox",
+      "description": "Requires buyers purchasing pre-order items to confirm they understand the estimated fulfillment timeline.",
+      "conditions": [],
+      "error_message": "Please confirm you understand the pre-order shipping timeline.",
+      "error_target": "purchase.checkout.shipping-option-list.render-after",
+      "guidance_message": "I acknowledge that pre-order items ship within 3-4 weeks.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 26,
+      "title": "Custom Engraving & Personalization Approval",
+      "category": "Checkbox",
+      "description": "Requires customers ordering custom or engraved products to double-check their custom text and spelling before ordering.",
+      "conditions": [],
+      "error_message": "Please confirm that your personalization options have been reviewed.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I have verified that all custom text, spelling, and options selected are accurate.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 27,
+      "title": "Perishable Food Unattended Delivery Consent",
+      "category": "Checkbox",
+      "description": "Requires agreement that perishable or frozen items will be refrigerated immediately upon carrier delivery.",
+      "conditions": [],
+      "error_message": "Please accept the perishable delivery policy before continuing.",
+      "error_target": "purchase.checkout.delivery-address.render-after",
+      "guidance_message": "I agree to unpack and refrigerate perishable items immediately upon delivery.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 28,
+      "title": "Adult Signature Delivery Notice",
+      "category": "Checkbox",
+      "description": "Informs buyers that an adult signature is required upon delivery for high-value or restricted parcels.",
+      "conditions": [],
+      "error_message": "Please confirm you understand the signature delivery requirement.",
+      "error_target": "purchase.checkout.shipping-option-list.render-after",
+      "guidance_message": "I acknowledge that a physical signature will be required at delivery.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 29,
+      "title": "Freight Shipping Curbside Delivery Notice",
+      "category": "Checkbox",
+      "description": "Requires acknowledgment of curbside delivery policies and heavy item offloading responsibilities.",
+      "conditions": [],
+      "error_message": "Please acknowledge the freight curbside delivery terms.",
+      "error_target": "purchase.checkout.shipping-option-list.render-after",
+      "guidance_message": "I understand freight delivery is curbside only and requires offloading assistance.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 30,
+      "title": "B2B Tax-Exempt Resale Declaration",
+      "category": "Checkbox",
+      "description": "Requires commercial B2B buyers to verify they hold a valid resale or tax-exempt certificate on file.",
+      "conditions": [],
+      "error_message": "Please confirm your tax-exempt business purchasing status.",
+      "error_target": "purchase.checkout.contact.render-after",
+      "guidance_message": "I certify this purchase is for resale or authorized tax-exempt business use.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 31,
+      "title": "Digital Downloads Instant Access Waiver",
+      "category": "Checkbox",
+      "description": "Waiver of right of withdrawal for instant digital downloads and software keys upon purchase.",
+      "conditions": [],
+      "error_message": "Please confirm your agreement for immediate digital delivery.",
+      "error_target": "purchase.checkout.payment-method-list.render-before",
+      "guidance_message": "I consent to immediate access to digital content and waive right to cancel once downloaded.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 32,
+      "title": "Transactional SMS Notifications Consent",
+      "category": "Checkbox",
+      "description": "Consents to receiving transactional SMS updates and order status alerts regarding their package.",
+      "conditions": [],
+      "error_message": "Please confirm your agreement for order updates.",
+      "error_target": "purchase.checkout.contact.render-after",
+      "guidance_message": "I agree to receive transactional order status updates via SMS text message.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 33,
+      "title": "Out-of-Stock Item Substitution Consent",
+      "category": "Checkbox",
+      "description": "Allows store pickers to substitute comparable products if an ordered item is out of stock.",
+      "conditions": [],
+      "error_message": "Please indicate whether item substitutions are permitted.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I allow equal-value item substitutions if an ordered product is out of stock.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 34,
+      "title": "Customer Assembly Required Disclaimer",
+      "category": "Checkbox",
+      "description": "Ensures customers understand that furniture or equipment items arrive flat-packed and require self-assembly.",
+      "conditions": [],
+      "error_message": "Please confirm you understand assembly is required.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I acknowledge that products in this order require customer assembly.",
+      "rule_type": "checkbox"
+    },
+    {
+      "id": 35,
+      "title": "Minimal Eco-Friendly Packaging Consent",
+      "category": "Checkbox",
+      "description": "Consents to consolidated shipping and minimal recyclable packaging to reduce environmental waste.",
+      "conditions": [],
+      "error_message": "Please indicate your packaging preference.",
+      "error_target": "purchase.checkout.block.render",
+      "guidance_message": "I opt in to minimal eco-friendly recyclable packaging for my shipment.",
+      "rule_type": "checkbox"
     }
   ]
 }

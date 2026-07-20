@@ -15,7 +15,7 @@ async function syncRulesToShopify(session) {
       `SELECT * FROM rules 
        WHERE (shop = $1 OR target_shop = $1) 
          AND status = 'active'
-         AND rule_type = 'validation'
+         AND rule_type IN ('validation', 'checkbox')
          AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
          AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
        ORDER BY priority DESC, id DESC`,

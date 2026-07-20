@@ -117,6 +117,10 @@ export default function RuleTemplates({ navigate }) {
                        <Badge tone="info">{tmpl.category}</Badge>
                        {tmpl.rule_type === "delivery" ? (
                          <Badge tone="attention">Delivery</Badge>
+                       ) : tmpl.rule_type === "checkbox" ? (
+                         <Badge tone="success">Checkbox Rule</Badge>
+                       ) : tmpl.rule_type === "payment" ? (
+                         <Badge tone="warning">Payment</Badge>
                        ) : (
                          <Badge tone="info">Validation</Badge>
                        )}

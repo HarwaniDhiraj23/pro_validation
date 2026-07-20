@@ -1,3 +1,15 @@
 {
-  "purchase.checkout.block.render": {}
+  "purchase.checkout.block.render": {},
+  "purchase.checkout.contact.render-after": {},
+  "purchase.checkout.delivery-address.render-after": {},
+  "purchase.checkout.shipping-option-list.render-before": {},
+  "purchase.checkout.shipping-option-list.render-after": {},
+  "purchase.checkout.payment-method-list.render-before": {},
+  "purchase.checkout.payment-method-list.render-after": {},
+  "purchase.checkout.actions.render-before": {},
+  "purchase.checkout.cart-line-list.render-after": {},
+  "purchase.checkout.reductions.render-after": {},
+  "purchase.checkout.cart-line-item.render-after": {},
+  "purchase.checkout.reductions.render-before": {},
+  "purchase.checkout.footer.render-after": {}
 }

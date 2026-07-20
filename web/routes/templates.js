@@ -1,5 +1,5 @@
 import express from "express";
-import { dbQuery } from "../db/connection.js";
+import { dbQuery, PREBUILT_TEMPLATES, syncTemplatesToPostgres } from "../db/connection.js";
 import { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify } from "./rules.js";
 
 const router = express.Router();
@@ -9,19 +9,42 @@ router.get("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
     const ruleType = req.query.rule_type || "all";
+
+    // Ensure database table rule_templates is synced with all 45 prebuilt templates
+    await syncTemplatesToPostgres();
     
-    let existingRulesRes;
-    let result;
-    if (ruleType === "all") {
-      existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [shop]);
-      result = await dbQuery("SELECT * FROM rule_templates ORDER BY id ASC");
-    } else {
-      existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND rule_type = $2 AND status != 'deleted'", [shop, ruleType]);
-      result = await dbQuery("SELECT * FROM rule_templates WHERE rule_type = $1 ORDER BY id ASC", [ruleType]);
+    let existingRulesRes = { rows: [] };
+    let dbRows = [];
+    try {
+      if (ruleType === "all") {
+        existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND status != 'deleted'", [shop]);
+        const result = await dbQuery("SELECT * FROM rule_templates ORDER BY id ASC");
+        dbRows = result.rows || [];
+      } else {
+        existingRulesRes = await dbQuery("SELECT title FROM rules WHERE shop = $1 AND rule_type = $2 AND status != 'deleted'", [shop, ruleType]);
+        const result = await dbQuery("SELECT * FROM rule_templates WHERE rule_type = $1 ORDER BY id ASC", [ruleType]);
+        dbRows = result.rows || [];
+      }
+    } catch (e) {
+      console.error("Database template fetch error:", e.message);
     }
-    
-    const existingTitles = existingRulesRes.rows.map(r => r.title.toLowerCase());
-    const filteredTemplates = result.rows.filter(tmpl => 
+
+    // Combine PREBUILT_TEMPLATES fallback with DB rows so all 45 templates are guaranteed
+    const templateMap = new Map();
+    (PREBUILT_TEMPLATES || []).forEach(tmpl => {
+      if (ruleType === "all" || tmpl.rule_type === ruleType) {
+        templateMap.set(tmpl.id, tmpl);
+      }
+    });
+    dbRows.forEach(tmpl => {
+      if (ruleType === "all" || tmpl.rule_type === ruleType) {
+        templateMap.set(tmpl.id, tmpl);
+      }
+    });
+
+    const allTemplates = Array.from(templateMap.values());
+    const existingTitles = (existingRulesRes.rows || []).map(r => r.title.toLowerCase());
+    const filteredTemplates = allTemplates.filter(tmpl => 
       !existingTitles.includes(tmpl.title.toLowerCase())
     );
 
@@ -35,6 +58,14 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const numId = parseInt(id);
+
+    // Check PREBUILT_TEMPLATES first
+    const prebuiltMatch = (PREBUILT_TEMPLATES || []).find(t => t.id === numId);
+    if (prebuiltMatch) {
+      return res.json(prebuiltMatch);
+    }
+
     const result = await dbQuery("SELECT * FROM rule_templates WHERE id = $1", [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Template not found" });

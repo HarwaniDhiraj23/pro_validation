@@ -201,6 +201,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [installedShops, setInstalledShops] = useState([]);
   const [conditionsOperator, setConditionsOperator] = useState("AND");
   const [ruleType, setRuleType] = useState("validation"); // validation or delivery
+  const [isTypeFixed, setIsTypeFixed] = useState(false);
   const [deliveryAction, setDeliveryAction] = useState("hide"); // hide or rename
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
   const [errorTarget, setErrorTarget] = useState("$.cart");
@@ -328,6 +329,27 @@ export default function RuleBuilder({ ruleId, navigate }) {
         .finally(() => {
           setLoading(false);
         });
+    } else {
+      const typeParam = params.get("type");
+      const fixedParam = params.get("fixed");
+      if (ruleId === "new" && typeParam) {
+        setRuleType(typeParam);
+        if (fixedParam === "true") {
+          setIsTypeFixed(true);
+        }
+        if (typeParam === "checkbox") {
+          setErrorTarget("purchase.checkout.actions.render-before");
+          setErrorMessage("Please accept the checkbox to complete checkout.");
+          setGuidanceMessage("I agree to the Terms & Conditions.");
+          setConditions([]);
+        } else if (typeParam === "delivery") {
+          setErrorTarget("Express");
+          setErrorMessage("");
+        } else if (typeParam === "payment") {
+          setErrorTarget("Cash on Delivery (COD)");
+          setErrorMessage("");
+        }
+      }
     }
   }, [ruleId]);
 
@@ -463,6 +485,21 @@ export default function RuleBuilder({ ruleId, navigate }) {
       shopify.toast.show("Title is required", { isError: true });
       return;
     }
+    if (ruleType === "checkbox") {
+      if (!guidanceMessage.trim()) {
+        shopify.toast.show("Checkbox label text is required", { isError: true });
+        return;
+      }
+      if (!errorTarget.trim()) {
+        shopify.toast.show("Checkbox position is required", { isError: true });
+        return;
+      }
+      if (!errorMessage.trim()) {
+        shopify.toast.show("Block error message is required", { isError: true });
+        return;
+      }
+    }
+
     if (ruleType === "delivery" || ruleType === "payment") {
       if (!errorTarget.trim()) {
         shopify.toast.show(`Target ${ruleType} method name is required`, { isError: true });
@@ -472,13 +509,13 @@ export default function RuleBuilder({ ruleId, navigate }) {
         shopify.toast.show("Renamed title is required for rename action", { isError: true });
         return;
       }
-    } else {
+    } else if (ruleType !== "checkbox") {
       if (!errorMessage.trim()) {
         shopify.toast.show("Error message is required", { isError: true });
         return;
       }
     }
-    if (conditions.length === 0) {
+    if (ruleType !== "checkbox" && conditions.length === 0) {
       shopify.toast.show("At least one condition must be specified", { isError: true });
       return;
     }
@@ -669,8 +706,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
 
                   <Select
                     label="Rule Type"
+                    disabled={isTypeFixed}
                     options={[
                       { label: "Checkout Validation", value: "validation" },
+                      { label: "Checkout Checkbox", value: "checkbox" },
                       { label: "Delivery Customization", value: "delivery" },
                       { label: "Payment Customization", value: "payment" }
                     ]}
@@ -683,6 +722,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       } else if (val === "payment") {
                         setErrorTarget("Cash on Delivery (COD)");
                         setErrorMessage("");
+                      } else if (val === "checkbox") {
+                        setErrorTarget("purchase.checkout.actions.render-before");
+                        setErrorMessage("Please accept the checkbox to complete checkout.");
+                        setGuidanceMessage("I agree to the Terms & Conditions.");
+                        setConditions([]); // Default to no conditions so it always shows
                       } else {
                         setErrorTarget("$.cart");
                         setErrorMessage("We cannot complete your checkout with the current items or address details.");
@@ -793,105 +837,153 @@ export default function RuleBuilder({ ruleId, navigate }) {
             </Card>
 
             {/* Conditions Section */}
-            <Card title="Conditions Configuration">
-              <Box padding="5">
-                <VerticalStack gap="4">
-                  <HorizontalStack align="space-between" blockAlign="center">
-                    <Text variant="headingSm">Match Conditions</Text>
-                    <div style={{ width: "150px" }}>
-                      <Select
-                        label="Operator"
-                        labelHidden
-                        options={[
-                          { label: "Match ALL (AND)", value: "AND" },
-                          { label: "Match ANY (OR)", value: "OR" }
-                        ]}
-                        value={conditionsOperator}
-                        onChange={setConditionsOperator}
-                      />
-                    </div>
-                  </HorizontalStack>
-
-                  {conditions.map((cond, idx) => (
-                    <div key={idx} style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "12px",
-                      padding: "16px",
-                      border: "1px solid #dcdfe3",
-                      borderRadius: "8px",
-                      backgroundColor: "#fafbfb"
-                    }}>
-                      <div style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        borderBottom: "1px solid #eef0f1",
-                        paddingBottom: "8px",
-                        marginBottom: "4px"
-                      }}>
-                        <Text variant="headingSm" as="h4">Condition #{idx + 1}</Text>
-                        <Button size="slim" tone="critical" onClick={() => handleRemoveCondition(idx)}>
-                          Remove
-                        </Button>
+            {ruleType !== "checkbox" && (
+              <Card title="Conditions Configuration">
+                <Box padding="5">
+                  <VerticalStack gap="4">
+                    <HorizontalStack align="space-between" blockAlign="center">
+                      <Text variant="headingSm">Match Conditions</Text>
+                      <div style={{ width: "150px" }}>
+                        <Select
+                          label="Operator"
+                          labelHidden
+                          options={[
+                            { label: "Match ALL (AND)", value: "AND" },
+                            { label: "Match ANY (OR)", value: "OR" }
+                          ]}
+                          value={conditionsOperator}
+                          onChange={setConditionsOperator}
+                        />
                       </div>
+                    </HorizontalStack>
 
-                      <FormLayout>
-                        <Select
-                          label="Condition Type"
-                          options={CONDITION_TYPES}
-                          value={cond.type}
-                          onChange={(val) => handleConditionChange(idx, "type", val)}
-                        />
-                        <Select
-                          label="Condition Criteria"
-                          options={OPERATORS_BY_TYPE[cond.type] || []}
-                          value={cond.operator}
-                          onChange={(val) => handleConditionChange(idx, "operator", val)}
-                        />
+                    {conditions.map((cond, idx) => (
+                      <div key={idx} style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
+                        padding: "16px",
+                        border: "1px solid #dcdfe3",
+                        borderRadius: "8px",
+                        backgroundColor: "#fafbfb"
+                      }}>
+                        <div style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          borderBottom: "1px solid #eef0f1",
+                          paddingBottom: "8px",
+                          marginBottom: "4px"
+                        }}>
+                          <Text variant="headingSm" as="h4">Condition #{idx + 1}</Text>
+                          <Button size="slim" tone="critical" onClick={() => handleRemoveCondition(idx)}>
+                            Remove
+                          </Button>
+                        </div>
 
-                        {/* Only show value field for types that need it */}
-                        {cond.type !== "shipping_address_pobox" &&
-                          cond.type !== "login_required" &&
-                          cond.type !== "b2b_only" &&
-                          cond.type !== "guest_checkout_restriction" &&
-                          cond.type !== "has_subscription" ? (
-                          <TextField
-                            label="Value"
-                            placeholder={
-                              cond.type === "block_states" ? "e.g. AK,HI,PR" :
-                                cond.type === "block_countries" ? "e.g. KP,IR,SY" :
-                                  cond.type === "product_combinations" ? "e.g. prod_A,prod_B" :
-                                    cond.type === "has_hazardous_item" ? "Select products considered hazardous (optional)" :
-                                      "value"
-                            }
-                            value={cond.value}
-                            onChange={(val) => handleConditionChange(idx, "value", val)}
-                            autoComplete="off"
-                            connectedRight={
-                              (cond.type === "product_combinations" || cond.type === "restricted_collections" || cond.type === "has_hazardous_item") ? (
-                                <Button onClick={() => handleSelectResources(idx, cond.type)}>
-                                  {cond.type === "restricted_collections" ? "Browse Collections" : "Browse Products"}
-                                </Button>
-                              ) : (cond.type === "customer_tags" || cond.type === "block_states" || cond.type === "block_countries" || cond.type === "address_regex") ? (
-                                <Button onClick={() => handleOpenBrowse(idx, cond.type, cond.value)}>
-                                  Browse
-                                </Button>
-                              ) : null
-                            }
+                        <FormLayout>
+                          <Select
+                            label="Condition Type"
+                            options={CONDITION_TYPES}
+                            value={cond.type}
+                            onChange={(val) => handleConditionChange(idx, "type", val)}
                           />
-                        ) : null}
-                      </FormLayout>
-                    </div>
-                  ))}
+                          <Select
+                            label="Condition Criteria"
+                            options={OPERATORS_BY_TYPE[cond.type] || []}
+                            value={cond.operator}
+                            onChange={(val) => handleConditionChange(idx, "operator", val)}
+                          />
 
-                  <Button onClick={handleAddCondition}>Add Condition</Button>
-                </VerticalStack>
-              </Box>
-            </Card>
+                          {/* Only show value field for types that need it */}
+                          {cond.type !== "shipping_address_pobox" &&
+                            cond.type !== "login_required" &&
+                            cond.type !== "b2b_only" &&
+                            cond.type !== "guest_checkout_restriction" &&
+                            cond.type !== "has_subscription" ? (
+                            <TextField
+                              label="Value"
+                              placeholder={
+                                cond.type === "block_states" ? "e.g. AK,HI,PR" :
+                                  cond.type === "block_countries" ? "e.g. KP,IR,SY" :
+                                    cond.type === "product_combinations" ? "e.g. prod_A,prod_B" :
+                                      cond.type === "has_hazardous_item" ? "Select products considered hazardous (optional)" :
+                                        "value"
+                              }
+                              value={cond.value}
+                              onChange={(val) => handleConditionChange(idx, "value", val)}
+                              autoComplete="off"
+                              connectedRight={
+                                (cond.type === "product_combinations" || cond.type === "restricted_collections" || cond.type === "has_hazardous_item") ? (
+                                  <Button onClick={() => handleSelectResources(idx, cond.type)}>
+                                    {cond.type === "restricted_collections" ? "Browse Collections" : "Browse Products"}
+                                  </Button>
+                                ) : (cond.type === "customer_tags" || cond.type === "block_states" || cond.type === "block_countries" || cond.type === "address_regex") ? (
+                                  <Button onClick={() => handleOpenBrowse(idx, cond.type, cond.value)}>
+                                    Browse
+                                  </Button>
+                                ) : null
+                              }
+                            />
+                          ) : null}
+                        </FormLayout>
+                      </div>
+                    ))}
+
+                    <Button onClick={handleAddCondition}>Add Condition</Button>
+                  </VerticalStack>
+                </Box>
+              </Card>
+            )}
 
             {/* Checkout Block Response Settings / Delivery & Payment Customization Logic */}
-            {ruleType === "delivery" ? (
+            {ruleType === "checkbox" ? (
+              <Card title="Checkbox Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <TextField
+                      label="Checkbox Label Text *"
+                      placeholder="e.g. I agree to the Terms of Service and Privacy Policy."
+                      value={guidanceMessage}
+                      onChange={setGuidanceMessage}
+                      autoComplete="off"
+                      helpText="This is the text displayed next to the checkbox."
+                    />
+
+                    <Select
+                      label="Checkbox Position *"
+                      options={[
+                        { label: "Checkout Editor (Dynamic Block)", value: "purchase.checkout.block.render" },
+                        { label: "Contact Information (After)", value: "purchase.checkout.contact.render-after" },
+                        { label: "Delivery Address (After)", value: "purchase.checkout.delivery-address.render-after" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Shipping Methods (After)", value: "purchase.checkout.shipping-option-list.render-after" },
+                        { label: "Payment Methods (Before)", value: "purchase.checkout.payment-method-list.render-before" },
+                        { label: "Payment Methods (After)", value: "purchase.checkout.payment-method-list.render-after" },
+                        { label: "Actions / Submit Button (Before)", value: "purchase.checkout.actions.render-before" },
+                        { label: "Order Summary - Below Cart Items (Right Sidebar)", value: "purchase.checkout.cart-line-list.render-after" },
+                        { label: "Order Summary - Below Each Product (Right Sidebar)", value: "purchase.checkout.cart-line-item.render-after" },
+                        { label: "Order Summary - Above Discount Code (Right Sidebar)", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Order Summary - Below Discount Code (Right Sidebar)", value: "purchase.checkout.reductions.render-after" },
+                        { label: "Checkout Footer (After)", value: "purchase.checkout.footer.render-after" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                      helpText="Select where the checkbox will render on the checkout page."
+                    />
+
+                    <TextField
+                      label="Block Error Message *"
+                      placeholder="e.g. Please accept the checkbox to complete checkout."
+                      value={errorMessage}
+                      onChange={setErrorMessage}
+                      autoComplete="off"
+                      helpText="This message is displayed if the buyer attempts to check out without checking the box."
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : ruleType === "delivery" ? (
               <Card title="Customization Logic">
                 <Box padding="5">
                   <FormLayout>

@@ -1,5 +1,8 @@
 // Pure JS rule evaluator, reusable in Node/Shopify Function/Frontend simulations
 export function evaluateRule(rule, cartInput) {
+  if (rule.rule_type === "checkbox") {
+    return false;
+  }
   const { conditions, conditions_operator = "AND" } = rule;
   if (!conditions || !Array.isArray(conditions) || conditions.length === 0) {
     return false;

@@ -40,6 +40,7 @@ export function cartValidationsGenerateRun(input) {
 
   for (const rule of rules) {
     if (rule.status !== "active") continue;
+    if (rule.rule_type === "checkbox") continue;
     if (rule.warning_banner === true || rule.warning_banner === "true") {
       // Soft warnings are handled solely by the Checkout UI Extension banner, not blocking the backend completion.
       continue;

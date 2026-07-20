@@ -9,6 +9,7 @@ export default async () => {
 
 function Extension() {
   const [showErrors, setShowErrors] = useState(false);
+  const [checkedStates, setCheckedStates] = useState({});
 
   // 2. Fetch stateful values from the shopify context
   const lines = shopify.lines?.value || [];
@@ -18,6 +19,8 @@ function Extension() {
   const appMetafields = shopify.appMetafields?.value || [];
 
   const cartState = { lines, shippingAddress, buyerIdentity, cost };
+  const currentTarget = shopify.extension.target;
+  const isBlockTarget = currentTarget === "purchase.checkout.block.render";
 
   // 3. Load synced validation, delivery, and payment rules from the Shop metafields
   const rulesMetafield = appMetafields.find(
@@ -54,132 +57,247 @@ function Extension() {
     console.error("[Checkout UI] Error parsing rules:", e);
   }
 
-  // Intercept the buyer journey to block progress on submit
-  const stateRef = useRef({ activeRules, cartState });
-  stateRef.current = { activeRules, cartState };
+  // Filter checkbox rules matching this target
+  const matchingCheckboxRules = activeRules.filter(
+    (rule) =>
+      rule.rule_type === "checkbox" &&
+      rule.status === "active" &&
+      rule.error_target === currentTarget &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Track the last state snapshot seen by the intercept to distinguish reactive
+  // re-validations (address/country updates) from actual Pay Now submissions.
+  const isInitialIntercept = useRef(true);
+  const lastStateSnapshot = useRef(null);
+  const stateRef = useRef({ activeRules, cartState, matchingCheckboxRules, checkedStates });
+  stateRef.current = { activeRules, cartState, matchingCheckboxRules, checkedStates };
 
   useEffect(() => {
-    const unsubscribe = shopify.buyerJourney.intercept(({ canBlockProgress }) => {
-      const { activeRules: currentRules, cartState: currentState } = stateRef.current;
-      
+    const unsubscribe = shopify.buyerJourney.intercept((payload) => {
+      const canBlockProgress = payload?.canBlockProgress;
+      if (!canBlockProgress) return { behavior: "allow" };
+
+      const {
+        activeRules: currentRules,
+        cartState: currentState,
+        matchingCheckboxRules: currentCheckboxRules,
+        checkedStates: currentCheckedStates
+      } = stateRef.current;
+
+      // Build a snapshot of mutable user-input fields (address + buyer identity).
+      // If the snapshot differs from the last call, Shopify fired this intercept
+      // reactively due to a field change — NOT because the user clicked Pay Now.
+      const snapshot = JSON.stringify({
+        addr: currentState.shippingAddress || {},
+        buyer: {
+          email: currentState.buyerIdentity?.email,
+          phone: currentState.buyerIdentity?.phone
+        }
+      });
+
+      const isReactiveUpdate = !isInitialIntercept.current && lastStateSnapshot.current !== snapshot;
+      const wasInitial = isInitialIntercept.current;
+
+      // Always update refs for next call
+      isInitialIntercept.current = false;
+      lastStateSnapshot.current = snapshot;
+
+      if (wasInitial || isReactiveUpdate) {
+        // Initial load OR address/country/contact field changed:
+        // Block silently (enforce checkbox requirement) but NEVER show the error banner.
+        setShowErrors(false);
+        const checkboxBlocked = currentCheckboxRules.some(r => !currentCheckedStates[r.id]);
+        if (checkboxBlocked) {
+          return { behavior: "block", reason: "Checkbox required" };
+        }
+        return { behavior: "allow" };
+      }
+
+      // ── Reaches here only when state is UNCHANGED from last intercept call ──
+      // This means the user clicked Pay Now / Complete Order (no field changes).
+
+      // 1. Check checkbox validations for matching rules on this target
+      let checkboxBlocked = false;
+      for (const rule of currentCheckboxRules) {
+        if (!currentCheckedStates[rule.id]) {
+          checkboxBlocked = true;
+          break;
+        }
+      }
+
+      // 2. Check standard validation rules (only on block target)
       let shouldBlock = false;
-      for (const rule of currentRules) {
-        if (rule.status !== "active") continue;
-        if (rule.display_in_checkout === false) continue;
-        if (rule.warning_banner !== true && rule.warning_banner !== "true") {
-          if (evaluateRule(rule, currentState)) {
-            shouldBlock = true;
-            break;
+      if (isBlockTarget) {
+        for (const rule of currentRules) {
+          if (rule.status !== "active") continue;
+          if (rule.display_in_checkout === false) continue;
+          if (rule.rule_type === "checkbox") continue;
+          if (rule.warning_banner !== true && rule.warning_banner !== "true") {
+            if (evaluateRule(rule, currentState)) {
+              shouldBlock = true;
+              break;
+            }
           }
         }
       }
 
-      if (shouldBlock) {
-        if (canBlockProgress) {
-          setShowErrors(true);
-          return {
-            behavior: "block",
-            reason: "Validation rules triggered"
-          };
-        }
-      } else {
-        setShowErrors(false);
+      if (checkboxBlocked || shouldBlock) {
+        setShowErrors(true);
+        return {
+          behavior: "block",
+          reason: "Validation rules triggered or checkbox not accepted"
+        };
       }
 
-      return {
-        behavior: "allow"
-      };
+      setShowErrors(false);
+      return { behavior: "allow" };
     });
 
     return () => {
-      if (typeof unsubscribe === "function") {
-        unsubscribe();
-      }
+      if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, []);
+  }, [currentTarget, isBlockTarget]);
 
-  // 4. Evaluate which rules are triggered
+
+  // 4. Evaluate which rules are triggered (only evaluate validation rules for block target banners)
   const triggeredBanners = [];
 
-  for (const rule of activeRules) {
-    if (rule.status !== "active") continue;
-    if (rule.display_in_checkout === false) continue;
+  if (isBlockTarget) {
+    for (const rule of activeRules) {
+      if (rule.status !== "active") continue;
+      if (rule.display_in_checkout === false) continue;
+      if (rule.rule_type === "checkbox") continue;
 
-    // Do not show blocking error banners until the user attempts to submit checkout (Pay now)
-    const isWarning = rule.warning_banner === true || rule.warning_banner === "true";
-    if (!isWarning && !showErrors) {
-      continue;
+      // Do not show blocking error banners until the user attempts to submit checkout (Pay now)
+      const isWarning = rule.warning_banner === true || rule.warning_banner === "true";
+      if (!isWarning && !showErrors) {
+        continue;
+      }
+
+      const isTriggered = evaluateRule(rule, cartState);
+      if (isTriggered) {
+        // Build banner properties
+        let tone = rule.banner_style;
+        if (!tone) {
+          if (rule.rule_type === "validation" && rule.error_target && rule.error_target !== "$.cart") {
+            tone = "critical";
+          } else if (!rule.warning_banner) {
+            tone = "critical"; // Default validation rules block checkout (critical/red)
+          } else {
+            tone = "warning"; // Warning banners default to orange/warning
+          }
+        }
+
+        // Prepend custom emoji icons
+        let titlePrefix = "";
+        const iconName = rule.custom_icon === "default" || !rule.custom_icon ? tone : rule.custom_icon;
+        switch (iconName) {
+          case "none": titlePrefix = ""; break;
+          case "lock": titlePrefix = "🔒 "; break;
+          case "delivery": titlePrefix = "🚚 "; break;
+          case "payment": titlePrefix = "💳 "; break;
+          case "calendar": titlePrefix = "📅 "; break;
+          case "info": titlePrefix = "ℹ️ "; break;
+          case "warning": titlePrefix = "⚠️ "; break;
+          case "critical": titlePrefix = "🚨 "; break;
+          case "success": titlePrefix = "✅ "; break;
+          default: titlePrefix = "";
+        }
+
+        let message = rule.error_message;
+        if (!message) {
+          if (rule.rule_type === "delivery") {
+            message = rule.delivery_action === "rename" 
+              ? `Shipping method "${rule.error_target}" will be renamed to "${rule.error_message}".`
+              : `Shipping restriction: "${rule.error_target}" method is disabled.`;
+          } else if (rule.rule_type === "payment") {
+            message = rule.delivery_action === "rename"
+              ? `Payment method "${rule.error_target}" will be renamed.`
+              : `Payment restriction: "${rule.error_target}" option is disabled.`;
+          } else {
+            message = "Checkout is restricted by validation rules.";
+          }
+        }
+
+        triggeredBanners.push({
+          id: rule.id,
+          tone,
+          heading: titlePrefix + message,
+          guidance: rule.guidance_message || ""
+        });
+      }
     }
+  }
 
-    const isTriggered = evaluateRule(rule, cartState);
-    if (isTriggered) {
-      // Build banner properties
-      let tone = rule.banner_style;
-      if (!tone) {
-        if (rule.rule_type === "validation" && rule.error_target && rule.error_target !== "$.cart") {
-          tone = "critical";
-        } else if (!rule.warning_banner) {
-          tone = "critical"; // Default validation rules block checkout (critical/red)
-        } else {
-          tone = "warning"; // Warning banners default to orange/warning
+  // 5. Render:
+  // Render checkboxes matching this target, and banners only on block target
+  const renderedCheckboxes = matchingCheckboxRules.map((rule) => {
+    const isChecked = Boolean(checkedStates[rule.id]);
+    const isUnchecked = !isChecked;
+
+    const handleToggle = (e) => {
+      let val;
+      if (typeof e === "boolean") {
+        val = e;
+      } else if (e && typeof e.target?.checked === "boolean") {
+        val = e.target.checked;
+      } else if (e && typeof e.currentTarget?.checked === "boolean") {
+        val = e.currentTarget.checked;
+      } else if (e && typeof e.detail?.checked === "boolean") {
+        val = e.detail.checked;
+      } else if (e && typeof e.detail === "boolean") {
+        val = e.detail;
+      } else {
+        val = !isChecked;
+      }
+
+      setCheckedStates((prev) => {
+        const nextStates = { ...prev, [rule.id]: val };
+        const allChecked = matchingCheckboxRules.every((r) => Boolean(nextStates[r.id]));
+        if (allChecked) {
+          setShowErrors(false);
         }
-      }
-
-      // Prepend custom emoji icons
-      let titlePrefix = "";
-      const iconName = rule.custom_icon === "default" || !rule.custom_icon ? tone : rule.custom_icon;
-      switch (iconName) {
-        case "none": titlePrefix = ""; break;
-        case "lock": titlePrefix = "🔒 "; break;
-        case "delivery": titlePrefix = "🚚 "; break;
-        case "payment": titlePrefix = "💳 "; break;
-        case "calendar": titlePrefix = "📅 "; break;
-        case "info": titlePrefix = "ℹ️ "; break;
-        case "warning": titlePrefix = "⚠️ "; break;
-        case "critical": titlePrefix = "🚨 "; break;
-        case "success": titlePrefix = "✅ "; break;
-        default: titlePrefix = "";
-      }
-
-      let message = rule.error_message;
-      if (!message) {
-        if (rule.rule_type === "delivery") {
-          message = rule.delivery_action === "rename" 
-            ? `Shipping method "${rule.error_target}" will be renamed to "${rule.error_message}".`
-            : `Shipping restriction: "${rule.error_target}" method is disabled.`;
-        } else if (rule.rule_type === "payment") {
-          message = rule.delivery_action === "rename"
-            ? `Payment method "${rule.error_target}" will be renamed.`
-            : `Payment restriction: "${rule.error_target}" option is disabled.`;
-        } else {
-          message = "Checkout is restricted by validation rules.";
-        }
-      }
-
-      triggeredBanners.push({
-        id: rule.id,
-        tone,
-        heading: titlePrefix + message,
-        guidance: rule.guidance_message || ""
+        return nextStates;
       });
-    }
-  }
+    };
 
-  // 5. Render active checkout warning banners
-  if (triggeredBanners.length === 0) {
-    return null;
-  }
+    return (
+      <s-stack key={rule.id} gap="tight">
+        <s-checkbox
+          label={rule.guidance_message || rule.title}
+          checked={isChecked}
+          onChange={handleToggle}
+        />
+        {showErrors && isUnchecked && (
+          <s-banner
+            tone="critical"
+            heading={rule.error_message || "This checkbox is required to complete checkout."}
+          />
+        )}
+      </s-stack>
+    );
+  });
 
-  return (
-    <s-stack gap="base">
-      {triggeredBanners.map((banner) => (
+  const renderedBanners = isBlockTarget
+    ? triggeredBanners.map((banner) => (
         <s-stack key={banner.id} gap="base">
           <s-banner heading={banner.heading} tone={banner.tone} />
           {banner.guidance && (
             <s-banner heading={banner.guidance} tone="info" />
           )}
         </s-stack>
-      ))}
+      ))
+    : [];
+
+  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0) {
+    return null;
+  }
+
+  return (
+    <s-stack gap="base">
+      {renderedCheckboxes}
+      {renderedBanners}
     </s-stack>
   );
 }

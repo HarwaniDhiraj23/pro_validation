@@ -312,6 +312,171 @@ const PREBUILT_TEMPLATES = [
     error_target: "Express Shipping",
     rule_type: "delivery",
     delivery_action: "hide"
+  },
+  {
+    id: 31,
+    title: "Require Terms & Conditions Acceptance",
+    category: "Checkbox",
+    description: "Requires customers to check an explicit box confirming they agree to the store's Terms of Service and Privacy Policy before checking out.",
+    conditions: [],
+    error_message: "You must accept the Terms of Service to complete your order.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I agree to the Terms of Service and Privacy Policy.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 32,
+    title: "Age 18+ Legal Declaration",
+    category: "Checkbox",
+    description: "Adds a mandatory checkbox for customers to confirm they are at least 18 years of age for age-restricted items.",
+    conditions: [],
+    error_message: "You must confirm you are 18 years of age or older to proceed.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I confirm I am 18 years of age or older.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 33,
+    title: "Age 21+ Alcohol & Tobacco Verification",
+    category: "Checkbox",
+    description: "Requires buyers to confirm they are 21 years of age or older to purchase regulated items like alcohol or tobacco.",
+    conditions: [],
+    error_message: "You must be 21 or older to complete checkout for these items.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I verify that I am 21 years of age or older.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 34,
+    title: "Final Sale & Non-Refundable Acknowledgment",
+    category: "Checkbox",
+    description: "Ensures customers acknowledge that items in their cart are final sale and non-refundable prior to placing the order.",
+    conditions: [],
+    error_message: "Please confirm your acknowledgment of our final sale policy.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I understand that clearance and final sale items cannot be returned or exchanged.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 35,
+    title: "Pre-Order Shipping Timeline Consent",
+    category: "Checkbox",
+    description: "Requires buyers purchasing pre-order items to confirm they understand the estimated fulfillment timeline.",
+    conditions: [],
+    error_message: "Please confirm you understand the pre-order shipping timeline.",
+    error_target: "purchase.checkout.shipping-option-list.render-after",
+    guidance_message: "I acknowledge that pre-order items ship within 3-4 weeks.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 36,
+    title: "Custom Engraving & Personalization Approval",
+    category: "Checkbox",
+    description: "Requires customers ordering custom or engraved products to double-check their custom text and spelling before ordering.",
+    conditions: [],
+    error_message: "Please confirm that your personalization options have been reviewed.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I have verified that all custom text, spelling, and options selected are accurate.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 37,
+    title: "Perishable Food Unattended Delivery Consent",
+    category: "Checkbox",
+    description: "Requires agreement that perishable or frozen items will be refrigerated immediately upon carrier delivery.",
+    conditions: [],
+    error_message: "Please accept the perishable delivery policy before continuing.",
+    error_target: "purchase.checkout.delivery-address.render-after",
+    guidance_message: "I agree to unpack and refrigerate perishable items immediately upon delivery.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 38,
+    title: "Adult Signature Delivery Notice",
+    category: "Checkbox",
+    description: "Informs buyers that an adult signature is required upon delivery for high-value or restricted parcels.",
+    conditions: [],
+    error_message: "Please confirm you understand the signature delivery requirement.",
+    error_target: "purchase.checkout.shipping-option-list.render-after",
+    guidance_message: "I acknowledge that a physical signature will be required at delivery.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 39,
+    title: "Freight Shipping Curbside Delivery Notice",
+    category: "Checkbox",
+    description: "Requires acknowledgment of curbside delivery policies and heavy item offloading responsibilities.",
+    conditions: [],
+    error_message: "Please acknowledge the freight curbside delivery terms.",
+    error_target: "purchase.checkout.shipping-option-list.render-after",
+    guidance_message: "I understand freight delivery is curbside only and requires offloading assistance.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 40,
+    title: "B2B Tax-Exempt Resale Declaration",
+    category: "Checkbox",
+    description: "Requires commercial B2B buyers to verify they hold a valid resale or tax-exempt certificate on file.",
+    conditions: [],
+    error_message: "Please confirm your tax-exempt business purchasing status.",
+    error_target: "purchase.checkout.contact.render-after",
+    guidance_message: "I certify this purchase is for resale or authorized tax-exempt business use.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 41,
+    title: "Digital Downloads Instant Access Waiver",
+    category: "Checkbox",
+    description: "Waiver of right of withdrawal for instant digital downloads and software keys upon purchase.",
+    conditions: [],
+    error_message: "Please confirm your agreement for immediate digital delivery.",
+    error_target: "purchase.checkout.payment-method-list.render-before",
+    guidance_message: "I consent to immediate access to digital content and waive right to cancel once downloaded.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 42,
+    title: "Transactional SMS Notifications Consent",
+    category: "Checkbox",
+    description: "Consents to receiving transactional SMS updates and order status alerts regarding their package.",
+    conditions: [],
+    error_message: "Please confirm your agreement for order updates.",
+    error_target: "purchase.checkout.contact.render-after",
+    guidance_message: "I agree to receive transactional order status updates via SMS text message.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 43,
+    title: "Out-of-Stock Item Substitution Consent",
+    category: "Checkbox",
+    description: "Allows store pickers to substitute comparable products if an ordered item is out of stock.",
+    conditions: [],
+    error_message: "Please indicate whether item substitutions are permitted.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I allow equal-value item substitutions if an ordered product is out of stock.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 44,
+    title: "Customer Assembly Required Disclaimer",
+    category: "Checkbox",
+    description: "Ensures customers understand that furniture or equipment items arrive flat-packed and require self-assembly.",
+    conditions: [],
+    error_message: "Please confirm you understand assembly is required.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I acknowledge that products in this order require customer assembly.",
+    rule_type: "checkbox"
+  },
+  {
+    id: 45,
+    title: "Minimal Eco-Friendly Packaging Consent",
+    category: "Checkbox",
+    description: "Consents to consolidated shipping and minimal recyclable packaging to reduce environmental waste.",
+    conditions: [],
+    error_message: "Please indicate your packaging preference.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "I opt in to minimal eco-friendly recyclable packaging for my shipment.",
+    rule_type: "checkbox"
   }
 ];
 
@@ -371,6 +536,86 @@ if (DATABASE_URL) {
   useFallback = true;
 }
 
+// Standalone helper to sync PREBUILT_TEMPLATES directly to PostgreSQL rule_templates table
+export async function syncTemplatesToPostgres() {
+  if (!pool || useFallback) return;
+  try {
+    console.log("[DB Sync] Ensuring rule_templates table and sync status in PostgreSQL...");
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rule_templates (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        description VARCHAR(500) NOT NULL,
+        conditions JSONB NOT NULL,
+        error_message VARCHAR(500) NOT NULL,
+        error_target VARCHAR(255) DEFAULT '$.cart',
+        rule_type VARCHAR(50) DEFAULT 'validation',
+        delivery_action VARCHAR(50) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL
+      );
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+    `);
+
+    for (const tmpl of PREBUILT_TEMPLATES) {
+      const checkRes = await pool.query(
+        "SELECT id FROM rule_templates WHERE title = $1 OR id = $2",
+        [tmpl.title, tmpl.id]
+      );
+
+      if (checkRes.rows && checkRes.rows.length > 0) {
+        await pool.query(
+          `UPDATE rule_templates SET 
+             title = $1,
+             category = $2,
+             description = $3,
+             conditions = $4,
+             error_message = $5,
+             error_target = $6,
+             rule_type = $7,
+             delivery_action = $8,
+             guidance_message = $9 
+           WHERE id = $10 OR title = $1`,
+          [
+            tmpl.title,
+            tmpl.category,
+            tmpl.description,
+            JSON.stringify(tmpl.conditions || []),
+            tmpl.error_message || "",
+            tmpl.error_target || "$.cart",
+            tmpl.rule_type || "validation",
+            tmpl.delivery_action || null,
+            tmpl.guidance_message || null,
+            checkRes.rows[0].id
+          ]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO rule_templates (id, title, category, description, conditions, error_message, error_target, rule_type, delivery_action, guidance_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            tmpl.id,
+            tmpl.title,
+            tmpl.category,
+            tmpl.description,
+            JSON.stringify(tmpl.conditions || []),
+            tmpl.error_message || "",
+            tmpl.error_target || "$.cart",
+            tmpl.rule_type || "validation",
+            tmpl.delivery_action || null,
+            tmpl.guidance_message || null
+          ]
+        );
+      }
+    }
+    console.log(`[DB Sync] Successfully synced all ${PREBUILT_TEMPLATES.length} templates to PostgreSQL!`);
+  } catch (err) {
+    console.error("[DB Sync] Template sync error:", err.message);
+  }
+}
+
 // Connect test
 if (pool && !useFallback) {
   pool.connect((err, client, release) => {
@@ -379,59 +624,8 @@ if (pool && !useFallback) {
       useFallback = true;
     } else {
       console.log("Successfully connected to PostgreSQL Database.");
-      try {
-        const __dirname = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
-        const schemaPath = path.join(__dirname, "schema.sql");
-        console.log("Looking for schema.sql at:", schemaPath);
-        if (fs.existsSync(schemaPath)) {
-          const sql = fs.readFileSync(schemaPath, "utf8");
-          client.query(sql, (sqlErr) => {
-            if (sqlErr) {
-              console.error("Failed to run schema.sql on database initialization:", sqlErr.message);
-            } else {
-              console.log("PostgreSQL database tables verified/created successfully.");
-              client.query(
-                `ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
-                 ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
-                 
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
-                 ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
-
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
-                 ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
-
-                 UPDATE rules SET error_target = '$.cart.deliveryGroups[0].deliveryAddress.address1' WHERE error_target = '$.cart.deliveryGroups[0].deliveryAddress';
-                 UPDATE rules SET error_target = '$.cart.lines[0].quantity' WHERE error_target = '$.cart.lines[0]';`,
-                (migErr) => {
-                  if (migErr) {
-                    console.error("Migration error updating old targets / adding columns:", migErr.message);
-                  } else {
-                    console.log("Existing rule targets migrated and new columns added successfully.");
-                  }
-                  release();
-                }
-              );
-            }
-          });
-        } else {
-          release();
-        }
-      } catch (schemaErr) {
-        console.error("Error reading schema.sql:", schemaErr.message);
-        release();
-      }
+      syncTemplatesToPostgres();
+      release();
     }
   });
 }
@@ -999,3 +1193,5 @@ export async function dbQuery(text, params = []) {
 
   return { rows: [], rowCount: 0 };
 }
+
+export { PREBUILT_TEMPLATES };
