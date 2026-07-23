@@ -232,6 +232,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [shopPlan, setShopPlan] = useState("Free");
   const [planConfig, setPlanConfig] = useState(null);
   const [planUsage, setPlanUsage] = useState(null);
+  const [initialStatus, setInitialStatus] = useState(null);
 
   // Fetch installed active stores, shipping methods, and shop plan details on component mount
   useEffect(() => {
@@ -278,6 +279,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setTitle(data.title);
             setPriority(String(data.priority || 0));
             setStatus(data.status);
+            setInitialStatus(data.status);
             setTargetShop(data.target_shop || "");
             setRuleType(data.rule_type || "validation");
             setDeliveryAction(data.delivery_action || "hide");
@@ -684,7 +686,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
     };
   });
 
-  const isQuotaExceeded = planUsage && status === "active" && (ruleId === "new" || ruleId === undefined) && planUsage.activeRulesCount >= planUsage.maxActiveRules;
+  const rawMaxRules = planUsage?.maxActiveRules;
+  const isUnlimitedPlan = !rawMaxRules || rawMaxRules === Infinity || rawMaxRules >= 999999 || shopPlan === "Pro";
+  const isActivatingNewOrInactive = status === "active" && ((ruleId === "new" || ruleId === undefined) || initialStatus !== "active");
+  const isQuotaExceeded = !isUnlimitedPlan && isActivatingNewOrInactive && (planUsage?.activeRulesCount >= rawMaxRules);
 
   return (
     <Page
@@ -748,14 +753,14 @@ export default function RuleBuilder({ ruleId, navigate }) {
       `}</style>
 
       <Layout>
-        {isQuotaExceeded && (
+        {!isUnlimitedPlan && isQuotaExceeded && (
           <Layout.Section>
             <Banner
               status="warning"
-              title={`Plan Active Rule Limit Reached (${planUsage.activeRulesCount}/${planUsage.maxActiveRules})`}
+              title={`Plan Active Rule Limit Reached (${planUsage?.activeRulesCount}/${planUsage?.maxActiveRules})`}
               action={{ content: "Upgrade Plan", onAction: () => navigate("/pricing") }}
             >
-              Your store is currently using all {planUsage.maxActiveRules} active rule(s) included in the {shopPlan} plan. Upgrade to activate additional rules.
+              Your store is currently using all {planUsage?.maxActiveRules} active rule(s) included in the {shopPlan} plan. Upgrade to activate additional rules.
             </Banner>
           </Layout.Section>
         )}

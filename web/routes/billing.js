@@ -25,8 +25,16 @@ router.get("/plan", async (req, res) => {
     const planName = shopRecord.plan_name || "Free";
     const planConfig = getPlanConfig(planName);
 
-    const maxRules = planConfig.maxActiveRules === Infinity ? 999999 : planConfig.maxActiveRules;
-    const usagePercentage = planConfig.maxActiveRules === Infinity ? 0 : Math.min(100, Math.round((activeRulesCount / planConfig.maxActiveRules) * 100));
+    const isUnlimited = planConfig.maxActiveRules === Infinity || planConfig.maxActiveRules >= 999999 || planName === "Pro";
+    const maxRules = isUnlimited ? 999999 : planConfig.maxActiveRules;
+    const usagePercentage = isUnlimited ? 0 : Math.min(100, Math.round((activeRulesCount / planConfig.maxActiveRules) * 100));
+
+    const safePlanConfig = {
+      ...planConfig,
+      maxActiveRules: isUnlimited ? 999999 : planConfig.maxActiveRules,
+      maxVersionsPerRule: planConfig.maxVersionsPerRule === Infinity ? 999999 : planConfig.maxVersionsPerRule,
+      analyticsRetentionDays: planConfig.analyticsRetentionDays === Infinity ? 999999 : planConfig.analyticsRetentionDays,
+    };
 
     return res.status(200).json({
       success: true,
@@ -38,11 +46,11 @@ router.get("/plan", async (req, res) => {
         status: shopRecord.subscription_status || "ACTIVE",
         trialEndsAt: shopRecord.trial_ends_at || null,
         updatedAt: shopRecord.billing_updated_at || shopRecord.updated_at || null,
-        config: planConfig
+        config: safePlanConfig
       },
       usage: {
         activeRulesCount,
-        maxActiveRules: planConfig.maxActiveRules,
+        maxActiveRules: maxRules,
         usagePercentage
       }
     });

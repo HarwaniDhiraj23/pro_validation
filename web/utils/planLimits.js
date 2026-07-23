@@ -121,8 +121,8 @@ export function validateRulePlanLimits(planName, currentActiveCount, ruleData, i
   const plan = getPlanConfig(planName);
 
   // 1. Active rules count limit check
-  const willBeActive = ruleData.status === "active";
-  if (isNewActivation || willBeActive) {
+  const isUnlimited = !plan.maxActiveRules || plan.maxActiveRules === Infinity || plan.maxActiveRules >= 999999 || planName === "Pro";
+  if (isNewActivation && !isUnlimited) {
     if (currentActiveCount >= plan.maxActiveRules) {
       const requiredPlan = getRequiredPlanForRuleCount(currentActiveCount + 1);
       return {

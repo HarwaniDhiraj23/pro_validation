@@ -171,60 +171,33 @@ export default function RulesList({ navigate }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-        /* Force individual header action buttons to stay inline and hide 'More actions' rollup dropdown */
+        /* Force header secondary actions to stay inline and hide 'More actions' rollup dropdown */
         div[class*="Rollup"], div[class*="rollup"],
         button[class*="Rollup"], button[class*="rollup"],
-        .Polaris-Page-Header__Rollup, .Polaris-Page-Header__RollupActions {
+        .Polaris-Page-Header__Rollup, .Polaris-Page-Header__RollupActions,
+        .Polaris-ActionMenu__Rollup, .Polaris-ActionMenu-Rollup {
           display: none !important;
         }
+
+        .Polaris-Page-Header__IndividualActions,
+        .Polaris-Page-Header__SecondaryActions,
+        .Polaris-ActionMenu__SecondaryActions,
+        .Polaris-ActionMenu__Actions,
         div[class*="IndividualActions"], div[class*="individualActions"],
-        .Polaris-Page-Header__IndividualActions {
+        div[class*="SecondaryActions"], div[class*="secondaryActions"] {
           display: flex !important;
           visibility: visible !important;
+          opacity: 1 !important;
           align-items: center !important;
           gap: 8px !important;
         }
 
-        /* Style the '＋ Create Checkbox Rule' button as a primary green button */
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button,
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a,
-        div[class*="IndividualActions"] > *:nth-child(2) button,
-        div[class*="IndividualActions"] > *:nth-child(2) a,
-        .Polaris-Header-Action:nth-child(2) button,
-        .Polaris-Header-Action:nth-child(2) a {
-          background: #008060 !important;
-          background-color: #008060 !important;
-          color: #ffffff !important;
-          border-color: #008060 !important;
-          font-weight: 600 !important;
-          border-radius: 6px !important;
-          padding: 6px 12px !important;
-          box-shadow: 0 1px 0 rgba(0,0,0,.05) !important;
-        }
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button *,
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a *,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button *,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a *,
-        div[class*="IndividualActions"] > *:nth-child(2) button *,
-        div[class*="IndividualActions"] > *:nth-child(2) a *,
-        .Polaris-Header-Action:nth-child(2) button *,
-        .Polaris-Header-Action:nth-child(2) a * {
-          color: #ffffff !important;
-        }
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) button:hover,
-        .Polaris-Page-Header__SecondaryActions > *:nth-child(2) a:hover,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) button:hover,
-        .Polaris-Page-Header__IndividualActions > *:nth-child(2) a:hover,
-        div[class*="IndividualActions"] > *:nth-child(2) button:hover,
-        div[class*="IndividualActions"] > *:nth-child(2) a:hover,
-        .Polaris-Header-Action:nth-child(2) button:hover,
-        .Polaris-Header-Action:nth-child(2) a:hover {
-          background: #006e52 !important;
-          background-color: #006e52 !important;
-          border-color: #006e52 !important;
-          color: #ffffff !important;
+        div[class*="IndividualActions"] > *,
+        div[class*="SecondaryActions"] > *,
+        .Polaris-Page-Header__IndividualActions > *,
+        .Polaris-Page-Header__SecondaryActions > * {
+          display: inline-flex !important;
+          visibility: visible !important;
         }
 
         .rl-wrap { font-family: 'Inter', sans-serif; }

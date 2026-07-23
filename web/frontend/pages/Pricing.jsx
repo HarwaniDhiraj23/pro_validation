@@ -139,10 +139,10 @@ export default function Pricing({ navigate: propNavigate }) {
 
   const currentPlanName = planData?.plan?.name || "Free";
   const activeCount = planData?.usage?.activeRulesCount || 0;
-  const maxRules = planData?.usage?.maxActiveRules === Infinity || planData?.usage?.maxActiveRules > 1000
-    ? "Unlimited"
-    : planData?.usage?.maxActiveRules || 1;
-  const usagePercentage = planData?.usage?.usagePercentage || 0;
+  const rawMaxRules = planData?.usage?.maxActiveRules;
+  const isUnlimited = rawMaxRules === null || rawMaxRules === undefined || rawMaxRules === Infinity || rawMaxRules >= 999999 || currentPlanName === "Pro";
+  const maxRules = isUnlimited ? "Unlimited" : rawMaxRules || 1;
+  const usagePercentage = isUnlimited ? 0 : (planData?.usage?.usagePercentage || 0);
 
   const plans = [
     {

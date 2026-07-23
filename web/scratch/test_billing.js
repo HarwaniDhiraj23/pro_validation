@@ -29,7 +29,11 @@ const growthPass = validateRulePlanLimits("Growth", 10, {
 }, true);
 console.log("Growth Plan - Advanced features:", growthPass.valid ? "PASSED ✅" : "FAILED ❌", growthPass);
 
-// 5. Test Versioning Limits
+// 5. Test Pro Plan (Unlimited active rules)
+const proPass = validateRulePlanLimits("Pro", 2, { status: "active", rule_type: "validation" }, true);
+console.log("Pro Plan - 2 active rules -> Activate 3rd rule:", proPass.valid ? "PASSED ✅" : "FAILED ❌", proPass);
+
+// 6. Test Versioning Limits
 console.log("Free Plan - 1 version limit:", !validateVersioningLimit("Free", 1).valid ? "BLOCKED AS EXPECTED ✅" : "FAILED ❌");
 console.log("Basic Plan - 2 versions limit pass:", validateVersioningLimit("Basic", 2).valid ? "PASSED ✅" : "FAILED ❌");
 console.log("Basic Plan - 3 versions limit fail:", !validateVersioningLimit("Basic", 3).valid ? "BLOCKED AS EXPECTED ✅" : "FAILED ❌");
