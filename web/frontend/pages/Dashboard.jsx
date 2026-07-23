@@ -85,11 +85,26 @@ export default function Dashboard({ navigate }) {
       title="Dashboard"
       subtitle="Cart & Checkout Validation Analytics and recommendations"
       primaryAction={{
-        content: "View Rules",
-        onAction: () => navigate("/rules")
+        content: "Pricing & Plans",
+        onAction: () => navigate("/pricing")
       }}
+      secondaryActions={[
+        {
+          content: "View Rules",
+          onAction: () => navigate("/rules")
+        }
+      ]}
     >
       <style>{`
+        /* Force header actions to stay visible side-by-side */
+        div[class*="IndividualActions"], div[class*="individualActions"],
+        .Polaris-Page-Header__IndividualActions {
+          display: flex !important;
+          visibility: visible !important;
+          align-items: center !important;
+          gap: 8px !important;
+        }
+
         .kpi-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);

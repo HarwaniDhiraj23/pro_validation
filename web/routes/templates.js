@@ -1,6 +1,7 @@
 import express from "express";
 import { dbQuery, PREBUILT_TEMPLATES, syncTemplatesToPostgres } from "../db/connection.js";
 import { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify } from "./rules.js";
+import { getRequiredPlanForTemplate } from "../utils/planLimits.js";
 
 const router = express.Router();
 
@@ -42,7 +43,11 @@ router.get("/", async (req, res) => {
       }
     });
 
-    const allTemplates = Array.from(templateMap.values());
+    const allTemplates = Array.from(templateMap.values()).map(tmpl => ({
+      ...tmpl,
+      required_plan: getRequiredPlanForTemplate(tmpl)
+    }));
+
     const existingTitles = (existingRulesRes.rows || []).map(r => r.title.toLowerCase());
     const filteredTemplates = allTemplates.filter(tmpl => 
       !existingTitles.includes(tmpl.title.toLowerCase())

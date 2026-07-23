@@ -4,10 +4,26 @@ CREATE TABLE IF NOT EXISTS shops (
   shop VARCHAR(255) UNIQUE NOT NULL,
   uninstalled BOOLEAN DEFAULT FALSE,
   onboarded BOOLEAN DEFAULT FALSE,
+  plan_name VARCHAR(50) DEFAULT 'Free',
+  subscription_id VARCHAR(255) DEFAULT NULL,
+  subscription_status VARCHAR(50) DEFAULT 'ACTIVE',
+  trial_ends_at TIMESTAMP DEFAULT NULL,
+  billing_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   uninstalled_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create subscriptions_log table for billing transaction audit trail
+CREATE TABLE IF NOT EXISTS subscriptions_log (
+  id SERIAL PRIMARY KEY,
+  shop VARCHAR(255) NOT NULL,
+  subscription_id VARCHAR(255),
+  plan_name VARCHAR(50) NOT NULL,
+  price NUMERIC(10, 2) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create rules table

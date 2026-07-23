@@ -54,7 +54,13 @@ export function AppOnboardingModal() {
     <Modal
       open={!onboarded}
       onClose={() => { }} // Cannot close by clicking outside or close button
-      title={step === 1 ? "Welcome to Pro Validation!" : "Let's set up Pro Validation"}
+      title={
+        step === 1
+          ? "Welcome to Pro Validation!"
+          : step === 2
+            ? "You are currently on the Free Plan"
+            : "Let's set up Pro Validation"
+      }
       size={step === 1 ? "large" : "medium"}
     >
       <style dangerouslySetInnerHTML={{
@@ -271,6 +277,98 @@ export function AppOnboardingModal() {
               </Button>
             </div>
           </div>
+        ) : step === 2 ? (
+          <div style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", paddingBottom: "16px" }}>
+            <div style={{ textAlign: "center", marginBottom: "20px" }}>
+              <div style={{
+                display: "inline-block",
+                padding: "6px 14px",
+                borderRadius: "20px",
+                backgroundColor: "#e0f2fe",
+                color: "#0369a1",
+                fontSize: "12px",
+                fontWeight: "700",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                marginBottom: "8px"
+              }}>
+                Free Plan Active
+              </div>
+              <h1 style={{ fontSize: "20px", fontWeight: "800", color: "#1a1a1a", marginBottom: "8px" }}>
+                What's included in your Free Plan
+              </h1>
+              <p style={{ fontSize: "14px", color: "#6d7175" }}>
+                You can get started immediately with our core features at zero cost.
+              </p>
+            </div>
+
+            {/* Features Included List Card */}
+            <div style={{
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              padding: "20px",
+              marginBottom: "5px"
+            }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column" }}>
+                <li style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "2px" }}>
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span style={{ fontSize: "14px", color: "#334155" }}>
+                    <strong>1 Active Validation Rule</strong> (Basic cart & customer checks)
+                  </span>
+                </li>
+                <li style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "2px" }}>
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span style={{ fontSize: "14px", color: "#334155" }}>
+                    Standard delivery & payment rule customization
+                  </span>
+                </li>
+                <li style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "2px" }}>
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span style={{ fontSize: "14px", color: "#334155" }}>
+                    Basic support and rule testing mode
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Note about upgrading */}
+            <div style={{
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fef3c7",
+              borderRadius: "8px",
+              padding: "12px 16px",
+              marginBottom: "24px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px"
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <p style={{ fontSize: "13px", color: "#b45309", margin: 0, lineHeight: "1.4" }}>
+                Need unlimited rules or premium features? You can upgrade your plan anytime from the <strong>Pricing & Plan</strong> option in the menu.
+              </p>
+            </div>
+
+            {/* Navigation Buttons */}
+            <div style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
+              <Button size="large" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button primary size="large" onClick={() => setStep(3)}>
+                Continue
+              </Button>
+            </div>
+          </div>
         ) : (
           <div style={{
             fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
@@ -329,7 +427,7 @@ export function AppOnboardingModal() {
 
             {/* Footer Buttons */}
             <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
-              <Button size="large" onClick={() => setStep(1)} disabled={completing}>
+              <Button size="large" onClick={() => setStep(2)} disabled={completing}>
                 Back
               </Button>
               <Button

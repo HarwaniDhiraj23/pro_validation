@@ -85,7 +85,7 @@ export function OnboardingModal() {
               </p>
               <List type="number">
                 <List.Item>
-                  Go to your <strong>Shopify Admin</strong> -> <strong>Settings</strong> -> <strong>Checkout</strong> -> <strong>Checkout Rules</strong>.
+                  Go to your <strong>Shopify Admin</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Checkout</strong> &rarr; <strong>Checkout Rules</strong>.
                   <br />
 
                 </List.Item>

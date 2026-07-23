@@ -16,16 +16,26 @@ import { Routes as ReactRouterRoutes, Route } from "react-router-dom";
  */
 export default function Routes({ pages }) {
   const routes = useRoutes(pages);
-  const routeComponents = routes.map(({ path, component: Component }) => (
-    <Route key={path} path={path} element={<Component />} />
-  ));
+  const routeComponents = [];
 
-  const NotFound = routes.find(({ path }) => path === "/notFound").component;
+  routes.forEach(({ path, component: Component }) => {
+    routeComponents.push(<Route key={path} path={path} element={<Component />} />);
+    
+    // Add uppercase/lowercase path alias (e.g. /pricing and /Pricing)
+    if (path !== "/" && path.length > 1) {
+      const altPath = path.charAt(0) + path.charAt(1).toUpperCase() + path.slice(2);
+      if (altPath !== path) {
+        routeComponents.push(<Route key={altPath} path={altPath} element={<Component />} />);
+      }
+    }
+  });
+
+  const NotFoundComponent = routes.find(({ path }) => path === "/notFound")?.component;
 
   return (
     <ReactRouterRoutes>
       {routeComponents}
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={NotFoundComponent ? <NotFoundComponent /> : <div>Page not found</div>} />
     </ReactRouterRoutes>
   );
 }

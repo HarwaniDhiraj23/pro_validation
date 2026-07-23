@@ -6,12 +6,10 @@ export default function NotFound() {
   const { t } = useTranslation();
   return (
     <Page>
-      <Card>
-        <Card.Section>
-          <EmptyState heading={t("NotFound.heading")} image={notFoundImage}>
-            <p>{t("NotFound.description")}</p>
-          </EmptyState>
-        </Card.Section>
+      <Card padding="500">
+        <EmptyState heading={t("NotFound.heading") || "Page Not Found"} image={notFoundImage}>
+          <p>{t("NotFound.description") || "The page you are looking for does not exist."}</p>
+        </EmptyState>
       </Card>
     </Page>
   );

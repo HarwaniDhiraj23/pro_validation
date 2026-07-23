@@ -1,6 +1,7 @@
 import express from "express";
 import { dbQuery } from "../db/connection.js";
 import shopify from "../shopify.js";
+import { validateRulePlanLimits, getPlanConfig } from "../utils/planLimits.js";
 
 const router = express.Router();
 
@@ -901,6 +902,22 @@ router.post("/", async (req, res) => {
     const shop = res.locals.shopify.session.shop;
     const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
+    // Fetch shop plan & active rules count
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+
+    const countRes = await dbQuery("SELECT COUNT(*) FROM rules WHERE (shop = $1 OR target_shop = $1) AND status = 'active'", [shop]);
+    const currentActiveCount = parseInt(countRes.rows[0]?.count || 0);
+
+    const validation = validateRulePlanLimits(shopPlan, currentActiveCount, { status, rule_type, schedule_start, schedule_end, conditions }, status === "active");
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: validation.message,
+        code: validation.error,
+        requiredPlan: validation.requiredPlan
+      });
+    }
+
     // Insert rule
     const ruleRes = await dbQuery(
       `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
@@ -942,14 +959,27 @@ router.put("/:id", async (req, res) => {
     }
     const oldRule = checkRes.rows[0];
 
+    // Fetch shop plan & active rules count (excluding current rule)
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+
+    const countRes = await dbQuery("SELECT COUNT(*) FROM rules WHERE (shop = $1 OR target_shop = $1) AND status = 'active' AND id != $2", [shop, id]);
+    const currentActiveCount = parseInt(countRes.rows[0]?.count || 0);
+
+    const isActivating = oldRule.status !== "active" && status === "active";
+    const validation = validateRulePlanLimits(shopPlan, currentActiveCount, { status, rule_type, schedule_start, schedule_end, conditions }, isActivating);
+    if (!validation.valid) {
+      return res.status(403).json({
+        error: validation.message,
+        code: validation.error,
+        requiredPlan: validation.requiredPlan
+      });
+    }
+
     // Block activation if schedule_end is in the past
     if (status === "active" && schedule_end && new Date(schedule_end) < new Date()) {
       return res.status(400).json({ error: "Cannot activate a rule with an expired end date." });
     }
-
-    // Get max version to increment
-    const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
-    const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
 
     // Update rule
     const ruleRes = await dbQuery(
@@ -960,12 +990,38 @@ router.put("/:id", async (req, res) => {
     );
     const updatedRule = ruleRes.rows[0];
 
-    // Insert version history
-    await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-      [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
-    );
+    // Store version history step according to plan limit
+    const planConfig = getPlanConfig(shopPlan);
+    if (planConfig.maxVersionsPerRule <= 1) {
+      // Free plan: overwrite/upsert single version record
+      await dbQuery("DELETE FROM rule_versions WHERE rule_id = $1", [id]);
+      await dbQuery(
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [id, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      );
+    } else {
+      const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
+      const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
+
+      await dbQuery(
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      );
+
+      // Prune old versions based on plan limit (Basic: 3, Growth: 10)
+      if (planConfig.maxVersionsPerRule !== Infinity) {
+        await dbQuery(
+          `DELETE FROM rule_versions 
+           WHERE rule_id = $1 
+             AND id NOT IN (
+               SELECT id FROM rule_versions WHERE rule_id = $1 ORDER BY version DESC LIMIT $2
+             )`,
+          [id, planConfig.maxVersionsPerRule]
+        );
+      }
+    }
 
     // Sync product collections metafields if needed
     await syncProductCollectionMetafields(res.locals.shopify.session, conditions);
@@ -1013,7 +1069,16 @@ router.post("/bulk-toggle", async (req, res) => {
     const shop = res.locals.shopify.session.shop;
     const { ids, status } = req.body; // ids: array of IDs, status: 'active'/'inactive'
 
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: "No rule IDs provided" });
+    }
+
     if (status === "active") {
+      const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+      const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+      const planConfig = getPlanConfig(shopPlan);
+
+      // Check for expired rules
       const expiredRes = await dbQuery(
         "SELECT id, title FROM rules WHERE id = ANY($1) AND shop = $2 AND schedule_end IS NOT NULL AND schedule_end < CURRENT_TIMESTAMP AND status != 'deleted'",
         [ids, shop]
@@ -1021,6 +1086,37 @@ router.post("/bulk-toggle", async (req, res) => {
       if (expiredRes.rows.length > 0) {
         const titles = expiredRes.rows.map(r => `"${r.title}"`).join(", ");
         return res.status(400).json({ error: `Cannot activate expired rules: ${titles}` });
+      }
+
+      // Check current active count excluding rules being toggled
+      const currentActiveRes = await dbQuery(
+        "SELECT COUNT(*) FROM rules WHERE (shop = $1 OR target_shop = $1) AND status = 'active' AND NOT (id = ANY($2))",
+        [shop, ids]
+      );
+      const currentActiveCount = parseInt(currentActiveRes.rows[0]?.count || 0);
+
+      // Fetch rule details of rules being activated
+      const activatingRulesRes = await dbQuery(
+        "SELECT id, rule_type, schedule_start, schedule_end, conditions FROM rules WHERE id = ANY($1) AND shop = $2 AND status != 'deleted'",
+        [ids, shop]
+      );
+      const activatingRules = activatingRulesRes.rows || [];
+
+      if (currentActiveCount + activatingRules.length > planConfig.maxActiveRules) {
+        return res.status(403).json({
+          error: `Plan limit exceeded! Your current ${shopPlan} plan allows maximum ${planConfig.maxActiveRules} active rule(s). Activating these ${activatingRules.length} rules would exceed your limit (${currentActiveCount + activatingRules.length} / ${planConfig.maxActiveRules}). Please upgrade your plan.`
+        });
+      }
+
+      for (const rule of activatingRules) {
+        const validation = validateRulePlanLimits(shopPlan, currentActiveCount, rule, true);
+        if (!validation.valid) {
+          return res.status(403).json({
+            error: validation.message,
+            code: validation.error,
+            requiredPlan: validation.requiredPlan
+          });
+        }
       }
     }
 
@@ -1072,11 +1168,35 @@ router.post("/bulk-delete", async (req, res) => {
 router.get("/:id/versions", async (req, res) => {
   try {
     const { id } = req.params;
+    const session = res.locals.shopify.session;
+    const shop = session.shop;
+
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+    const planConfig = getPlanConfig(shopPlan);
+
+    if (planConfig.maxVersionsPerRule <= 1) {
+      return res.json({
+        versions: [],
+        maxVersionsAllowed: 1,
+        isLocked: true,
+        planName: shopPlan,
+        message: "Version history retention & rollback is not available on the Free plan. Upgrade to Basic (3 versions), Growth (10 versions), or Pro (Unlimited) to track and restore previous rule versions."
+      });
+    }
+
+    const limit = planConfig.maxVersionsPerRule === Infinity ? 9999 : planConfig.maxVersionsPerRule;
     const result = await dbQuery(
-      "SELECT * FROM rule_versions WHERE rule_id = $1 ORDER BY version DESC",
-      [id]
+      "SELECT * FROM rule_versions WHERE rule_id = $1 ORDER BY version DESC LIMIT $2",
+      [id, limit]
     );
-    res.json(result.rows);
+
+    return res.json({
+      versions: result.rows || [],
+      maxVersionsAllowed: planConfig.maxVersionsPerRule,
+      isLocked: false,
+      planName: shopPlan
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1088,6 +1208,18 @@ router.post("/:id/rollback", async (req, res) => {
     const { id } = req.params;
     const { version } = req.body;
     const shop = res.locals.shopify.session.shop;
+
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+    const planConfig = getPlanConfig(shopPlan);
+
+    if (planConfig.maxVersionsPerRule <= 1) {
+      return res.status(403).json({
+        error: "Version rollback is not supported on the Free plan. Please upgrade to Basic or higher to restore previous rule versions.",
+        code: "VERSION_ROLLBACK_NOT_ALLOWED",
+        requiredPlan: "Basic"
+      });
+    }
 
     // Get specific version
     const versionRes = await dbQuery(
@@ -1116,6 +1248,18 @@ router.post("/:id/rollback", async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [id, nextVersion, ver.title, ver.priority, ver.conditions_operator, JSON.stringify(ver.conditions), ver.error_message, ver.error_target, ver.rule_type || 'validation', ver.delivery_action || null, ver.warning_banner || false, ver.custom_icon || null, ver.banner_style || null, ver.guidance_message || null, ver.display_in_checkout !== false]
     );
+
+    // Prune old versions if limit set
+    if (planConfig.maxVersionsPerRule !== Infinity) {
+      await dbQuery(
+        `DELETE FROM rule_versions 
+         WHERE rule_id = $1 
+           AND id NOT IN (
+             SELECT id FROM rule_versions WHERE rule_id = $1 ORDER BY version DESC LIMIT $2
+           )`,
+        [id, planConfig.maxVersionsPerRule]
+      );
+    }
 
     // Sync to Shopify
     await syncRulesToShopify(res.locals.shopify.session);

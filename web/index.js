@@ -19,6 +19,7 @@ import rulesRouter, { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymen
 import templatesRouter from "./routes/templates.js";
 import analyticsRouter from "./routes/analytics.js";
 import recommendationsRouter from "./routes/recommendations.js";
+import billingRouter from "./routes/billing.js";
 import { dbQuery } from "./db/connection.js";
 
 const PORT = parseInt(
@@ -95,6 +96,7 @@ app.use("/api/rules", rulesRouter);
 app.use("/api/templates", templatesRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/recommendations", recommendationsRouter);
+app.use("/api/billing", billingRouter);
 
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({

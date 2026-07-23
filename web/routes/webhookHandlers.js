@@ -224,6 +224,42 @@ const WebhookHandlers = {
       }
     },
   },
+
+  APP_SUBSCRIPTIONS_UPDATE: {
+    deliveryMethod: DeliveryMethod.Http,
+    callbackUrl: "/api/webhooks",
+    callback: async (topic, shop, body, webhookId) => {
+      try {
+        console.log(`[Webhook] APP_SUBSCRIPTIONS_UPDATE for shop: ${shop}`);
+        const payload = JSON.parse(body);
+        const appSubscription = payload.app_subscription;
+        
+        if (appSubscription) {
+          const status = appSubscription.status;
+          const subscriptionId = appSubscription.admin_graphql_api_id || String(appSubscription.id);
+          const planName = appSubscription.name || "Free";
+          
+          if (status === "CANCELLED" || status === "EXPIRED" || status === "DECLINED") {
+            await dbQuery(
+              "UPDATE shops SET plan_name = $1, subscription_id = $2, subscription_status = $3, trial_ends_at = $4 WHERE shop = $5",
+              ["Free", null, status, null, shop]
+            );
+            await dbQuery(
+              "INSERT INTO subscriptions_log (shop, subscription_id, plan_name, price, status) VALUES ($1, $2, $3, $4, $5)",
+              [shop, subscriptionId, "Free", 0.00, status]
+            );
+          } else if (status === "ACTIVE") {
+            await dbQuery(
+              "UPDATE shops SET plan_name = $1, subscription_id = $2, subscription_status = $3 WHERE shop = $4",
+              [planName, subscriptionId, "ACTIVE", shop]
+            );
+          }
+        }
+      } catch (err) {
+        console.error("[Webhook] APP_SUBSCRIPTIONS_UPDATE error:", err.message);
+      }
+    },
+  },
 };
 
 export default WebhookHandlers;

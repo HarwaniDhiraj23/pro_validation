@@ -21,6 +21,7 @@ export default function App() {
             <a href="/" rel="home" />
             <a href="/rules">Validation Rules</a>
             <a href="/templates">Pre-built Rules</a>
+            <a href="/pricing">Pricing & Plans</a>
           </NavMenu>
           <OnboardingModal />
           <AppOnboardingModal />

@@ -493,14 +493,16 @@ function initFallbackDB() {
       rules: [],
       rule_versions: [],
       rule_analytics: [],
+      subscriptions_log: [],
     };
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
     fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(initialData, null, 2));
   } else {
-    // Update templates inside existing fallback DB
+    // Update templates and ensure subscriptions_log inside existing fallback DB
     try {
       const existingData = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
       existingData.rule_templates = PREBUILT_TEMPLATES;
+      if (!existingData.subscriptions_log) existingData.subscriptions_log = [];
       fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(existingData, null, 2));
     } catch (e) {
       console.error("Failed to update fallback_db.json templates:", e.message);
@@ -625,8 +627,24 @@ if (pool && !useFallback) {
     } else {
       console.log("Successfully connected to PostgreSQL Database.");
       syncTemplatesToPostgres();
-      client.query("ALTER TABLE shops ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE").catch(e => {
-        console.error("Failed to alter shops table:", e.message);
+      client.query(`
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE;
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50) DEFAULT 'Free';
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(255) DEFAULT NULL;
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'ACTIVE';
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP DEFAULT NULL;
+        ALTER TABLE shops ADD COLUMN IF NOT EXISTS billing_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+        CREATE TABLE IF NOT EXISTS subscriptions_log (
+          id SERIAL PRIMARY KEY,
+          shop VARCHAR(255) NOT NULL,
+          subscription_id VARCHAR(255),
+          plan_name VARCHAR(50) NOT NULL,
+          price NUMERIC(10, 2) NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `).catch(e => {
+        console.error("Failed to alter shops table / create subscriptions_log table:", e.message);
       });
       release();
     }
@@ -1216,6 +1234,79 @@ export async function dbQuery(text, params = []) {
       return { rows: [db.shops[shopIdx]] };
     }
     return { rows: [] };
+  }
+
+  if (lowerText.startsWith("select * from shops where shop = $1") || lowerText.includes("from shops where shop = $1") || lowerText.includes("from shops where shop=$1")) {
+    const shop = params[0];
+    if (!db.shops) db.shops = [];
+    const match = db.shops.find(s => s.shop === shop);
+    if (match) {
+      return { rows: [{ plan_name: 'Free', subscription_id: null, subscription_status: 'ACTIVE', ...match }] };
+    } else {
+      return { rows: [{ shop, plan_name: 'Free', subscription_id: null, subscription_status: 'ACTIVE', onboarded: false }] };
+    }
+  }
+
+  if (lowerText.includes("update shops set plan_name")) {
+    const [plan_name, subscription_id, subscription_status, trial_ends_at, shop] = params;
+    if (!db.shops) db.shops = [];
+    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const now = new Date().toISOString();
+    let updated;
+    if (shopIdx !== -1) {
+      db.shops[shopIdx] = {
+        ...db.shops[shopIdx],
+        plan_name: plan_name || 'Free',
+        subscription_id: subscription_id || null,
+        subscription_status: subscription_status || 'ACTIVE',
+        trial_ends_at: trial_ends_at || null,
+        billing_updated_at: now,
+        updated_at: now
+      };
+      updated = db.shops[shopIdx];
+    } else {
+      updated = {
+        id: db.shops.length > 0 ? Math.max(...db.shops.map(s => s.id)) + 1 : 1,
+        shop,
+        uninstalled: false,
+        onboarded: false,
+        plan_name: plan_name || 'Free',
+        subscription_id: subscription_id || null,
+        subscription_status: subscription_status || 'ACTIVE',
+        trial_ends_at: trial_ends_at || null,
+        billing_updated_at: now,
+        created_at: now,
+        updated_at: now
+      };
+      db.shops.push(updated);
+    }
+    writeFallbackDB(db);
+    return { rows: [updated] };
+  }
+
+  if (lowerText.startsWith("insert into subscriptions_log")) {
+    const [shop, subscription_id, plan_name, price, status] = params;
+    if (!db.subscriptions_log) db.subscriptions_log = [];
+    const newLog = {
+      id: db.subscriptions_log.length > 0 ? Math.max(...db.subscriptions_log.map(l => l.id)) + 1 : 1,
+      shop,
+      subscription_id,
+      plan_name,
+      price: parseFloat(price) || 0.00,
+      status,
+      created_at: new Date().toISOString()
+    };
+    db.subscriptions_log.push(newLog);
+    writeFallbackDB(db);
+    return { rows: [newLog] };
+  }
+
+  if (lowerText.startsWith("select * from subscriptions_log")) {
+    const shop = params[0];
+    if (!db.subscriptions_log) db.subscriptions_log = [];
+    const logs = db.subscriptions_log.filter(l => l.shop === shop);
+    logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { rows: logs };
   }
 
   return { rows: [], rowCount: 0 };

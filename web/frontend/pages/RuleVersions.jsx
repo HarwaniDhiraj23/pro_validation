@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge, Modal } from "@shopify/polaris";
+import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge, Modal, Button, Banner } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { formatDate } from "../utils/utils";
 
@@ -59,6 +59,9 @@ export default function RuleVersions({ ruleId, navigate }) {
   const [rollingBackId, setRollingBackId] = useState(null);
   const [ruleName, setRuleName] = useState("Rule");
   const [selectedVersion, setSelectedVersion] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [planName, setPlanName] = useState("Free");
+  const [lockMessage, setLockMessage] = useState("");
 
   useEffect(() => {
     if (ruleId) {
@@ -70,7 +73,16 @@ export default function RuleVersions({ ruleId, navigate }) {
           const ruleData = await ruleRes.json();
           const versionsData = await versionsRes.json();
           setRuleName(ruleData.title || "Rule");
-          setVersions(versionsData);
+
+          if (versionsData && versionsData.isLocked) {
+            setIsLocked(true);
+            setPlanName(versionsData.planName || "Free");
+            setLockMessage(versionsData.message || "Version history retention is not available on the Free plan.");
+            setVersions([]);
+          } else {
+            setIsLocked(false);
+            setVersions(Array.isArray(versionsData) ? versionsData : (versionsData.versions || []));
+          }
         })
         .catch(err => {
           shopify.toast.show("Error loading version history", { isError: true });
@@ -93,7 +105,8 @@ export default function RuleVersions({ ruleId, navigate }) {
         shopify.toast.show(`Rolled back to version v${version} successfully!`);
         navigate("/rules");
       } else {
-        shopify.toast.show("Failed to rollback", { isError: true });
+        const errorData = await res.json().catch(() => ({}));
+        shopify.toast.show(errorData.error || "Failed to rollback", { isError: true });
       }
     } catch (e) {
       shopify.toast.show("Network error", { isError: true });
@@ -108,6 +121,36 @@ export default function RuleVersions({ ruleId, navigate }) {
         <HorizontalStack align="center">
           <Spinner size="large" />
         </HorizontalStack>
+      </Page>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <Page
+        title={`Version History - ${ruleName}`}
+        subtitle="Version history retention & rollback manager"
+        backAction={{ content: "Rules", onAction: () => navigate("/rules") }}
+        primaryAction={{ content: "Pricing & Plans", onAction: () => navigate("/pricing") }}
+      >
+        <Card padding="5">
+          <VerticalStack gap="4">
+            <Box padding="4">
+              <Text variant="headingMd" as="h3">Version History Locked 🔒 ({planName} Plan)</Text>
+              <Text variant="bodyMd" tone="subdued">
+                {lockMessage || "Version history retention & rollback is not available on the Free plan."}
+              </Text>
+              <Text variant="bodyMd" tone="subdued">
+                Upgrade to <strong>Basic Plan</strong> ($9/mo) to keep 3 versions, <strong>Growth Plan</strong> ($29/mo) for 10 versions, or <strong>Pro Plan</strong> ($79/mo) for unlimited history retention.
+              </Text>
+              <div style={{ marginTop: "16px" }}>
+                <Button primary onClick={() => navigate("/pricing")}>
+                  Upgrade Plan to Unlock Version History
+                </Button>
+              </div>
+            </Box>
+          </VerticalStack>
+        </Card>
       </Page>
     );
   }
