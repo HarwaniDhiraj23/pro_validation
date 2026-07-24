@@ -189,6 +189,119 @@ const ERROR_TARGETS = [
   { label: "First Line Item Quantity", value: "$.cart.lines[0].quantity" }
 ];
 
+const getIconEmoji = (iconVal, toneVal) => {
+  const effectiveIcon = iconVal === "default" || !iconVal ? "" : iconVal;
+  switch (effectiveIcon) {
+    case "none": return "";
+    case "lock": return "🔒";
+    case "delivery": return "🚚";
+    case "payment": return "💳";
+    case "calendar": return "📅";
+    case "info": return "ℹ️";
+    case "warning": return "⚠️";
+    case "critical": return "🚨";
+    case "success": return "✅";
+    default: return "";
+  }
+};
+
+const renderToneSvgIcon = (tone, customColor) => {
+  const iconColor = customColor || (
+    tone === "success" ? "#16A34A" :
+    tone === "warning" ? "#D97706" :
+    tone === "info" ? "#2563EB" :
+    "#DC2626"
+  );
+
+  if (tone === "success") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+        <circle cx="10" cy="10" r="8.25" stroke={iconColor} strokeWidth="1.5" />
+        <path d="M6.5 10L9 12.5L13.5 7.5" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (tone === "warning") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+        <circle cx="10" cy="10" r="8.25" stroke={iconColor} strokeWidth="1.5" />
+        <path d="M10 6V11" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="10" cy="13.5" r="1" fill={iconColor} />
+      </svg>
+    );
+  }
+  if (tone === "critical") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+        <circle cx="10" cy="10" r="8.25" stroke={iconColor} strokeWidth="1.5" />
+        <path d="M7 7L13 13M13 7L7 13" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="8.25" stroke={iconColor} strokeWidth="1.5" />
+      <path d="M10 9.25V14" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="6.75" r="1" fill={iconColor} />
+    </svg>
+  );
+};
+
+const getToneStyles = (tone) => {
+  switch (tone) {
+    case "critical":
+      return {
+        bg: "#FEF2F2",
+        border: "#FCA5A5",
+        text: "#0F172A",
+        badgeBg: "#FEE2E2",
+        badgeText: "#991B1B",
+        iconColor: "#DC2626",
+        label: "Critical (Error / Red)"
+      };
+    case "warning":
+      return {
+        bg: "#FFFBEB",
+        border: "#FCD34D",
+        text: "#0F172A",
+        badgeBg: "#FEF3C7",
+        badgeText: "#92400E",
+        iconColor: "#D97706",
+        label: "Warning (Alert / Orange)"
+      };
+    case "info":
+      return {
+        bg: "#EFF6FF",
+        border: "#93C5FD",
+        text: "#0F172A",
+        badgeBg: "#DBEAFE",
+        badgeText: "#1E40AF",
+        iconColor: "#2563EB",
+        label: "Information (Info / Blue)"
+      };
+    case "success":
+      return {
+        bg: "#EEFBEA",
+        border: "#B2EBB0",
+        text: "#0F172A",
+        badgeBg: "#DCFCE7",
+        badgeText: "#166534",
+        iconColor: "#16A34A",
+        label: "Success (Completed / Green)"
+      };
+    default:
+      return {
+        bg: "#FEF2F2",
+        border: "#FCA5A5",
+        text: "#0F172A",
+        badgeBg: "#FEE2E2",
+        badgeText: "#991B1B",
+        iconColor: "#DC2626",
+        label: "Critical (Error / Red)"
+      };
+  }
+};
+
 export default function RuleBuilder({ ruleId, navigate }) {
   const shopify = useAppBridge();
   const [loading, setLoading] = useState(false);
@@ -210,6 +323,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [bannerStyle, setBannerStyle] = useState("warning");
   const [guidanceMessage, setGuidanceMessage] = useState("");
   const [displayInCheckout, setDisplayInCheckout] = useState(true);
+  const [previewTab, setPreviewTab] = useState("live");
   const [conditions, setConditions] = useState([
     { type: "minimum_order_value", operator: "less_than", value: "50" }
   ]);
@@ -1239,9 +1353,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
                           }}>
                             <Text variant="headingSm" as="h4">Checkout UI Extension Styling</Text>
 
-                            <div style={{ display: "flex", gap: "24px", width: "100%", alignItems: "stretch" }}>
+                            <div style={{ display: "flex", gap: "24px", width: "100%", alignItems: "stretch", flexWrap: "wrap" }}>
                               {/* Left Column: Controls */}
-                              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
+                              <div style={{ flex: 1, minWidth: "300px", display: "flex", flexDirection: "column", gap: "16px" }}>
                                 {ruleType === "validation" && errorTarget !== "$.cart" && (
                                   <Banner tone="warning">
                                     <p>Banner Tone / Style is disabled because it will not work with this block target field.</p>
@@ -1293,6 +1407,360 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   helpText="Helpful instructions to assist the customer in resolving the block/warning."
                                   autoComplete="off"
                                 />
+                              </div>
+
+                              {/* Right Column: Live Checkout Extension Preview */}
+                              <div style={{
+                                flex: 1,
+                                minWidth: "320px",
+                                display: "flex",
+                                flexDirection: "column",
+                                backgroundColor: "#ffffff",
+                                border: "1px solid #c9cccf",
+                                borderRadius: "8px",
+                                overflow: "hidden",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.06)"
+                              }}>
+                                {/* Simulated Shopify Checkout Header */}
+                                <div style={{
+                                  backgroundColor: "#111827",
+                                  color: "#ffffff",
+                                  padding: "10px 14px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  fontSize: "12px",
+                                  fontWeight: "600"
+                                }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <span style={{ fontSize: "14px" }}>🛍️</span>
+                                    <span>Shopify Checkout Live Preview</span>
+                                  </div>
+                                  <span style={{
+                                    fontSize: "10px",
+                                    backgroundColor: "#1f2937",
+                                    padding: "3px 8px",
+                                    borderRadius: "12px",
+                                    color: "#38bdf8",
+                                    border: "1px solid #374151"
+                                  }}>
+                                    Checkout UI Extension
+                                  </span>
+                                </div>
+
+                                {/* Mode Switcher Tabs */}
+                                <div style={{
+                                  display: "flex",
+                                  borderBottom: "1px solid #e5e7eb",
+                                  backgroundColor: "#f9fafb",
+                                  fontSize: "12px"
+                                }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewTab("live")}
+                                    style={{
+                                      flex: 1,
+                                      padding: "8px 6px",
+                                      border: "none",
+                                      background: previewTab === "live" ? "#ffffff" : "transparent",
+                                      borderBottom: previewTab === "live" ? "2px solid #008060" : "2px solid transparent",
+                                      fontWeight: previewTab === "live" ? "600" : "500",
+                                      color: previewTab === "live" ? "#008060" : "#6b7280",
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                  >
+                                    ⚡ Live View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewTab("gallery")}
+                                    style={{
+                                      flex: 1,
+                                      padding: "8px 6px",
+                                      border: "none",
+                                      background: previewTab === "gallery" ? "#ffffff" : "transparent",
+                                      borderBottom: previewTab === "gallery" ? "2px solid #008060" : "2px solid transparent",
+                                      fontWeight: previewTab === "gallery" ? "600" : "500",
+                                      color: previewTab === "gallery" ? "#008060" : "#6b7280",
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                  >
+                                    🎨 All Tones
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewTab("placement")}
+                                    style={{
+                                      flex: 1,
+                                      padding: "8px 6px",
+                                      border: "none",
+                                      background: previewTab === "placement" ? "#ffffff" : "transparent",
+                                      borderBottom: previewTab === "placement" ? "2px solid #008060" : "2px solid transparent",
+                                      fontWeight: previewTab === "placement" ? "600" : "500",
+                                      color: previewTab === "placement" ? "#008060" : "#6b7280",
+                                      cursor: "pointer",
+                                      transition: "all 0.15s ease"
+                                    }}
+                                  >
+                                    📍 Placements
+                                  </button>
+                                </div>
+
+                                {/* Content Box */}
+                                <div style={{ padding: "14px", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "420px", overflowY: "auto" }}>
+                                  
+                                  {/* TAB 1: LIVE PREVIEW */}
+                                  {previewTab === "live" && (() => {
+                                    const activeToneKey = (ruleType === "validation" && errorTarget !== "$.cart") ? "critical" : bannerStyle;
+                                    const tStyle = getToneStyles(activeToneKey);
+                                    const iconEmoji = getIconEmoji(customIcon, activeToneKey);
+                                    const isCheckboxRule = ruleType === "checkbox";
+
+                                    if (isCheckboxRule) {
+                                      return (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                          <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                            Checkout Checkbox Component
+                                          </div>
+                                          <div style={{
+                                            padding: "12px 14px",
+                                            backgroundColor: "#ffffff",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "12px",
+                                            display: "flex",
+                                            alignItems: "flex-start",
+                                            gap: "10px"
+                                          }}>
+                                            <input type="checkbox" readOnly checked style={{ marginTop: "3px", width: "16px", height: "16px", accentColor: "#008060" }} />
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                              <span style={{ fontSize: "13px", fontWeight: "600", color: "#0F172A" }}>
+                                                {guidanceMessage || "I agree to the Terms & Conditions and Store Policies."}
+                                              </span>
+                                              <span style={{ fontSize: "11px", color: "#6b7280" }}>
+                                                Required to complete purchase
+                                              </span>
+                                            </div>
+                                          </div>
+                                          {errorMessage && (
+                                            <div style={{
+                                              padding: "10px 14px",
+                                              backgroundColor: "#FEF2F2",
+                                              border: "1px solid #FCA5A5",
+                                              borderRadius: "12px",
+                                              fontSize: "13px",
+                                              fontWeight: "600",
+                                              color: "#0F172A",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              gap: "10px"
+                                            }}>
+                                              {renderToneSvgIcon("critical", "#DC2626")}
+                                              <span>{errorMessage}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                          <span style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                            Checkout Banner Preview
+                                          </span>
+                                          <span style={{
+                                            fontSize: "10px",
+                                            padding: "2px 6px",
+                                            borderRadius: "4px",
+                                            backgroundColor: tStyle.badgeBg,
+                                            color: tStyle.badgeText,
+                                            fontWeight: "600"
+                                          }}>
+                                            {tStyle.label}
+                                          </span>
+                                        </div>
+
+                                        {/* Top Banner (Main Error / Message) */}
+                                        <div style={{
+                                          backgroundColor: tStyle.bg,
+                                          border: `1px solid ${tStyle.border}`,
+                                          borderRadius: "12px",
+                                          padding: "10px 14px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "10px"
+                                        }}>
+                                          {renderToneSvgIcon(activeToneKey, tStyle.iconColor)}
+                                          {iconEmoji && (
+                                            <span style={{ fontSize: "15px", lineHeight: "1", flexShrink: 0 }}>{iconEmoji}</span>
+                                          )}
+                                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#0F172A", lineHeight: "1.4" }}>
+                                            {errorMessage || "Please log in to your account to complete checkout."}
+                                          </div>
+                                        </div>
+
+                                        {/* Bottom Banner (Customer Guidance Banner) */}
+                                        {guidanceMessage && (
+                                          <div style={{
+                                            backgroundColor: "#F4F4F5",
+                                            border: "1px solid #E4E4E7",
+                                            borderRadius: "12px",
+                                            padding: "10px 14px",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "10px"
+                                          }}>
+                                            {renderToneSvgIcon("info", "#71717A")}
+                                            <div style={{ fontSize: "13px", fontWeight: "600", color: "#0F172A", lineHeight: "1.4" }}>
+                                              {guidanceMessage}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* Target Location Metadata */}
+                                        <div style={{
+                                          padding: "8px 10px",
+                                          backgroundColor: "#f3f4f6",
+                                          borderRadius: "6px",
+                                          fontSize: "11px",
+                                          color: "#4b5563",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between"
+                                        }}>
+                                          <span>📍 Placement: <strong>{ERROR_TARGETS.find(t => t.value === errorTarget)?.label || errorTarget}</strong></span>
+                                          <span>{warningBanner ? "⚠️ Warning Banner" : "🛑 Block Submission"}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* TAB 2: ALL TONES GALLERY (ALL POSSIBILITIES) */}
+                                  {previewTab === "gallery" && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                        All Tone Possibilities Preview
+                                      </div>
+                                      {[
+                                        { key: "critical", label: "Critical / Red (Error)" },
+                                        { key: "warning", label: "Warning / Orange (Alert)" },
+                                        { key: "info", label: "Information / Blue (Notice)" },
+                                        { key: "success", label: "Success / Green (Completed)" }
+                                      ].map((toneItem) => {
+                                        const tStyle = getToneStyles(toneItem.key);
+                                        const iconEmoji = getIconEmoji(customIcon, toneItem.key);
+                                        const isSelected = bannerStyle === toneItem.key;
+
+                                        return (
+                                          <div
+                                            key={toneItem.key}
+                                            onClick={() => {
+                                              if (ruleType === "validation" && errorTarget !== "$.cart") return;
+                                              setBannerStyle(toneItem.key);
+                                            }}
+                                            style={{
+                                              display: "flex",
+                                              flexDirection: "column",
+                                              gap: "6px",
+                                              cursor: (ruleType === "validation" && errorTarget !== "$.cart") ? "not-allowed" : "pointer",
+                                              padding: "8px",
+                                              borderRadius: "14px",
+                                              border: isSelected ? "2px solid #008060" : "1px transparent solid",
+                                              backgroundColor: isSelected ? "#f0fdf4" : "transparent"
+                                            }}
+                                          >
+                                            <div style={{ fontSize: "10px", fontWeight: "700", color: tStyle.badgeText, display: "flex", justifyContent: "space-between" }}>
+                                              <span>{toneItem.label}</span>
+                                              {isSelected && <span>✓ CURRENTLY SELECTED</span>}
+                                            </div>
+
+                                            {/* Top Banner */}
+                                            <div style={{
+                                              backgroundColor: tStyle.bg,
+                                              border: `1px solid ${tStyle.border}`,
+                                              borderRadius: "12px",
+                                              padding: "10px 14px",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              gap: "10px"
+                                            }}>
+                                              {renderToneSvgIcon(toneItem.key, tStyle.iconColor)}
+                                              {iconEmoji && <span style={{ fontSize: "15px", lineHeight: "1", flexShrink: 0 }}>{iconEmoji}</span>}
+                                              <div style={{ fontSize: "13px", fontWeight: "600", color: "#0F172A", lineHeight: "1.4" }}>
+                                                {errorMessage || "Please log in to your account to complete checkout."}
+                                              </div>
+                                            </div>
+
+                                            {/* Bottom Guidance Banner */}
+                                            {guidanceMessage && (
+                                              <div style={{
+                                                backgroundColor: "#F4F4F5",
+                                                border: "1px solid #E4E4E7",
+                                                borderRadius: "12px",
+                                                padding: "10px 14px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "10px"
+                                              }}>
+                                                {renderToneSvgIcon("info", "#71717A")}
+                                                <div style={{ fontSize: "13px", fontWeight: "600", color: "#0F172A", lineHeight: "1.4" }}>
+                                                  {guidanceMessage}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                  {/* TAB 3: TARGET PLACEMENT SIMULATION */}
+                                  {previewTab === "placement" && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                      <div style={{ fontSize: "11px", fontWeight: "600", color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                        Target Placement Preview
+                                      </div>
+
+                                      {/* 1. Cart Summary */}
+                                      <div style={{ border: "1px dashed #cbd5e1", borderRadius: "6px", padding: "10px", backgroundColor: "#f8fafc" }}>
+                                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#0f172a", marginBottom: "6px" }}>
+                                          🛒 1. Cart Summary Banner (<code>$.cart</code>)
+                                        </div>
+                                        <div style={{ padding: "8px 10px", backgroundColor: getToneStyles(bannerStyle).bg, border: `1px solid ${getToneStyles(bannerStyle).border}`, borderRadius: "6px", fontSize: "12px", color: getToneStyles(bannerStyle).text }}>
+                                          {getIconEmoji(customIcon, bannerStyle)} {errorMessage}
+                                        </div>
+                                      </div>
+
+                                      {/* 2. Inline Field Placement */}
+                                      <div style={{ border: "1px dashed #cbd5e1", borderRadius: "6px", padding: "10px", backgroundColor: "#f8fafc" }}>
+                                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#0f172a", marginBottom: "6px" }}>
+                                          📝 2. Inline Field Error (e.g. Email / Address line)
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                          <label style={{ fontSize: "11px", color: "#475569" }}>Shipping Address / Email Field</label>
+                                          <input type="text" readOnly value="PO Box 123, Invalid St" style={{ padding: "6px 8px", borderRadius: "4px", border: "1px solid #ef4444", fontSize: "12px", backgroundColor: "#fef2f2" }} />
+                                          <span style={{ fontSize: "11px", color: "#dc2626", fontWeight: "500", display: "flex", alignItems: "center", gap: "4px" }}>
+                                            🚨 {errorMessage}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* 3. Checkbox Render */}
+                                      <div style={{ border: "1px dashed #cbd5e1", borderRadius: "6px", padding: "10px", backgroundColor: "#f8fafc" }}>
+                                        <div style={{ fontSize: "11px", fontWeight: "600", color: "#0f172a", marginBottom: "6px" }}>
+                                          ☑️ 3. Checkout Checkbox Component
+                                        </div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                                          <input type="checkbox" readOnly checked style={{ accentColor: "#008060" }} />
+                                          <span>{guidanceMessage || "I agree to Terms & Conditions"}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                </div>
                               </div>
                             </div>
                           </div>
