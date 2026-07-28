@@ -37,10 +37,9 @@ if (!apiSecretKey) missingVars.push("SHOPIFY_API_SECRET (or SHOPIFY_API_SECRET_K
 if (!host) missingVars.push("HOST (or SHOPIFY_APP_URL)");
 
 if (missingVars.length > 0) {
-  console.error(`\n========================================`);
-  console.error(`[ERROR] Missing required environment variables on deployment:`);
-  missingVars.forEach((v) => console.error(`  - ${v}`));
-  console.error(`Please configure these environment variables in your hosting provider settings (e.g. Render, Fly.io, Railway, Heroku, Docker).\n========================================\n`);
+  const errMsg = `[Deployment Config Error] Missing required environment variables on deployment: ${missingVars.join(", ")}. Please configure these environment variables in your deployment platform settings (e.g. Render, Fly.io, Railway, Heroku, Docker).`;
+  console.error(`\n========================================\n${errMsg}\n========================================\n`);
+  throw new Error(errMsg);
 }
 
 const shopify = shopifyApp({
