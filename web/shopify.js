@@ -26,8 +26,32 @@ export const BILLING_PLANS = {
   },
 };
 
+const apiKey = process.env.SHOPIFY_API_KEY;
+const apiSecretKey = process.env.SHOPIFY_API_SECRET || process.env.SHOPIFY_API_SECRET_KEY;
+const host = process.env.HOST || process.env.SHOPIFY_APP_URL;
+const scopes = process.env.SCOPES;
+
+const missingVars = [];
+if (!apiKey) missingVars.push("SHOPIFY_API_KEY");
+if (!apiSecretKey) missingVars.push("SHOPIFY_API_SECRET (or SHOPIFY_API_SECRET_KEY)");
+if (!host) missingVars.push("HOST (or SHOPIFY_APP_URL)");
+
+if (missingVars.length > 0) {
+  console.error(`\n========================================`);
+  console.error(`[ERROR] Missing required environment variables on deployment:`);
+  missingVars.forEach((v) => console.error(`  - ${v}`));
+  console.error(`Please configure these environment variables in your hosting provider settings (e.g. Render, Fly.io, Railway, Heroku, Docker).\n========================================\n`);
+}
+
 const shopify = shopifyApp({
   api: {
+    ...(apiKey && { apiKey }),
+    ...(apiSecretKey && { apiSecretKey }),
+    ...(host && {
+      hostScheme: host.split("://")[0],
+      hostName: host.replace(/https?:\/\//, ""),
+    }),
+    ...(scopes && { scopes: scopes.split(",") }),
     apiVersion: LATEST_API_VERSION,
     restResources,
     allowedClockSkew: 3600,

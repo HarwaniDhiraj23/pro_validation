@@ -2,7 +2,7 @@
 
 client_id = "a6ac69ec33ef3bd63db0fec6e865bfe9"
 name = "pro-validation"
-application_url = "https://example.com"
+application_url = "https://hardware-commitments-rear-bottom.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -10,7 +10,7 @@ embedded = true
 scopes = "write_products,write_validations,read_checkouts,read_orders,write_delivery_customizations,read_delivery_customizations,write_payment_customizations,read_payment_customizations,read_shipping"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://hardware-commitments-rear-bottom.trycloudflare.com/api/auth" ]
 
 [webhooks]
 api_version = "2026-10"
@@ -28,5 +28,4 @@ topics = [ "app/uninstalled" ]
 uri = "/api/webhooks"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
