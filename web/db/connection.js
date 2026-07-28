@@ -618,34 +618,121 @@ export async function syncTemplatesToPostgres() {
   }
 }
 
+// Auto-create all required database tables in PostgreSQL if they do not exist
+async function initPostgresTables(client) {
+  try {
+    console.log("[DB Init] Ensuring all PostgreSQL database tables exist...");
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shops (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) UNIQUE NOT NULL,
+        uninstalled BOOLEAN DEFAULT FALSE,
+        onboarded BOOLEAN DEFAULT FALSE,
+        plan_name VARCHAR(50) DEFAULT 'Free',
+        subscription_id VARCHAR(255) DEFAULT NULL,
+        subscription_status VARCHAR(50) DEFAULT 'ACTIVE',
+        trial_ends_at TIMESTAMP DEFAULT NULL,
+        billing_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        uninstalled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS uninstalled BOOLEAN DEFAULT FALSE;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50) DEFAULT 'Free';
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'ACTIVE';
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP DEFAULT NULL;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS billing_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE shops ADD COLUMN IF NOT EXISTS uninstalled_at TIMESTAMP;
+
+      CREATE TABLE IF NOT EXISTS subscriptions_log (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) NOT NULL,
+        subscription_id VARCHAR(255),
+        plan_name VARCHAR(50) NOT NULL,
+        price NUMERIC(10, 2) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS rules (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) NOT NULL,
+        target_shop VARCHAR(255) DEFAULT NULL,
+        title VARCHAR(255) NOT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        priority INTEGER DEFAULT 0,
+        conditions_operator VARCHAR(10) DEFAULT 'AND',
+        conditions JSONB NOT NULL,
+        error_message VARCHAR(500) NOT NULL,
+        error_target VARCHAR(255) DEFAULT '$.cart',
+        schedule_start TIMESTAMP,
+        schedule_end TIMESTAMP,
+        rule_type VARCHAR(50) DEFAULT 'validation',
+        delivery_action VARCHAR(50) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS rule_versions (
+        id SERIAL PRIMARY KEY,
+        rule_id INTEGER REFERENCES rules(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        target_shop VARCHAR(255) DEFAULT NULL,
+        title VARCHAR(255) NOT NULL,
+        priority INTEGER DEFAULT 0,
+        conditions_operator VARCHAR(10) DEFAULT 'AND',
+        conditions JSONB NOT NULL,
+        error_message VARCHAR(500) NOT NULL,
+        error_target VARCHAR(255) DEFAULT '$.cart',
+        rule_type VARCHAR(50) DEFAULT 'validation',
+        delivery_action VARCHAR(50) DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS rule_analytics (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) NOT NULL,
+        rule_id INTEGER REFERENCES rules(id) ON DELETE SET NULL,
+        event_type VARCHAR(50) NOT NULL,
+        cart_value NUMERIC(10, 2) DEFAULT 0.00,
+        cart_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS rule_templates (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        description VARCHAR(500) NOT NULL,
+        conditions JSONB NOT NULL,
+        error_message VARCHAR(500) NOT NULL,
+        error_target VARCHAR(255) DEFAULT '$.cart',
+        rule_type VARCHAR(50) DEFAULT 'validation',
+        delivery_action VARCHAR(50) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL
+      );
+    `);
+    console.log("[DB Init] All PostgreSQL tables created/verified successfully!");
+  } catch (e) {
+    console.error("[DB Init] Failed to initialize PostgreSQL tables:", e.message);
+  }
+}
+
 // Connect test
 if (pool && !useFallback) {
-  pool.connect((err, client, release) => {
+  pool.connect(async (err, client, release) => {
     if (err) {
       console.warn("PostgreSQL connection test failed, using JSON fallback DB instead:", err.message);
       useFallback = true;
     } else {
       console.log("Successfully connected to PostgreSQL Database.");
-      syncTemplatesToPostgres();
-      client.query(`
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS onboarded BOOLEAN DEFAULT FALSE;
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS plan_name VARCHAR(50) DEFAULT 'Free';
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_id VARCHAR(255) DEFAULT NULL;
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'ACTIVE';
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP DEFAULT NULL;
-        ALTER TABLE shops ADD COLUMN IF NOT EXISTS billing_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-        CREATE TABLE IF NOT EXISTS subscriptions_log (
-          id SERIAL PRIMARY KEY,
-          shop VARCHAR(255) NOT NULL,
-          subscription_id VARCHAR(255),
-          plan_name VARCHAR(50) NOT NULL,
-          price NUMERIC(10, 2) NOT NULL,
-          status VARCHAR(50) NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-      `).catch(e => {
-        console.error("Failed to alter shops table / create subscriptions_log table:", e.message);
-      });
+      await initPostgresTables(client);
+      await syncTemplatesToPostgres();
       release();
     }
   });
