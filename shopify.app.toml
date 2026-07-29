@@ -18,11 +18,13 @@ redirect_urls = [
 [webhooks]
 api_version = "2026-10"
 
-# NOTE: checkouts/create, checkouts/update, and orders/create are NOT listed here.
-# Those topics contain Protected Customer Data and Shopify's GraphQL API returns
-# 403 Forbidden when the app tries to register them automatically during OAuth.
-# Register those webhooks manually in the Shopify Partner Dashboard instead.
-# See: https://shopify.dev/docs/apps/build/privacy-law-compliance/protected-customer-data
+[[webhooks.subscriptions]]
+topics = [ "checkouts/create", "checkouts/update" ]
+uri = "/api/webhooks"
+
+[[webhooks.subscriptions]]
+topics = [ "orders/create" ]
+uri = "/api/webhooks"
 
 [[webhooks.subscriptions]]
 topics = [ "app/uninstalled" ]
