@@ -10,7 +10,10 @@ embedded = true
 scopes = "write_products,write_validations,read_checkouts,read_orders,write_delivery_customizations,read_delivery_customizations,write_payment_customizations,read_payment_customizations,read_shipping"
 
 [auth]
-redirect_urls = [ "https://pro-validation.onrender.com/api/auth" ]
+redirect_urls = [
+  "https://pro-validation.onrender.com/api/auth",
+  "https://pro-validation.onrender.com/api/auth/callback"
+]
 
 [webhooks]
 api_version = "2026-10"
