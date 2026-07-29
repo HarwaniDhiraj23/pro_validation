@@ -10,7 +10,7 @@ if (
 ) {
   throw new Error(
     "\n\nThe frontend build will not work without an API key. Set the SHOPIFY_API_KEY environment variable when running the build command, for example:" +
-      "\n\nSHOPIFY_API_KEY=<your-api-key> npm run build\n"
+    "\n\nSHOPIFY_API_KEY=<your-api-key> npm run build\n"
   );
 }
 
@@ -57,6 +57,9 @@ export default defineConfig({
     proxy: {
       "^/(\\?.*)?$": proxyOptions,
       "^/api(/|(\\?.*)?$)": proxyOptions,
+      "^/webhooks(\\?.*)?$": proxyOptions,
+      "^/exitiframe(\\?.*)?$": proxyOptions,
+      "^/app(\\?.*)?$": proxyOptions,
     },
   },
 });
