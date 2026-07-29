@@ -39,7 +39,15 @@ app.set("trust proxy", true);
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
-  shopify.auth.callback(),
+  async (req, res, next) => {
+    try {
+      await shopify.auth.callback()(req, res, next);
+    } catch (e) {
+      console.error("[Auth Callback] Full error details:");
+      console.dir(e, { depth: null });
+      next(e);
+    }
+  },
   async (req, res, next) => {
     try {
       const session = res.locals.shopify.session;
