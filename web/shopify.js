@@ -1,7 +1,7 @@
 import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
-import { restResources } from "@shopify/shopify-api/rest/admin/2025-07";
+import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
 const DB_PATH = `${process.cwd()}/database.sqlite`;
 
@@ -51,7 +51,7 @@ const shopify = shopifyApp({
       hostName: host.replace(/https?:\/\//, ""),
     }),
     ...(scopes && { scopes: scopes.split(",") }),
-    apiVersion: "2026-04",
+    apiVersion: LATEST_API_VERSION,
     restResources,
     allowedClockSkew: 3600,
     future: {
