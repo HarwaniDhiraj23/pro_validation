@@ -33,6 +33,7 @@ const STATIC_PATH =
     : `${process.cwd()}/frontend/`;
 
 const app = express();
+app.set("trust proxy", true);
 
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
@@ -324,7 +325,7 @@ const syncAllActiveShopsOnStartup = async () => {
 
 app.listen(PORT, () => {
   console.log(`[Server] Listening on port ${PORT}`);
-  
+
   // Auto active rule sync when server restart
   syncAllActiveShopsOnStartup();
 
