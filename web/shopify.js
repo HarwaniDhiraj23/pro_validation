@@ -51,7 +51,7 @@ const shopify = shopifyApp({
       hostName: host.replace(/https?:\/\//, ""),
     }),
     ...(scopes && { scopes: scopes.split(",") }),
-    apiVersion: LATEST_API_VERSION,
+    apiVersion: "2026-04",
     restResources,
     allowedClockSkew: 3600,
     future: {

@@ -53,7 +53,7 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, async (err) => {
     `;
 
     try {
-      const response = await fetch(`https://${shop}/admin/api/2026-04/graphql.json`, {
+      const response = await fetch(`https://${shop}/admin/api/2025-07/graphql.json`, {
         method: "POST",
         headers: {
           "X-Shopify-Access-Token": accessToken,
