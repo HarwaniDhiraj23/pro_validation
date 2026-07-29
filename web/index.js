@@ -329,11 +329,10 @@ app.listen(PORT, () => {
   // Auto active rule sync when server restart
   syncAllActiveShopsOnStartup();
 
-  // In development, shopify app dev handles webhook registration automatically.
-  // Only register programmatically in production to avoid 403 errors from stale dev tokens.
-  if (process.env.NODE_ENV === "production") {
-    registerWebhooksForActiveShops();
-  } else {
-    console.log("[Webhook Registration] Skipped in development mode (handled by Shopify CLI).");
-  }
+  // Webhook registration is handled declaratively via shopify.app.toml (Shopify CLI).
+  // Programmatic registration via shopify.api.webhooks.register() is disabled because
+  // checkouts/create and orders/create webhooks require Protected Customer Data approval
+  // in the Shopify Partner Dashboard, and calling the GraphQL API without that approval
+  // results in a 403 Forbidden error that breaks the entire OAuth flow.
+  // See: https://shopify.dev/docs/apps/webhooks/configuration
 });
