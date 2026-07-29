@@ -253,8 +253,23 @@ startScheduledWorker();
 // Programmatically register webhooks for all active shops on startup
 const registerWebhooksForActiveShops = async () => {
   try {
-    // Add checkout and order webhook handlers to registry (exclude mandatory privacy webhooks which cannot be registered dynamically)
-    await shopify.api.webhooks.addHandlers(CheckoutWebhookHandlers);
+    // Helper to map CHECKOUTS_CREATE -> checkouts/create, CUSTOMERS_DATA_REQUEST -> customers/data_request, etc.
+    const mapHandlersToTopics = (handlers) => {
+      const mapped = {};
+      for (const [key, value] of Object.entries(handlers)) {
+        const topic = key.toLowerCase().replace("_", "/");
+        mapped[topic] = value;
+      }
+      return mapped;
+    };
+
+    // Add handlers to registry to make sure shopify.api knows about them
+    await shopify.api.webhooks.addHandlers(
+      mapHandlersToTopics({
+        ...PrivacyWebhookHandlers,
+        ...CheckoutWebhookHandlers,
+      })
+    );
 
     const activeShops = await dbQuery("SELECT shop FROM shops WHERE uninstalled = FALSE");
     console.log(`[Webhook Registration] Found ${activeShops.rows?.length || 0} active shops to register webhooks.`);
