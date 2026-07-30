@@ -99,19 +99,24 @@ app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/billing", billingRouter);
 
 app.get("/api/products/count", async (_req, res) => {
-  const client = new shopify.api.clients.Graphql({
-    session: res.locals.shopify.session,
-  });
+  try {
+    const client = new shopify.api.clients.Graphql({
+      session: res.locals.shopify.session,
+    });
 
-  const countData = await client.request(`
-    query shopifyProductCount {
-      productsCount {
-        count
+    const countData = await client.request(`
+      query shopifyProductCount {
+        productsCount {
+          count
+        }
       }
-    }
-  `);
+    `);
 
-  res.status(200).send({ count: countData.data.productsCount.count });
+    res.status(200).send({ count: countData.data?.productsCount?.count || 0 });
+  } catch (error) {
+    console.warn("[GraphQL] Could not fetch products count (403/Forbidden or offline session):", error.message || "Forbidden");
+    res.status(200).send({ count: 0 });
+  }
 });
 
 app.post("/api/products", async (_req, res) => {
@@ -121,8 +126,8 @@ app.post("/api/products", async (_req, res) => {
   try {
     await productCreator(res.locals.shopify.session);
   } catch (e) {
-    console.log(`Failed to process products/create: ${e.message}`);
-    status = 500;
+    console.warn(`[GraphQL] Failed to process products/create: ${e.message}`);
+    status = status === 200 ? 400 : status;
     error = e.message;
   }
   res.status(status).send({ success: status === 200, error });
@@ -152,8 +157,8 @@ app.get("/api/config/status", async (_req, res) => {
 
     res.status(200).send({ active: isActive });
   } catch (e) {
-    console.error(`Failed to get validation status: ${e.message}`);
-    res.status(500).send({ active: false, error: e.message });
+    console.warn("[GraphQL] Validation status query skipped (403/Forbidden or offline session):", e.message || "Forbidden");
+    res.status(200).send({ active: false });
   }
 });
 

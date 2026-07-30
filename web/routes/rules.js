@@ -5,6 +5,18 @@ import { validateRulePlanLimits, getPlanConfig } from "../utils/planLimits.js";
 
 const router = express.Router();
 
+function formatShopifyError(error) {
+  if (!error) return "Unknown error";
+  const rawMsg = typeof error === "string" ? error : (error.message || String(error));
+  if (rawMsg.includes("403") || rawMsg.includes("Forbidden")) {
+    return "403 Forbidden (Offline session token expired or unauthorized)";
+  }
+  if (rawMsg.includes("401") || rawMsg.includes("Unauthorized")) {
+    return "401 Unauthorized (Session token invalid)";
+  }
+  return rawMsg.split("\n")[0] || "GraphQL request failed";
+}
+
 // Helper to sync active validation rules to Shopify
 async function syncRulesToShopify(session) {
   const shop = session.shop;
@@ -175,7 +187,7 @@ async function syncRulesToShopify(session) {
       console.log("Successfully synced validation rules to Shopify metafield.");
     }
   } catch (error) {
-    console.error("Failed to sync rules to Shopify metafields (likely mock/offline session):", error.message);
+    console.warn(`[Shopify Sync] Could not sync validation rules for ${shop}:`, formatShopifyError(error));
   }
 }
 
@@ -334,7 +346,7 @@ async function syncDeliveryRulesToShopify(session) {
       console.log("Successfully synced delivery rules to Shopify metafield.");
     }
   } catch (error) {
-    console.error("Failed to sync delivery rules to Shopify metafields (likely mock/offline session):", error.message);
+    console.warn(`[Shopify Sync] Could not sync delivery rules for ${shop}:`, formatShopifyError(error));
   }
 }
 
@@ -543,7 +555,7 @@ async function syncPaymentRulesToShopify(session) {
       console.log("Successfully synced payment rules to Shopify metafield.");
     }
   } catch (error) {
-    console.error("Failed to sync payment rules to Shopify metafields (likely mock/offline session):", error.message);
+    console.warn(`[Shopify Sync] Could not sync payment rules for ${shop}:`, formatShopifyError(error));
   }
 }
 
@@ -582,7 +594,7 @@ async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetSh
         console.warn(`[Sync propagation] No offline session found for shop: ${shop}`);
       }
     } catch (err) {
-      console.error(`[Sync propagation] Error syncing shop ${shop}:`, err);
+      console.warn(`[Sync propagation] Error syncing shop ${shop}:`, formatShopifyError(err));
     }
   }
 }
@@ -754,7 +766,8 @@ router.get("/customer-tags", async (req, res) => {
     }
     res.json(Array.from(allTags));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.warn("[Shopify API] Could not fetch customer tags:", formatShopifyError(error));
+    res.json([]);
   }
 });
 
@@ -872,7 +885,7 @@ router.get("/shipping-methods", async (req, res) => {
 
     res.json(Array.from(namesSet));
   } catch (error) {
-    console.error("Error fetching shipping methods:", error);
+    console.warn("[Shopify API] Could not fetch shipping methods:", formatShopifyError(error));
     // Return defaults as fallback on error
     res.json(["Standard", "Express", "Local Pickup", "Free Shipping"]);
   }

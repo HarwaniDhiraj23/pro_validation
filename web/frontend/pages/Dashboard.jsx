@@ -80,10 +80,14 @@ export default function Dashboard({ navigate }) {
 
   const polylinePath = chartPoints.map(p => `${p.x},${p.y}`).join(" ");
 
+  const subtitleText = data?.retentionDays 
+    ? `Cart & Checkout Validation Analytics (Last ${data.retentionDays} days based on ${data.planName || "Free"} plan retention)`
+    : "Cart & Checkout Validation Analytics and recommendations";
+
   return (
     <Page
       title="Dashboard"
-      subtitle="Cart & Checkout Validation Analytics and recommendations"
+      subtitle={subtitleText}
       primaryAction={{
         content: "Pricing & Plans",
         onAction: () => navigate("/pricing")

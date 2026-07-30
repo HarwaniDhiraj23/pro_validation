@@ -1,5 +1,6 @@
 import express from "express";
 import { dbQuery } from "../db/connection.js";
+import { getPlanConfig } from "../utils/planLimits.js";
 
 const router = express.Router();
 
@@ -8,10 +9,21 @@ router.get("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
 
-    // 1. Get total checks, blocks, and allows
+    // Fetch shop plan to determine analytics retention limit
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+    const planConfig = getPlanConfig(shopPlan);
+    const retentionDays = planConfig.analyticsRetentionDays;
+
+    const isUnlimited = retentionDays === Infinity;
+    const dateWhere = isUnlimited ? "" : " AND created_at >= NOW() - ($2 || ' days')::INTERVAL";
+    const dateWhereA = isUnlimited ? "" : " AND a.created_at >= NOW() - ($2 || ' days')::INTERVAL";
+    const queryParams = isUnlimited ? [shop] : [shop, retentionDays.toString()];
+
+    // 1. Get total checks, blocks, and allows within plan retention window
     const analyticsRes = await dbQuery(
-      "SELECT event_type, COUNT(*)::int as count, COALESCE(SUM(cart_value), 0)::float as total_value FROM rule_analytics WHERE shop = $1 GROUP BY event_type",
-      [shop]
+      `SELECT event_type, COUNT(*)::int as count, COALESCE(SUM(cart_value), 0)::float as total_value FROM rule_analytics WHERE shop = $1${dateWhere} GROUP BY event_type`,
+      queryParams
     );
 
     let totalChecks = 0;
@@ -42,14 +54,16 @@ router.get("/", async (req, res) => {
     );
     const activeRulesCount = activeRulesRes.rows[0]?.count || 0;
 
-    // 3. Chart data: last 14 days blocks/allows grouped by date
+    // 3. Chart data: retention window (e.g. 7 days for Free) blocks/allows grouped by date
+    const chartDays = isUnlimited ? 30 : retentionDays;
+    const chartParams = [shop, chartDays.toString()];
     const chartRes = await dbQuery(
       `SELECT DATE(created_at) as date, event_type, COUNT(*)::int as count 
        FROM rule_analytics 
-       WHERE shop = $1 AND created_at >= NOW() - INTERVAL '14 days' 
+       WHERE shop = $1 AND created_at >= NOW() - ($2 || ' days')::INTERVAL 
        GROUP BY DATE(created_at), event_type 
        ORDER BY DATE(created_at) ASC`,
-      [shop]
+      chartParams
     );
 
     // Format chart data for frontend chart
@@ -75,11 +89,11 @@ router.get("/", async (req, res) => {
       `SELECT r.title, COUNT(a.id)::int as count 
        FROM rule_analytics a 
        JOIN rules r ON a.rule_id = r.id 
-       WHERE a.shop = $1 AND a.event_type IN ('block', 'check')
+       WHERE a.shop = $1${dateWhereA} AND a.event_type IN ('block', 'check')
        GROUP BY r.title 
        ORDER BY count DESC 
        LIMIT 5`,
-      [shop]
+      queryParams
     );
 
     // 5. Recent checkouts list (both blocks and checks)
@@ -87,10 +101,10 @@ router.get("/", async (req, res) => {
       `SELECT a.id, r.title as rule_title, a.cart_value, a.created_at, a.event_type 
        FROM rule_analytics a
        LEFT JOIN rules r ON a.rule_id = r.id
-       WHERE a.shop = $1 AND a.event_type IN ('block', 'check')
+       WHERE a.shop = $1${dateWhereA} AND a.event_type IN ('block', 'check')
        ORDER BY a.created_at DESC
        LIMIT 10`,
-      [shop]
+      queryParams
     );
 
     res.json({
@@ -103,7 +117,9 @@ router.get("/", async (req, res) => {
       },
       chartData,
       rulesBreakdown: rulesBreakdownRes.rows || [],
-      recentBlocks: recentBlocksRes.rows || []
+      recentBlocks: recentBlocksRes.rows || [],
+      retentionDays: isUnlimited ? null : retentionDays,
+      planName: shopPlan
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -169,11 +185,17 @@ router.post("/seed", async (req, res) => {
       return res.json({ seeded: false, message: "No active rules to generate analytics for.", eventCount: 0 });
     }
 
+    // Fetch shop plan to determine analytics retention limit
+    const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
+    const shopPlan = shopRes.rows && shopRes.rows[0] ? shopRes.rows[0].plan_name : "Free";
+    const planConfig = getPlanConfig(shopPlan);
+    const seedDays = planConfig.analyticsRetentionDays === Infinity ? 14 : Math.min(planConfig.analyticsRetentionDays, 14);
+
     let eventCount = 0;
     const now = Date.now();
 
-    // Generate events spread over the last 14 days
-    for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    // Generate events spread over the shop's retention window (up to 14 days max)
+    for (let dayOffset = 0; dayOffset < seedDays; dayOffset++) {
       const dayDate = new Date(now - dayOffset * 24 * 60 * 60 * 1000);
 
       // Generate 2-8 block events per day, distributed across active rules

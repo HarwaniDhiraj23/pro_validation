@@ -1136,7 +1136,13 @@ export async function dbQuery(text, params = []) {
   // Analytics: GROUP BY event_type with COUNT and SUM
   if (lowerText.includes("rule_analytics") && lowerText.includes("group by event_type")) {
     const shop = params[0];
-    const shopAnalytics = db.rule_analytics.filter(a => a.shop === shop);
+    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
+    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
+    const shopAnalytics = db.rule_analytics.filter(a => {
+      if (a.shop !== shop) return false;
+      if (cutoff && new Date(a.created_at) < cutoff) return false;
+      return true;
+    });
     const grouped = {};
     shopAnalytics.forEach(a => {
       if (!grouped[a.event_type]) {
@@ -1148,14 +1154,15 @@ export async function dbQuery(text, params = []) {
     return { rows: Object.values(grouped) };
   }
 
-  // Analytics: Chart data — last 14 days grouped by date and event_type
+  // Analytics: Chart data — grouped by date and event_type
   if (lowerText.includes("rule_analytics") && lowerText.includes("group by") && lowerText.includes("date")) {
     const shop = params[0];
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const chartDays = params[1] ? parseInt(params[1]) : 7;
+    const cutoffDate = new Date(Date.now() - chartDays * 24 * 60 * 60 * 1000);
     const shopAnalytics = db.rule_analytics.filter(a => {
       if (a.shop !== shop) return false;
       const createdAt = new Date(a.created_at);
-      return createdAt >= fourteenDaysAgo;
+      return createdAt >= cutoffDate;
     });
     const grouped = {};
     shopAnalytics.forEach(a => {
@@ -1174,13 +1181,20 @@ export async function dbQuery(text, params = []) {
   // Analytics: Rules breakdown — JOIN rules, GROUP BY title, block or check events
   if (lowerText.includes("rule_analytics") && lowerText.includes("join rules") && lowerText.includes("group by")) {
     const shop = params[0];
+    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
+    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
     let eventTypes = ["block"];
     if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
       eventTypes = ["block", "check"];
     } else if (lowerText.includes("event_type = 'check'")) {
       eventTypes = ["check"];
     }
-    const filteredEvents = db.rule_analytics.filter(a => a.shop === shop && eventTypes.includes(a.event_type) && a.rule_id);
+    const filteredEvents = db.rule_analytics.filter(a => {
+      if (a.shop !== shop) return false;
+      if (!eventTypes.includes(a.event_type) || !a.rule_id) return false;
+      if (cutoff && new Date(a.created_at) < cutoff) return false;
+      return true;
+    });
     const grouped = {};
     filteredEvents.forEach(a => {
       const rule = db.rules.find(r => r.id === a.rule_id);
@@ -1198,11 +1212,18 @@ export async function dbQuery(text, params = []) {
   // Analytics: Recent checkout activity — LEFT JOIN rules, ordered by date DESC
   if (lowerText.includes("rule_analytics") && lowerText.includes("left join") && lowerText.includes("order by a.created_at desc")) {
     const shop = params[0];
+    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
+    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
     let eventTypes = ["block"];
     if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
       eventTypes = ["block", "check"];
     }
-    const filteredEvents = db.rule_analytics.filter(a => a.shop === shop && eventTypes.includes(a.event_type));
+    const filteredEvents = db.rule_analytics.filter(a => {
+      if (a.shop !== shop) return false;
+      if (!eventTypes.includes(a.event_type)) return false;
+      if (cutoff && new Date(a.created_at) < cutoff) return false;
+      return true;
+    });
     filteredEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const rows = filteredEvents.slice(0, 10).map(a => {
       const rule = a.rule_id ? db.rules.find(r => r.id === a.rule_id) : null;
