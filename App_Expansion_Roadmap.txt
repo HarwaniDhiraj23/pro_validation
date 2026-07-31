@@ -1,0 +1,51 @@
+================================================================================
+    CHECKOUT RULES & VALIDATION PRO (RULEFORGE)
+    Feature Proposal: Thank You Page Message Block Extension
+================================================================================
+    Platform       : Shopify Checkout Extensibility
+    Extension Point: purchase.thank-you.block.render
+                     customer-account.order-status.block.render
+    Phase          : Phase 2
+================================================================================
+
+
+================================================================================
+OVERVIEW
+================================================================================
+
+The Thank You Page Message Block is a post-purchase Checkout UI Extension that 
+allows merchants to display dynamic, conditional custom messages, instructions, 
+and confirmation banners directly on Shopify's Thank You page after checkout 
+is completed by the buyer.
+
+
+================================================================================
+CORE CAPABILITIES & USE CASES
+================================================================================
+
+1. CONDITIONAL THANK YOU MESSAGING
+   - Render targeted thank-you banners based on purchased products, cart 
+     subtotal, or customer tags (e.g. VIP, B2B, First-Time Buyer).
+   - Display specific pre-order or custom processing timeline notes after order 
+     submission.
+
+================================================================================
+HOW IT WORKS (TECHNICAL FLOW)
+================================================================================
+
+STEP 1 — Merchant configures Thank You Rules in Admin Dashboard:
+         Merchants create rules specifying conditions (e.g., "Product contains 
+         tag 'pre-order'") and the message payload/banner style.
+
+STEP 2 — Saved to Shopify Metafields:
+         Rules are pushed to Shopify Admin Metafields.
+
+STEP 3 — Function & UI Execution on Order Completion:
+         When a buyer completes checkout, Shopify renders the Thank You page and 
+         executes the `purchase.thank-you.block.render` extension.
+
+STEP 4 — Dynamic Display:
+         The extension reads order metafields and displays the matching 
+         custom Thank You message block to the buyer instantly.
+
+================================================================================
