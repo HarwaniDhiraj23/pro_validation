@@ -1,9 +1,9 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "c75f95407d38a8c327ec1fcef9b2e9cf"
-name = "CheckoutIQ"
-application_url = "https://showcase-overheat-cylinder.ngrok-free.dev"
+client_id = "c3d7f2d219d09300e6a636665ed4456b"
+application_url = "https://example.com"
 embedded = true
+name = "RuleForge"
 
 [webhooks]
 api_version = "2026-10"
@@ -13,19 +13,20 @@ api_version = "2026-10"
 scopes = "write_products,write_validations,read_checkouts,read_orders,write_delivery_customizations,read_delivery_customizations,write_payment_customizations,read_payment_customizations,read_shipping"
 
 [auth]
-redirect_urls = [ "https://showcase-overheat-cylinder.ngrok-free.dev/api/auth","https://showcase-overheat-cylinder.ngrok-free.dev/api/auth/callback" ]
+redirect_urls = [ "https://example.com/api/auth" ]
 
 [[webhooks.subscriptions]]
 topics = [ "checkouts/create", "checkouts/update" ]
 uri = "/api/webhooks"
-
+ 
 [[webhooks.subscriptions]]
 topics = [ "orders/create" ]
 uri = "/api/webhooks"
-
+ 
 [[webhooks.subscriptions]]
 topics = [ "app/uninstalled" ]
 uri = "/api/webhooks"
 
 [build]
+include_config_on_deploy = true
 automatically_update_urls_on_dev = true
