@@ -698,7 +698,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
           shopify.toast.show("End date & time cannot be in the past", { isError: true });
           return;
         }
-        if (new Date(scheduleEnd) < new Date(scheduleStart)) {
+        if (new Date(scheduleEnd) <= new Date(scheduleStart)) {
           shopify.toast.show("End date & time must be after start date & time", { isError: true });
           return;
         }
@@ -963,8 +963,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
                             const now = new Date();
                             const tzOffset = now.getTimezoneOffset() * 60000;
                             const localTimeStr = new Date(now.getTime() - tzOffset).toISOString().substring(0, 16);
+                            const tomorrowTimeStr = new Date(now.getTime() + 24 * 60 * 60 * 1000 - tzOffset).toISOString().substring(0, 16);
                             if (!scheduleStart) setScheduleStart(localTimeStr);
-                            if (!scheduleEnd) setScheduleEnd(localTimeStr);
+                            if (!scheduleEnd) setScheduleEnd(tomorrowTimeStr);
                           }
                         }}
                       />

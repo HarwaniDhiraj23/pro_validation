@@ -930,6 +930,9 @@ router.post("/", async (req, res) => {
         requiredPlan: validation.requiredPlan
       });
     }
+    if (schedule_start && schedule_end && new Date(schedule_end) <= new Date(schedule_start)) {
+      return res.status(400).json({ error: "End date & time must be strictly after start date & time." });
+    }
 
     // Insert rule
     const ruleRes = await dbQuery(
@@ -987,6 +990,9 @@ router.put("/:id", async (req, res) => {
         code: validation.error,
         requiredPlan: validation.requiredPlan
       });
+    }
+    if (schedule_start && schedule_end && new Date(schedule_end) <= new Date(schedule_start)) {
+      return res.status(400).json({ error: "End date & time must be strictly after start date & time." });
     }
 
     // Block activation if schedule_end is in the past
