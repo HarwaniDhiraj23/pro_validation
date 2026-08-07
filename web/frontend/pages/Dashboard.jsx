@@ -80,7 +80,7 @@ export default function Dashboard({ navigate }) {
 
   const polylinePath = chartPoints.map(p => `${p.x},${p.y}`).join(" ");
 
-  const subtitleText = data?.retentionDays 
+  const subtitleText = data?.retentionDays
     ? `Cart & Checkout Validation Analytics (Last ${data.retentionDays} days based on ${data.planName || "Free"} plan retention)`
     : "Cart & Checkout Validation Analytics and recommendations";
 
@@ -90,6 +90,7 @@ export default function Dashboard({ navigate }) {
       subtitle={subtitleText}
       primaryAction={
         <HorizontalStack gap="2">
+          <Button onClick={() => navigate("/templates")}>Pre-built Rules</Button>
           <Button onClick={() => navigate("/rules")}>View Rules</Button>
           <Button primary onClick={() => navigate("/pricing")}>Pricing & Plans</Button>
         </HorizontalStack>

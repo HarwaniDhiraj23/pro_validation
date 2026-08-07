@@ -110,20 +110,22 @@ export default function RuleTemplates({ navigate }) {
           />
         </div>
 
-        {/* Plan Filter Scope Tabs */}
-        <HorizontalStack gap="2">
-          <Button pressed={planScope === "all"} onClick={() => setPlanScope("all")}>
-            All Templates
-          </Button>
+        {/* Plan Filter Scope Tabs (Hidden on Pro Plan since all templates are unlocked) */}
+        {shopPlan?.toLowerCase() !== "pro" && shopPlan?.toLowerCase() !== "growth" && (
+          <HorizontalStack gap="2">
+            <Button pressed={planScope === "all"} onClick={() => setPlanScope("all")}>
+              All Templates
+            </Button>
 
-          <Button pressed={planScope === "my_plan"} onClick={() => setPlanScope("my_plan")}>
-            Included in {shopPlan} Plan
-          </Button>
+            <Button pressed={planScope === "my_plan"} onClick={() => setPlanScope("my_plan")}>
+              Included in {shopPlan} Plan
+            </Button>
 
-          <Button pressed={planScope === "upgrade_needed"} onClick={() => setPlanScope("upgrade_needed")}>
-            Requires Upgrade 🔒
-          </Button>
-        </HorizontalStack>
+            <Button pressed={planScope === "upgrade_needed"} onClick={() => setPlanScope("upgrade_needed")}>
+              Requires Upgrade 🔒
+            </Button>
+          </HorizontalStack>
+        )}
       </div>
 
       {/* Categories Filter Tabs */}
