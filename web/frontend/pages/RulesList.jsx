@@ -162,43 +162,16 @@ export default function RulesList({ navigate }) {
       title="Validation Rules"
       subtitle="Configure rules that prevent checkout based on cart attributes."
       backAction={{ content: "Dashboard", onAction: () => navigate("/") }}
-      primaryAction={{ content: "＋ Create Rule", onAction: () => navigate("/rules/new") }}
-      secondaryActions={[
-        { content: "Pre-built Rules", onAction: () => navigate("/templates") },
-        { content: "＋ Create Checkbox Rule", onAction: () => navigate("/rules/new?type=checkbox&fixed=true") },
-      ]}
+      primaryAction={
+        <HorizontalStack gap="2">
+          <Button onClick={() => navigate("/templates")}>Pre-built Rules</Button>
+          <Button onClick={() => navigate("/rules/new?type=checkbox&fixed=true")}>＋ Create Checkbox Rule</Button>
+          <Button primary onClick={() => navigate("/rules/new")}>＋ Create Rule</Button>
+        </HorizontalStack>
+      }
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-        /* Force header secondary actions to stay inline and hide 'More actions' rollup dropdown */
-        div[class*="Rollup"], div[class*="rollup"],
-        button[class*="Rollup"], button[class*="rollup"],
-        .Polaris-Page-Header__Rollup, .Polaris-Page-Header__RollupActions,
-        .Polaris-ActionMenu__Rollup, .Polaris-ActionMenu-Rollup {
-          display: none !important;
-        }
-
-        .Polaris-Page-Header__IndividualActions,
-        .Polaris-Page-Header__SecondaryActions,
-        .Polaris-ActionMenu__SecondaryActions,
-        .Polaris-ActionMenu__Actions,
-        div[class*="IndividualActions"], div[class*="individualActions"],
-        div[class*="SecondaryActions"], div[class*="secondaryActions"] {
-          display: flex !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-          align-items: center !important;
-          gap: 8px !important;
-        }
-
-        div[class*="IndividualActions"] > *,
-        div[class*="SecondaryActions"] > *,
-        .Polaris-Page-Header__IndividualActions > *,
-        .Polaris-Page-Header__SecondaryActions > * {
-          display: inline-flex !important;
-          visibility: visible !important;
-        }
 
         .rl-wrap { font-family: 'Inter', sans-serif; }
 

@@ -88,16 +88,12 @@ export default function Dashboard({ navigate }) {
     <Page
       title="Dashboard"
       subtitle={subtitleText}
-      primaryAction={{
-        content: "Pricing & Plans",
-        onAction: () => navigate("/pricing")
-      }}
-      secondaryActions={[
-        {
-          content: "View Rules",
-          onAction: () => navigate("/rules")
-        }
-      ]}
+      primaryAction={
+        <HorizontalStack gap="2">
+          <Button onClick={() => navigate("/rules")}>View Rules</Button>
+          <Button primary onClick={() => navigate("/pricing")}>Pricing & Plans</Button>
+        </HorizontalStack>
+      }
     >
       <style>{`
         /* Force header actions to stay visible side-by-side */
