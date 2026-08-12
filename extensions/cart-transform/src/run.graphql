@@ -1,0 +1,46 @@
+query RunInput {
+  cartTransform {
+    metafield(namespace: "ruleforge", key: "cart_transform_rules") {
+      value
+    }
+  }
+  cart {
+    buyerIdentity {
+      customer {
+        id
+        metafield(namespace: "cart-validation", key: "metadata") {
+          value
+        }
+      }
+    }
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+          currencyCode
+        }
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          sku
+          title
+          product {
+            id
+            vendor
+            title
+            metafield(namespace: "cart-validation", key: "metadata") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}

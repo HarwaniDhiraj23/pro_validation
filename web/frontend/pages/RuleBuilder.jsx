@@ -307,6 +307,85 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Store Variant Selector Modal State
+  const [variantModalOpen, setVariantModalOpen] = useState(false);
+  const [variantModalTarget, setVariantModalTarget] = useState(null);
+  const [variantModalIsMulti, setVariantModalIsMulti] = useState(true);
+  const [variantModalSearch, setVariantModalSearch] = useState("");
+  const [storeVariants, setStoreVariants] = useState([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+  const [selectedVariantGids, setSelectedVariantGids] = useState([]);
+
+  const fetchStoreVariants = async () => {
+    if (storeVariants.length > 0) return;
+    setLoadingVariants(true);
+    try {
+      const res = await fetch("/api/store/variants");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.variants)) {
+        setStoreVariants(data.variants);
+      }
+    } catch (err) {
+      console.error("Error fetching store variants:", err);
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
+  const handleOpenVariantPicker = async (targetKey, isMulti = true, currentGidsString = "") => {
+    try {
+      const selected = await shopify.resourcePicker({
+        type: "product",
+        multiple: isMulti,
+      });
+      if (selected && selected.selection) {
+        const selectedGids = [];
+        selected.selection.forEach(prod => {
+          if (prod.variants && prod.variants.length > 0) {
+            prod.variants.forEach(v => {
+              if (v.id) selectedGids.push(v.id);
+            });
+          } else if (prod.id) {
+            selectedGids.push(prod.id);
+          }
+        });
+
+        if (selectedGids.length > 0) {
+          applySelectedGidsToTarget(targetKey, isMulti ? selectedGids.join(", ") : selectedGids[0]);
+          return;
+        }
+      }
+    } catch (e) {
+      console.log("App Bridge resource picker fallback to custom modal:", e);
+    }
+
+    await fetchStoreVariants();
+    setVariantModalTarget(targetKey);
+    setVariantModalIsMulti(isMulti);
+    const initialGids = currentGidsString ? currentGidsString.split(",").map(g => g.trim()).filter(Boolean) : [];
+    setSelectedVariantGids(initialGids);
+    setVariantModalOpen(true);
+  };
+
+  const applySelectedGidsToTarget = (targetKey, gidValue) => {
+    if (targetKey === "price_override") {
+      setTransformTargetVariantIds(gidValue);
+    } else if (targetKey === "kit_parent") {
+      setTransformParentVariantId(gidValue);
+    } else if (targetKey.startsWith("kit_comp_")) {
+      const cIdx = parseInt(targetKey.replace("kit_comp_", ""), 10);
+      const next = [...transformComponents];
+      if (next[cIdx]) {
+        next[cIdx].variant_id = gidValue;
+        setTransformComponents(next);
+      }
+    } else if (targetKey === "bundle_comp") {
+      setTransformComponentVariantIds(gidValue);
+    } else if (targetKey === "bundle_parent") {
+      setTransformParentVariantId(gidValue);
+    }
+  };
+
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("0");
   const [status, setStatus] = useState("active");
@@ -347,6 +426,19 @@ export default function RuleBuilder({ ruleId, navigate }) {
     get_product_ids: []
   });
   const [maxDiscountCap, setMaxDiscountCap] = useState("");
+
+  // Cart Transform state
+  const [transformType, setTransformType] = useState("price_override");
+  const [transformParentVariantId, setTransformParentVariantId] = useState("");
+  const [transformTargetVariantIds, setTransformTargetVariantIds] = useState("");
+  const [transformOverridePrice, setTransformOverridePrice] = useState("");
+  const [transformCustomTitle, setTransformCustomTitle] = useState("");
+  const [transformComponents, setTransformComponents] = useState([
+    { variant_id: "", quantity: 1, fixed_price: "" }
+  ]);
+  const [transformComponentVariantIds, setTransformComponentVariantIds] = useState("");
+  const [transformBundlePrice, setTransformBundlePrice] = useState("");
+  const [transformBundleTitle, setTransformBundleTitle] = useState("");
 
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
@@ -1323,8 +1415,187 @@ export default function RuleBuilder({ ruleId, navigate }) {
               </Card>
             )}
 
+            {/* Cart Transform Rules Card */}
+            {ruleType === "cart_transform" && (
+              <Card title="Cart Transform Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Transform Operation Type *"
+                      options={[
+                        { label: "Native Line-Item Unit Price Override", value: "price_override" },
+                        { label: "Kit Bundle Component Expansion", value: "kit_expansion" },
+                        { label: "Product Bundling (Merge Components)", value: "bundling" }
+                      ]}
+                      value={transformType}
+                      onChange={setTransformType}
+                      helpText="Choose how Shopify Cart Transform will modify items natively in cart and checkout."
+                    />
+
+                    {transformType === "price_override" && (
+                      <>
+                        <TextField
+                          label="Target Product Variant GIDs *"
+                          value={transformTargetVariantIds}
+                          onChange={setTransformTargetVariantIds}
+                          placeholder="gid://shopify/ProductVariant/12345678, gid://shopify/ProductVariant/87654321"
+                          helpText="Comma-separated product variant GIDs whose unit prices will be overridden."
+                          autoComplete="off"
+                          connectedRight={
+                            <Button onClick={() => handleOpenVariantPicker("price_override", true, transformTargetVariantIds)}>
+                              📦 Select from Store
+                            </Button>
+                          }
+                        />
+                        <TextField
+                          label="New Unit Price ($) *"
+                          type="number"
+                          value={transformOverridePrice}
+                          onChange={setTransformOverridePrice}
+                          placeholder="49.99"
+                          helpText="The fixed unit price applied to matching line items at checkout."
+                          autoComplete="off"
+                        />
+                        <TextField
+                          label="Custom Line Item Title (Optional)"
+                          value={transformCustomTitle}
+                          onChange={setTransformCustomTitle}
+                          placeholder="e.g. VIP Contract Pricing"
+                          autoComplete="off"
+                        />
+                      </>
+                    )}
+
+                    {transformType === "kit_expansion" && (
+                      <>
+                        <TextField
+                          label="Parent Kit Variant GID *"
+                          value={transformParentVariantId}
+                          onChange={setTransformParentVariantId}
+                          placeholder="gid://shopify/ProductVariant/PARENT_KIT_ID"
+                          helpText="When this parent kit variant is added to cart, it will be expanded into component items."
+                          autoComplete="off"
+                          connectedRight={
+                            <Button onClick={() => handleOpenVariantPicker("kit_parent", false, transformParentVariantId)}>
+                              📦 Select from Store
+                            </Button>
+                          }
+                        />
+                        <Text variant="headingSm">Component Items</Text>
+                        {transformComponents.map((comp, cIdx) => (
+                          <Box key={cIdx} padding="3" background="bg-subdued" borderRadius="200">
+                            <HorizontalStack gap="3">
+                              <div style={{ flex: 2 }}>
+                                <TextField
+                                  label="Component Variant GID *"
+                                  value={comp.variant_id}
+                                  onChange={(val) => {
+                                    const next = [...transformComponents];
+                                    next[cIdx].variant_id = val;
+                                    setTransformComponents(next);
+                                  }}
+                                  placeholder="gid://shopify/ProductVariant/101"
+                                  autoComplete="off"
+                                  connectedRight={
+                                    <Button onClick={() => handleOpenVariantPicker(`kit_comp_${cIdx}`, false, comp.variant_id)}>
+                                      📦 Select
+                                    </Button>
+                                  }
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Quantity"
+                                  type="number"
+                                  value={String(comp.quantity || 1)}
+                                  onChange={(val) => {
+                                    const next = [...transformComponents];
+                                    next[cIdx].quantity = parseInt(val) || 1;
+                                    setTransformComponents(next);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Fixed Price ($)"
+                                  type="number"
+                                  value={comp.fixed_price || ""}
+                                  onChange={(val) => {
+                                    const next = [...transformComponents];
+                                    next[cIdx].fixed_price = val;
+                                    setTransformComponents(next);
+                                  }}
+                                  placeholder="29.99"
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ paddingTop: "20px" }}>
+                                <Button tone="critical" size="slim" onClick={() => setTransformComponents(transformComponents.filter((_, i) => i !== cIdx))}>
+                                  Remove
+                                </Button>
+                              </div>
+                            </HorizontalStack>
+                          </Box>
+                        ))}
+                        <Button onClick={() => setTransformComponents([...transformComponents, { variant_id: "", quantity: 1, fixed_price: "" }])}>
+                          + Add Component
+                        </Button>
+                      </>
+                    )}
+
+                    {transformType === "bundling" && (
+                      <>
+                        <TextField
+                          label="Required Component Variant GIDs *"
+                          value={transformComponentVariantIds}
+                          onChange={setTransformComponentVariantIds}
+                          placeholder="gid://shopify/ProductVariant/101, gid://shopify/ProductVariant/102"
+                          helpText="Comma-separated variant IDs that, when present together in cart, will be merged."
+                          autoComplete="off"
+                          connectedRight={
+                            <Button onClick={() => handleOpenVariantPicker("bundle_comp", true, transformComponentVariantIds)}>
+                              📦 Select Components
+                            </Button>
+                          }
+                        />
+                        <TextField
+                          label="Parent Bundle Variant GID *"
+                          value={transformParentVariantId}
+                          onChange={setTransformParentVariantId}
+                          placeholder="gid://shopify/ProductVariant/BUNDLE_PARENT_ID"
+                          helpText="The target parent bundle variant displayed in cart/checkout after merging."
+                          autoComplete="off"
+                          connectedRight={
+                            <Button onClick={() => handleOpenVariantPicker("bundle_parent", false, transformParentVariantId)}>
+                              📦 Select Parent
+                            </Button>
+                          }
+                        />
+                        <TextField
+                          label="Merged Bundle Unit Price ($) *"
+                          type="number"
+                          value={transformBundlePrice}
+                          onChange={setTransformBundlePrice}
+                          placeholder="89.99"
+                          autoComplete="off"
+                        />
+                        <TextField
+                          label="Custom Bundle Title (Optional)"
+                          value={transformBundleTitle}
+                          onChange={setTransformBundleTitle}
+                          placeholder="e.g. Complete Gift Bundle"
+                          autoComplete="off"
+                        />
+                      </>
+                    )}
+                  </FormLayout>
+                </Box>
+              </Card>
+            )}
+
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -1596,7 +1867,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
-            ) : ruleType === "discount" ? null : (
+            ) : (ruleType === "discount" || ruleType === "cart_transform") ? null : (
               <Card>
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2115,6 +2386,104 @@ export default function RuleBuilder({ ruleId, navigate }) {
               ))}
             </div>
           )}
+        </Modal.Section>
+      </Modal>
+
+      {/* Store Product Variant Picker Modal */}
+      <Modal
+        open={variantModalOpen}
+        onClose={() => setVariantModalOpen(false)}
+        title="Select Product Variants from Store"
+        primaryAction={{
+          content: `Apply Selected (${selectedVariantGids.length})`,
+          onAction: () => {
+            const finalVal = variantModalIsMulti ? selectedVariantGids.join(", ") : (selectedVariantGids[0] || "");
+            applySelectedGidsToTarget(variantModalTarget, finalVal);
+            setVariantModalOpen(false);
+          }
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setVariantModalOpen(false)
+          }
+        ]}
+      >
+        <Modal.Section>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <TextField
+              label="Search Store Variants"
+              labelHidden
+              placeholder="🔍 Search by product title, variant title, or SKU..."
+              value={variantModalSearch}
+              onChange={setVariantModalSearch}
+              autoComplete="off"
+            />
+
+            {loadingVariants ? (
+              <div style={{ textAlign: "center", padding: "24px" }}>
+                <Spinner size="medium" />
+                <div style={{ marginTop: "8px", fontSize: "12px", color: "#64748b" }}>Loading store products and variants...</div>
+              </div>
+            ) : (
+              <div style={{ maxHeight: "360px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                {storeVariants
+                  .filter(v =>
+                    v.displayName.toLowerCase().includes(variantModalSearch.toLowerCase()) ||
+                    (v.sku && v.sku.toLowerCase().includes(variantModalSearch.toLowerCase())) ||
+                    v.id.toLowerCase().includes(variantModalSearch.toLowerCase())
+                  )
+                  .map(v => {
+                    const isSelected = selectedVariantGids.includes(v.id);
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => {
+                          if (variantModalIsMulti) {
+                            if (isSelected) {
+                              setSelectedVariantGids(selectedVariantGids.filter(g => g !== v.id));
+                            } else {
+                              setSelectedVariantGids([...selectedVariantGids, v.id]);
+                            }
+                          } else {
+                            setSelectedVariantGids([v.id]);
+                          }
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          border: `1px solid ${isSelected ? "#2563eb" : "#e2e8f0"}`,
+                          background: isSelected ? "#eff6ff" : "#ffffff",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                          {v.imageUrl ? (
+                            <img src={v.imageUrl} alt="" style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover" }} />
+                          ) : (
+                            <div style={{ width: "36px", height: "36px", borderRadius: "6px", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>📦</div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a" }}>{v.displayName}</div>
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                              {v.sku ? `SKU: ${v.sku} • ` : ""}${v.price} • <code style={{ fontSize: "10px" }}>{v.id}</code>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button size="slim" pressed={isSelected}>
+                          {isSelected ? "✓ Selected" : "Select"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
         </Modal.Section>
       </Modal>
     </Page>

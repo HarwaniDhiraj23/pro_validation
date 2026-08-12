@@ -556,6 +556,60 @@ const PREBUILT_TEMPLATES = [
     discount_type: "tiered",
     discount_target: "order",
     discount_config: { tiered_brackets: [{ spend_threshold: "75", discount_percent: "10" }], max_discount_cap: "30.00" }
+  },
+  {
+    id: 52,
+    title: "Kit Bundle Component Expansion (Expand Parent Kit)",
+    category: "Bundling & Kits",
+    description: "Automatically expands a parent kit bundle item in the cart into individual component line items with native component pricing at checkout.",
+    conditions: [],
+    error_message: "Kit Expanded",
+    error_target: "$.cart",
+    rule_type: "cart_transform",
+    transform_type: "kit_expansion",
+    transform_config: {
+      parent_variant_id: "gid://shopify/ProductVariant/SAMPLE_KIT",
+      components: [
+        { variant_id: "gid://shopify/ProductVariant/COMPONENT_1", quantity: 1, fixed_price: "29.99" },
+        { variant_id: "gid://shopify/ProductVariant/COMPONENT_2", quantity: 2, fixed_price: "15.00" }
+      ]
+    }
+  },
+  {
+    id: 53,
+    title: "Native Line-Item Unit Price Override",
+    category: "Price Overrides",
+    description: "Overrides product line item unit prices natively in cart and checkout without using coupon discount codes.",
+    conditions: [],
+    error_message: "Special Unit Price Applied",
+    error_target: "$.cart",
+    rule_type: "cart_transform",
+    transform_type: "price_override",
+    transform_config: {
+      target_variant_ids: ["gid://shopify/ProductVariant/SAMPLE_OVERRIDE"],
+      override_price: "49.99",
+      custom_title: "VIP Contract Pricing"
+    }
+  },
+  {
+    id: 54,
+    title: "Automatic Component Product Bundling (Merge Cart Items)",
+    category: "Bundling & Kits",
+    description: "Merges separate component items added to cart into a single parent bundle line item with special bundle pricing.",
+    conditions: [],
+    error_message: "Products Bundled",
+    error_target: "$.cart",
+    rule_type: "cart_transform",
+    transform_type: "bundling",
+    transform_config: {
+      parent_variant_id: "gid://shopify/ProductVariant/BUNDLE_PARENT",
+      component_variant_ids: [
+        "gid://shopify/ProductVariant/COMPONENT_A",
+        "gid://shopify/ProductVariant/COMPONENT_B"
+      ],
+      bundle_price: "89.99",
+      bundle_title: "Complete Gift Bundle"
+    }
   }
 ];
 

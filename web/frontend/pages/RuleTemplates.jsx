@@ -72,6 +72,11 @@ export default function RuleTemplates({ navigate }) {
     return matchesCategory && matchesSearch && matchesScope;
   });
 
+  const getCategoryCount = (cat) => {
+    if (cat === "All") return templates.length;
+    return templates.filter(t => t.category === cat).length;
+  };
+
   return (
     <Page
       title="Pre-built Rules Library"
@@ -85,16 +90,9 @@ export default function RuleTemplates({ navigate }) {
           display: flex;
           align-items: center;
           gap: 8px;
-          overflow-x: auto;
-          padding-bottom: 6px;
-          -webkit-overflow-scrolling: touch;
-          scrollbar-width: none;
-        }
-        .filter-bar::-webkit-scrollbar {
-          display: none;
+          flex-wrap: wrap;
         }
         .filter-bar-item {
-          flex-shrink: 0;
           white-space: nowrap;
         }
         .template-card {

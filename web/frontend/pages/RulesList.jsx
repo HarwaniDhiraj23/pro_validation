@@ -201,6 +201,10 @@ export default function RulesList({ navigate }) {
               {
                 content: "Discount Allocator Rule",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=discount&fixed=true"); }
+              },
+              {
+                content: "Cart Transform Rule",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=cart_transform&fixed=true"); }
               }
             ]}
           />
@@ -700,6 +704,11 @@ export default function RulesList({ navigate }) {
                         <>
                           <Badge tone="success">Discount Allocator</Badge>
                           <Badge tone="info">{rule.discount_type ? rule.discount_type.toUpperCase() : "TIERED"}</Badge>
+                        </>
+                      ) : rule.rule_type === "cart_transform" ? (
+                        <>
+                          <Badge tone="magic">Cart Transform</Badge>
+                          <Badge tone="info">{rule.transform_type ? rule.transform_type.toUpperCase() : "PRICE_OVERRIDE"}</Badge>
                         </>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>

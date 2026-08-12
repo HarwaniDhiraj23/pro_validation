@@ -703,6 +703,136 @@ async function syncDiscountRulesToShopify(session) {
   }
 }
 
+// Helper to sync active cart transform rules to Shopify
+async function syncCartTransformRulesToShopify(session) {
+  const shop = session.shop;
+  console.log(`Syncing cart transform rules for ${shop} to Shopify...`);
+
+  try {
+    const result = await dbQuery(
+      `SELECT * FROM rules 
+       WHERE (shop = $1 OR target_shop = $1) 
+         AND status = 'active'
+         AND rule_type = 'cart_transform'
+         AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
+         AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
+       ORDER BY priority DESC, id DESC`,
+      [shop]
+    );
+    const activeRules = result.rows || [];
+    const rulesJson = JSON.stringify(activeRules);
+
+    const client = new shopify.api.clients.Graphql({ session });
+    let cartTransformId = null;
+
+    try {
+      const findQuery = `
+        query {
+          cartTransforms(first: 10) {
+            nodes {
+              id
+            }
+          }
+        }
+      `;
+      const findRes = await client.request(findQuery);
+      const transforms = findRes.data?.cartTransforms?.nodes || [];
+      if (transforms.length > 0) {
+        cartTransformId = transforms[0].id;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    if (!cartTransformId) {
+      const appQuery = `
+        query {
+          shopifyFunctions(first: 20) {
+            nodes {
+              id
+              title
+              apiType
+            }
+          }
+        }
+      `;
+      const appRes = await client.request(appQuery);
+      const functions = appRes.data?.shopifyFunctions?.nodes || [];
+      const func = functions.find(f => f.apiType === "cart_transform" || f.title.toLowerCase().includes("transform"));
+
+      if (func) {
+        const createMutation = `
+          mutation cartTransformCreate($functionId: String!) {
+            cartTransformCreate(functionId: $functionId) {
+              cartTransform {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
+        const createRes = await client.request(createMutation, {
+          variables: { functionId: func.id }
+        });
+        cartTransformId = createRes.data?.cartTransformCreate?.cartTransform?.id;
+      }
+    }
+
+    const shopQuery = `query { shop { id } }`;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
+    const metafields = [];
+    if (cartTransformId) {
+      metafields.push({
+        ownerId: cartTransformId,
+        namespace: "ruleforge",
+        key: "cart_transform_rules",
+        type: "json",
+        value: rulesJson
+      });
+    }
+    if (shopId) {
+      metafields.push({
+        ownerId: shopId,
+        namespace: "ruleforge",
+        key: "cart_transform_rules",
+        type: "json",
+        value: rulesJson
+      });
+    }
+
+    if (metafields.length > 0) {
+      const setMetafieldMutation = `
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      const setRes = await client.request(setMetafieldMutation, {
+        variables: { metafields }
+      });
+      const errors = setRes.data?.metafieldsSet?.userErrors || [];
+      if (errors.length > 0) {
+        console.error("[Cart Transform Sync] Metafield set errors:", errors);
+      } else {
+        console.log("Successfully synced cart transform rules to Shopify metafield.");
+      }
+    }
+  } catch (error) {
+    console.warn(`[Shopify Sync] Could not sync cart transform rules for ${shop}:`, formatShopifyError(error));
+  }
+}
 
 // Helper to sync multiple shops affected by a rule change
 async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetShopAfter) {
@@ -735,6 +865,7 @@ async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetSh
         await syncDeliveryRulesToShopify(session);
         await syncPaymentRulesToShopify(session);
         await syncDiscountRulesToShopify(session);
+        await syncCartTransformRulesToShopify(session);
       } else {
         console.warn(`[Sync propagation] No offline session found for shop: ${shop}`);
       }

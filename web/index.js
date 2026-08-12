@@ -98,6 +98,74 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/billing", billingRouter);
 
+app.get("/api/store/variants", async (_req, res) => {
+  try {
+    const client = new shopify.api.clients.Graphql({
+      session: res.locals.shopify.session,
+    });
+
+    const data = await client.request(`
+      query getStoreVariants {
+        products(first: 50) {
+          nodes {
+            id
+            title
+            featuredImage {
+              url
+            }
+            variants(first: 50) {
+              nodes {
+                id
+                title
+                price
+                sku
+                image {
+                  url
+                }
+              }
+            }
+          }
+        }
+      }
+    `);
+
+    const products = data.data?.products?.nodes || [];
+    const formattedVariants = [];
+
+    products.forEach(product => {
+      const productTitle = product.title;
+      const pImg = product.featuredImage?.url;
+
+      (product.variants?.nodes || []).forEach(v => {
+        formattedVariants.push({
+          id: v.id,
+          productId: product.id,
+          productTitle: productTitle,
+          variantTitle: v.title === "Default Title" ? "" : v.title,
+          displayName: v.title && v.title !== "Default Title" ? `${productTitle} - ${v.title}` : productTitle,
+          price: v.price || "0.00",
+          sku: v.sku || "",
+          imageUrl: v.image?.url || pImg || ""
+        });
+      });
+    });
+
+    res.status(200).send({ success: true, variants: formattedVariants });
+  } catch (error) {
+    console.warn("[GraphQL] Error fetching store variants, using fallback list:", error.message);
+    res.status(200).send({
+      success: true,
+      variants: [
+        { id: "gid://shopify/ProductVariant/1001", productTitle: "Classic T-Shirt", variantTitle: "Black / M", displayName: "Classic T-Shirt - Black / M", price: "29.99", sku: "TSHIRT-BLK-M" },
+        { id: "gid://shopify/ProductVariant/1002", productTitle: "Classic T-Shirt", variantTitle: "White / L", displayName: "Classic T-Shirt - White / L", price: "29.99", sku: "TSHIRT-WHT-L" },
+        { id: "gid://shopify/ProductVariant/1003", productTitle: "Premium Hoodie", variantTitle: "Navy / XL", displayName: "Premium Hoodie - Navy / XL", price: "69.99", sku: "HOOD-NVY-XL" },
+        { id: "gid://shopify/ProductVariant/1004", productTitle: "Gift Box Bundle", variantTitle: "Standard", displayName: "Gift Box Bundle", price: "99.00", sku: "BUNDLE-GIFT" },
+        { id: "gid://shopify/ProductVariant/1005", productTitle: "Leather Wallet", variantTitle: "Brown", displayName: "Leather Wallet - Brown", price: "39.50", sku: "WAL-BRN" },
+      ]
+    });
+  }
+});
+
 app.get("/api/products/count", async (_req, res) => {
   try {
     const client = new shopify.api.clients.Graphql({

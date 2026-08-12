@@ -1,0 +1,17 @@
+api_version = "2026-04"
+uid = "91a48c21-4f12-4215-99bc-c2a7f80d0001"
+
+[[extensions]]
+name = "cart-transform"
+handle = "cart-transform"
+type = "function"
+description = "Native Cart Transform extension for product bundling, line-item price overrides, kit expansion, and component pricing natively in cart and checkout for RuleForge"
+
+  [[extensions.targeting]]
+  target = "purchase.cart-transform.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = "echo Building cart-transform..."
+  path = "dist/function.wasm"

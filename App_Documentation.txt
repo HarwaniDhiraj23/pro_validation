@@ -79,6 +79,13 @@ STEP 4 — Shopify Functions run at checkout (Wasm)
        Reads active payment rules. If conditions are met, it hides or renames 
        specific payment gateways (e.g., "Hide COD for orders above $500").
 
+    d) discount-allocator
+       Calculates custom spend tiers, volume pricing, BOGO logic, and customer tag discounts.
+
+    e) cart-transform
+       Manages product bundling (merge operation), native line-item price overrides (update operation),
+       kit expansion into component items (expand operation), and component pricing directly in cart and checkout.
+
 STEP 5 — Checkout UI Extension renders warnings & checkboxes
     The checkout-ui extension runs on the checkout page and renders:
     - Warning banners for soft alerts (non-blocking notifications)
@@ -107,7 +114,9 @@ pro-validation/
 │   ├── cart-checkout-validation/   Shopify Function — Blocks checkouts (Wasm)
 │   ├── checkout-ui/                UI Extension — Banners & Consent Checkboxes
 │   ├── delivery-customization/     Shopify Function — Hides/Renames Shipping
-│   └── payment-customization/      Shopify Function — Hides/Renames Payments
+│   ├── payment-customization/      Shopify Function — Hides/Renames Payments
+│   ├── discount-allocator/         Shopify Function — Tiered & Volume Discounts
+│   └── cart-transform/             Shopify Function — Bundles, Price Overrides & Kit Expansion
 │
 ├── web/
 │   ├── index.js                    Express backend entry point
