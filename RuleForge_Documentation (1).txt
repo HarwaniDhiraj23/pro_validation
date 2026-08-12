@@ -1,0 +1,328 @@
+================================================================================
+    RuleForge
+================================================================================
+    App Name   : RuleForge
+    Platform   : Shopify (Checkout Extensibility)
+    Built With : Node.js, Express, React, Vite, Shopify Polaris, Shopify Functions
+================================================================================
+
+================================================================================
+SECTION 1 : WHAT IS THIS APP?
+================================================================================
+
+RuleForge is a Shopify embedded app that gives merchants 
+full control over their checkout experience using a no-code visual rule builder.
+
+Without writing any code, merchants can:
+  - Block or allow checkout based on customer type, location, cart contents, or 
+    product restrictions
+  - Hide, rename, or reorder payment methods based on custom conditions
+  - Hide, rename, or reorder shipping/delivery options based on custom conditions
+  - Add mandatory consent checkboxes to the checkout (e.g., age verification, 
+    terms of service, pre-order acknowledgment)
+  - Schedule rules to activate/deactivate automatically on specific dates
+  - Track performance of every rule via a real-time analytics dashboard
+  - Use 45 pre-built, one-click rule templates to get started instantly
+
+All validation and customization logic runs inside Shopify's secure WebAssembly 
+(Wasm) sandbox via Shopify Functions — meaning rules run directly on Shopify's 
+servers with zero latency, no third-party requests, and no added checkout load.
+
+This app is built for:
+  - Shopify Plus merchants needing enterprise-grade checkout control
+  - B2B/Wholesale stores restricting who can purchase
+  - Stores with hazardous, age-restricted, or regulated products
+  - Merchants dealing with geo-restricted shipping or payment rules
+  - Any store wanting to enforce minimum/maximum order thresholds
+
+Key differentiators vs. the market:
+  - 45 pre-built templates covering all major use cases
+  - Full consent checkbox builder for legal compliance
+  - Real-time analytics with per-rule blocked checkout tracking
+  - Complete version history with instant rollback
+  - Scheduled rule activation windows
+  - All three Function types in one app (validation + delivery + payment)
+
+================================================================================
+SECTION 2 : HOW THE APP WORKS (TECHNICAL OVERVIEW)
+================================================================================
+
+The app uses Shopify's Checkout Extensibility architecture. Here is the full 
+data flow from rule creation to enforcement:
+
+STEP 1 — Merchant creates a rule
+    The React/Polaris dashboard provides a drag-and-drop rule builder where 
+    merchants set conditions (e.g., "Cart subtotal < $50") and actions 
+    (e.g., "Block checkout with error message").
+
+STEP 2 — Rules are saved to the database
+    Rules are stored in a PostgreSQL database. A fallback JSON file storage 
+    is used automatically if no PostgreSQL URL is configured (for development).
+
+STEP 3 — Rules are pushed to Shopify Metafields
+    Every time a rule is saved or updated, the backend automatically calls 
+    Shopify's Admin GraphQL API to write the active rules as JSON into a 
+    dedicated Shopify Metafield under the validation/delivery/payment 
+    customization resources. This makes rules instantly accessible to Functions.
+
+STEP 4 — Shopify Functions run at checkout (Wasm)
+    When a buyer reaches checkout and submits their order, Shopify executes 
+    one or more of the following Functions in WebAssembly:
+
+    a) cart-checkout-validation
+       Reads all active validation rules from Metafields. Evaluates conditions 
+       against real-time cart data (items, buyer identity, address, subtotal).
+       If a rule triggers, it returns a validation error that blocks checkout 
+       and shows the merchant-configured error message to the buyer.
+
+    b) delivery-customization
+       Reads active delivery rules. If conditions are met, it hides or renames 
+       specific shipping rate options (e.g., "Hide Express Shipping if cart > 20kg").
+
+    c) payment-customization
+       Reads active payment rules. If conditions are met, it hides or renames 
+       specific payment gateways (e.g., "Hide COD for orders above $500").
+
+STEP 5 — Checkout UI Extension renders warnings & checkboxes
+    The checkout-ui extension runs on the checkout page and renders:
+    - Warning banners for soft alerts (non-blocking notifications)
+    - Mandatory consent checkboxes (Terms, Age Verification, etc.)
+    - Buyers must tick required checkboxes before they can place the order
+
+STEP 6 — Webhooks capture analytics
+    Shopify fires checkout webhooks (checkouts/create, checkouts/update, 
+    orders/create) to the app backend. The backend compares the real checkout 
+    payload against active rules to record blocked vs. allowed events in the 
+    rule_analytics table, powering the Analytics Dashboard.
+
+STEP 7 — Version control & rollback
+    Every time a rule is modified, the old configuration is automatically 
+    archived as a version snapshot in the database. Merchants can view the 
+    full version history and restore any past version with one click.
+
+================================================================================
+SECTION 3 : PRE-BUILT RULE TEMPLATES LIBRARY (45 TEMPLATES)
+================================================================================
+
+All features below are built and operational in the current codebase.
+------------------------------------------------------------------------
+A. CUSTOMER VALIDATION RULES
+------------------------------------------------------------------------
+These rules evaluate who the buyer is before allowing checkout to proceed.
+
+1. Customer Tags Validation
+2. Login Required
+3. B2B Only Checkou
+4. Guest Checkout Restriction
+5. Customer Age Validation
+  
+------------------------------------------------------------------------
+B. ADDRESS VALIDATION RULES
+------------------------------------------------------------------------
+These rules evaluate the buyer's shipping address in real time.
+
+6. Block PO Boxes
+7. Block States / Provinces
+8. Block Countries
+9. Block ZIP / Postal Codes
+10. Regex Address Validation
+    
+------------------------------------------------------------------------
+C. PRODUCT & INVENTORY VALIDATION RULES
+------------------------------------------------------------------------
+These rules check the contents of the cart for product-level restrictions.
+
+11. Restricted Collections
+12. Restricted Vendors
+13. Product Combinations
+14. Hazardous Items
+15. Subscription Restrictions
+    
+------------------------------------------------------------------------
+D. CART VALIDATION RULES
+------------------------------------------------------------------------
+These rules evaluate the overall state of the shopping cart.
+
+16. Minimum Order Value
+17. Maximum Order Value
+18. Quantity Limits
+19. Weight Limits
+20. SKU Limits
+
+------------------------------------------------------------------------
+E. PAYMENT CUSTOMIZATION RULES
+------------------------------------------------------------------------
+These rules hide or rename payment gateways at checkout dynamically.
+Powered by Shopify's Payment Customization Functions.
+
+21. Disable COD (Cash on Delivery)
+22. Disable PayPal
+23. Payment Restrictions by Cart Value
+24. Payment Restrictions by Location
+25. Payment Gateway Renaming
+    
+------------------------------------------------------------------------
+F. DELIVERY / SHIPPING CUSTOMIZATION RULES
+------------------------------------------------------------------------
+These rules hide or rename shipping rates at checkout dynamically.
+Powered by Shopify's Delivery Customization Functions.
+
+26. Block / Hide Shipping Methods
+27. Express Shipping Restrictions
+28. Free Shipping Eligibility Control
+29. Local Pickup Rules
+30. Shipping Method Renaming
+
+------------------------------------------------------------------------
+G. CHECKOUT CONSENT CHECKBOXES
+------------------------------------------------------------------------
+These add mandatory tick-box confirmations to the checkout page.
+Buyers cannot complete the order without ticking these boxes.
+Powered by the checkout-ui Shopify UI Extension.
+
+31. Terms & Conditions Acceptance
+32. Age 18+ Legal Declaration
+33. Age 21+ Alcohol & Tobacco Verification
+34. Final Sale & Non-Refundable Acknowledgment
+35. Pre-Order Shipping Timeline Consent
+36. Custom Engraving & Personalization Approval
+37. Perishable Delivery Consent
+38. Adult Signature Delivery Notice
+39. Freight Curbside Delivery Disclosure
+40. B2B Tax-Exempt Resale Declaration
+41. Digital Downloads Waiver
+42. SMS Transactional Consent
+43. Out-of-Stock Item Substitution Consent
+44. Assembly Required Disclaimer
+45. Eco-Friendly Packaging Consent
+
+------------------------------------------------------------------------
+H. ADVANCED SYSTEM FEATURES
+------------------------------------------------------------------------
+
+- Rule Priority Engine
+- Scheduled Rules (Activation Windows)
+- Multiple Conditions with AND / OR Logic
+- Warning Banners (Non-Blocking Alerts)
+- Rule Analytics Dashboard
+- Pre-built Rule Templates (45 Total)
+- Bulk Rule Management
+- Rule Version History & Rollback
+- Custom Error Icons
+- Guidance Messages
+- Error Target Configuration
+
+================================================================================
+SECTION 4 : SHOPIFY REQUIREMENTS
+================================================================================
+
+MERCHANT REQUIREMENTS:
+  - Shopify Plus plan (required for Checkout Extensibility Functions)
+  - Checkout Extensibility must be enabled on the store
+  - After install, must go to: Admin > Settings > Checkout > Checkout Rules
+    and activate "Cart & Checkout Validation" function manually
+
+================================================================================
+SECTION 5 : PRICING PLANS & FEATURE LIMITS
+================================================================================
+
+All plans come with a free trial period (except Free):
+  - Basic Plan:  7-day free trial
+  - Growth Plan: 7-day free trial
+  - Pro Plan:    14-day free trial
+
+--------------------------------------------------------------------------------
+FREE PLAN — $0 / month
+--------------------------------------------------------------------------------
+Active Rules            : 1 rule
+Rule Types              : Validation rules only
+Scheduling              : Not available
+Behavior Customization  : Not available
+Version History         : 1 version per rule
+Analytics Retention     : 7 days
+Condition Types         : Basic cart & address conditions only
+                        (min/max order value, PO box, block states/countries/zips, 
+                        address regex, quantity/weight/SKU limits)
+
+Excluded on Free:
+  B2B Only, Login Required, Customer Tags, Guest Restriction, Hazardous Items,
+  Subscription Check, Restricted Collections, Restricted Vendors, 
+  Product Combinations, Day of Week conditions
+
+Best For: Small stores testing basic cart validation (e.g., minimum order value).
+
+--------------------------------------------------------------------------------
+BASIC PLAN — $9 / month
+--------------------------------------------------------------------------------
+Active Rules            : 5 rules
+Rule Types              : Validation + Delivery (shipping) customization
+Scheduling              : Not available
+Behavior Customization  : Available
+Version History         : 3 versions per rule
+Analytics Retention     : 30 days
+Condition Types         : Adds block_states, block_countries, block_zipcodes, 
+                        address_regex (address conditions fully unlocked)
+
+Excluded on Basic:
+  B2B Only, Login Required, Customer Tags, Guest Restriction, Hazardous Items,
+  Subscription Check, Restricted Collections, Restricted Vendors,
+  Product Combinations
+
+Best For: Small-to-medium stores needing address and shipping customization.
+
+--------------------------------------------------------------------------------
+GROWTH PLAN — $29 / month
+--------------------------------------------------------------------------------
+Active Rules            : 20 rules
+Rule Types              : Validation + Delivery + Payment + Checkbox rules
+Scheduling              : Available (auto-activate/deactivate by date & time)
+Behavior Customization  : Available
+Version History         : 10 versions per rule
+Analytics Retention     : 90 days
+Condition Types         : ALL condition types unlocked — including:
+                        B2B, Customer Tags, Login Required, Guest Restriction,
+                        Hazardous Items, Subscription, Collections, Vendors,
+                        Product Combinations, Day of Week
+
+Best For: Growing merchants needing full checkout control including customer, 
+          product, payment, and delivery rules with scheduling.
+
+--------------------------------------------------------------------------------
+PRO PLAN — $79 / month
+--------------------------------------------------------------------------------
+Active Rules             : Unlimited
+Rule Types               : ALL (Validation + Delivery + Payment + Checkbox)
+Scheduling               : Available
+Behavior Customization   : Available
+Version History          : Unlimited versions per rule
+Analytics Retention      : Unlimited (all historical data retained)
+Condition Types          : ALL conditions unlocked
+Multi-Store Sync         : Available (sync rules across multiple stores)
+
+Best For: Enterprise merchants, agencies managing multiple stores, and businesses 
+          with complex checkout logic requiring unlimited rules and full history.
+
+================================================================================
+SECTION 6 : ADMIN DASHBOARD PAGES
+================================================================================
+
+The merchant-facing dashboard includes 6 core pages:
+
+1. Dashboard (Analytics): 
+    Metrics (checkouts, blocks/allows, blocked value), daily trend charts, 
+    and rule trigger tables.
+2. Rules List: 
+    Paginated directory with type filters, status toggles, priority order, 
+    and bulk actions (enable/disable/duplicate/delete/archive).
+3. Rule Builder: 
+    No-code editor for AND/OR conditions, custom messages/icons, error targets, 
+    method hiding/renaming, and checkbox rules.
+4. Rule Templates: 
+    45 pre-built templates with 1-click deployment and plan upgrade prompts.
+5. Rule Versions: 
+    Complete version audit log with 1-click rollback to previous configurations.
+6. Pricing / Billing: 
+    Subscription usage meters, 4-tier plan comparison, billing dates, 
+    and Shopify Billing API flows.
+
+================================================================================

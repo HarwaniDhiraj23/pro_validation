@@ -1,0 +1,111 @@
+================================================================================
+                    SHOPIFY CHECKOUT EXTENSIBILITY - PHASE 2
+================================================================================
+================================================================================
+
+1. SHOPIFY FUNCTIONS (Backend Logic & Rules)
+--------------------------------------------------------------------------------
+Shopify Functions execute high-performance backend logic in WebAssembly directly 
+on Shopify’s infrastructure.
+
+- Discount Allocators:
+  Build custom discount rules (e.g., complex tier discounts, custom BOGO logic,
+  volume pricing, customer-specific discounts).
+
+- Cart Transform:
+  Manage product bundling, line-item price overrides, kit expansion, and component
+  pricing natively in the cart and checkout.
+
+- Fulfillment Constraints / Order Routing:
+  Apply custom business rules to dictate shipping origin locations and fulfillment
+  routing constraints.
+
+
+2. CHECKOUT UI EXTENSIONS (In-Checkout Visuals & Interactivity)
+--------------------------------------------------------------------------------
+UI extensions render custom UI elements inside pre-defined targets throughout 
+the checkout funnel.
+
+- Custom Banners & Notices:
+  Display targeted warnings, announcements, shipping threshold progress bars
+  (e.g., "Add $10 more for free shipping"), and compliance notices.
+
+- Custom Input Fields:
+  Capture custom order attributes and metafields (e.g., gift messages, delivery
+  date pickers, delivery instructions, tax IDs, engraving text).
+
+- In-Checkout Upsells & Cross-sells:
+  Offer complementary add-on products or warranties directly within the checkout
+  summary or order steps.
+
+- Trust Badges & Custom Content:
+  Render security seals, policy guarantees, custom refund info, or buyer verification
+  notices.
+
+- Conditional Interactivity & Modals:
+  Trigger popups/modals for age verification, terms & conditions acknowledgment,
+  or custom address validations.
+
+
+3. POST-PURCHASE UI EXTENSIONS (Post-Payment Page)
+--------------------------------------------------------------------------------
+Appears after payment is processed but before the Thank You page.
+
+- One-Click Upsells / Downsells:
+  Offer additional products that customers can purchase with a single click without
+  re-entering payment or shipping info.
+
+- Attribution & NPS Surveys:
+  Collect buyer insights (e.g., "How did you hear about us?", rating scales,
+  feedback forms).
+
+- Post-Purchase Promo Codes & Offers:
+  Provide time-sensitive discount codes or claimable free gifts for future orders.
+
+- Educational Content & Next Steps:
+  Display onboarding steps, digital download access instructions, or product care
+  guidelines.
+
+
+4. CUSTOMER ACCOUNT UI EXTENSIONS (Order Status & Customer Portal)
+--------------------------------------------------------------------------------
+Extends New Customer Accounts pages and the Order Status (Thank You / Tracking) page.
+
+- Order Status Page (Thank You / Tracking):
+  Add custom order tracking links, re-order buttons, digital asset download buttons,
+  and support widgets.
+
+- Customer Account Dashboard:
+  Add custom tabs, widgets, and info cards inside the buyer's account profile and
+  order details pages.
+
+- Self-Service Order Management:
+  Allow customers to edit order details (e.g., update shipping address before
+  fulfillment, request order cancellation, or initiate returns).
+
+
+5. BRANDING API (Styling & Design System)
+--------------------------------------------------------------------------------
+Programmatically customize the global look and feel of Checkout and New Customer 
+Accounts to match brand identity.
+
+- Color Palette & Schemes:
+  Control primary accents, background colors, surface colors, text colors, and
+  alert state colors.
+
+- Typography & Fonts:
+  Custom font families, size scales, font weights, and line heights.
+
+- Logo & Header Placement:
+  Custom logo positioning, alignment, sizing, header backgrounds, and favicon
+  configuration.
+
+- Component Styling Controls:
+  Set custom border radii, button padding, input field borders, focus ring styles,
+  and card shadows.
+
+- Layout & Dividers:
+  Customize header/footer structure, section spacing, corner radii, and container
+  divider lines.
+
+================================================================================
