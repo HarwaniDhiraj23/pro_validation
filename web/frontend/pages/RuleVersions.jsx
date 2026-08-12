@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge, Modal, Button, Banner } from "@shopify/polaris";
+import { Page, Card, HorizontalStack, VerticalStack, Box, Text, Spinner, Badge, Modal, Button, Select, FormLayout } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { formatDate } from "../utils/utils";
 
@@ -52,6 +52,51 @@ const OPERATOR_LABELS = {
   equals: "equals"
 };
 
+function diffConditions(condsA = [], condsB = []) {
+  const mapA = new Map();
+  (condsA || []).forEach(c => mapA.set(`${c.type}:${c.operator}`, c));
+
+  const mapB = new Map();
+  (condsB || []).forEach(c => mapB.set(`${c.type}:${c.operator}`, c));
+
+  const allKeys = new Set([...mapA.keys(), ...mapB.keys()]);
+  const result = [];
+
+  allKeys.forEach(key => {
+    const itemA = mapA.get(key);
+    const itemB = mapB.get(key);
+
+    if (itemA && itemB) {
+      const isDifferent = String(itemA.value).trim() !== String(itemB.value).trim();
+      result.push({
+        status: isDifferent ? "modified" : "same",
+        type: itemA.type,
+        operator: itemA.operator,
+        valA: itemA.value,
+        valB: itemB.value
+      });
+    } else if (itemA && !itemB) {
+      result.push({
+        status: "removed",
+        type: itemA.type,
+        operator: itemA.operator,
+        valA: itemA.value,
+        valB: null
+      });
+    } else if (!itemA && itemB) {
+      result.push({
+        status: "added",
+        type: itemB.type,
+        operator: itemB.operator,
+        valA: null,
+        valB: itemB.value
+      });
+    }
+  });
+
+  return result;
+}
+
 export default function RuleVersions({ ruleId, navigate }) {
   const shopify = useAppBridge();
   const [loading, setLoading] = useState(true);
@@ -62,6 +107,11 @@ export default function RuleVersions({ ruleId, navigate }) {
   const [isLocked, setIsLocked] = useState(false);
   const [planName, setPlanName] = useState("Free");
   const [lockMessage, setLockMessage] = useState("");
+
+  // Version Comparison State
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [compareSourceVerNum, setCompareSourceVerNum] = useState(null);
+  const [compareTargetVerNum, setCompareTargetVerNum] = useState(null);
 
   useEffect(() => {
     if (ruleId) {
@@ -81,7 +131,8 @@ export default function RuleVersions({ ruleId, navigate }) {
             setVersions([]);
           } else {
             setIsLocked(false);
-            setVersions(Array.isArray(versionsData) ? versionsData : (versionsData.versions || []));
+            const fetchedVersions = Array.isArray(versionsData) ? versionsData : (versionsData.versions || []);
+            setVersions(fetchedVersions);
           }
         })
         .catch(err => {
@@ -113,6 +164,13 @@ export default function RuleVersions({ ruleId, navigate }) {
     } finally {
       setRollingBackId(null);
     }
+  };
+
+  const handleOpenCompare = (sourceVer) => {
+    setCompareSourceVerNum(sourceVer.version);
+    const defaultTarget = versions.find(v => v.version !== sourceVer.version) || versions[0];
+    setCompareTargetVerNum(defaultTarget ? defaultTarget.version : sourceVer.version);
+    setCompareModalOpen(true);
   };
 
   if (loading) {
@@ -155,14 +213,54 @@ export default function RuleVersions({ ruleId, navigate }) {
     );
   }
 
+  const verA = versions.find(v => v.version === compareSourceVerNum) || versions[0];
+  const verB = versions.find(v => v.version === compareTargetVerNum) || versions[0];
+  const condDiffs = diffConditions(verA?.conditions, verB?.conditions);
+
+  const versionOptions = versions.map((v, i) => ({
+    label: i === 0 ? `v${v.version} - ${v.title} (Active)` : `v${v.version} - ${v.title}`,
+    value: String(v.version)
+  }));
+
   return (
     <Page
       title={`v${versions.length} - ${ruleName}`}
       subtitle="Version history logs and rollback manager"
       backAction={{ content: "Rules", onAction: () => navigate("/rules") }}
+      primaryAction={
+        versions.length > 1 ? {
+          content: "Compare Versions",
+          onAction: () => handleOpenCompare(versions[0])
+        } : undefined
+      }
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        /* Premium custom select overrides (identical to RuleBuilder) */
+        .Polaris-Select__Input {
+          background-color: #ffffff !important;
+          border: 1px solid #cccccc !important;
+          border-radius: 8px !important;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+          font-size: 13px !important;
+          color: #202223 !important;
+          padding: 8px 36px 8px 12px !important;
+          min-height: 38px !important;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+          cursor: pointer !important;
+        }
+        .Polaris-Select__Input:focus {
+          border-color: #008060 !important;
+          box-shadow: 0 0 0 2px rgba(0, 128, 96, 0.15) !important;
+        }
+        .Polaris-Select__Backdrop {
+          border-radius: 8px !important;
+          border-color: #cccccc !important;
+        }
+        .Polaris-Select__Input:hover:not(:focus) {
+          border-color: #999999 !important;
+        }
 
         .ver-container {
           font-family: 'Inter', sans-serif;
@@ -276,9 +374,69 @@ export default function RuleVersions({ ruleId, navigate }) {
           cursor: default;
         }
 
-        .ver-restore-btn.active-ver-btn:hover {
+        /* Diff Comparison Styles */
+        .compare-selector-box {
+          display: flex;
+          gap: 12px;
+          background: #f8fafc;
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid #e2e8f0;
+          box-sizing: border-box;
+          width: 100%;
+        }
+        .compare-selector-item {
+          flex: 1;
+          min-width: 0;
+        }
+        .diff-table-card {
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          overflow: hidden;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .diff-grid {
+          display: grid;
+          grid-template-columns: 100px 1fr 1fr;
+          gap: 8px;
+          align-items: center;
+          padding: 10px 12px;
+          border-bottom: 1px solid #e2e8f0;
+          font-size: 13px;
+          box-sizing: border-box;
+          width: 100%;
+        }
+        .diff-grid > div {
+          min-width: 0;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+        }
+        .diff-grid.diff-header {
+          background: #f8fafc;
+          font-weight: 700;
+          color: #475569;
+        }
+        .diff-changed {
+          background: #fffbeb;
+          border-left: 3px solid #f59e0b;
+        }
+        .diff-same {
+          background: #ffffff;
+        }
+        .diff-val-del {
+          background: #fef2f2;
+          color: #991b1b;
+          padding: 4px 8px;
+          border-radius: 4px;
+          border: 1px solid #fca5a5;
+        }
+        .diff-val-add {
           background: #f0fdf4;
-          border-color: #bbf7d0;
+          color: #166534;
+          padding: 4px 8px;
+          border-radius: 4px;
+          border: 1px solid #86efac;
         }
 
         @media (max-width: 768px) {
@@ -366,6 +524,7 @@ export default function RuleVersions({ ruleId, navigate }) {
         )}
       </div>
 
+      {/* Review Version Modal */}
       {selectedVersion && (
         <Modal
           open={selectedVersion !== null}
@@ -536,7 +695,151 @@ export default function RuleVersions({ ruleId, navigate }) {
           </Modal.Section>
         </Modal>
       )}
+
+      {/* Compare Versions Modal */}
+      {compareModalOpen && verA && verB && (
+        <Modal
+          open={compareModalOpen}
+          onClose={() => setCompareModalOpen(false)}
+          title={`Compare Version v${verA.version} vs v${verB.version}`}
+          primaryAction={
+            verA.version === versions[0].version
+              ? undefined
+              : {
+                content: `Restore Version v${verA.version}`,
+                onAction: () => {
+                  handleRollback(verA.version);
+                  setCompareModalOpen(false);
+                }
+              }
+          }
+          secondaryActions={[
+            {
+              content: "Close",
+              onAction: () => setCompareModalOpen(false)
+            }
+          ]}
+        >
+          <Modal.Section>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%", boxSizing: "border-box" }}>
+              {/* Version Selectors */}
+              <FormLayout>
+                <FormLayout.Group>
+                  <Select
+                    label="Version A (Source)"
+                    options={versionOptions}
+                    value={String(verA.version)}
+                    onChange={(val) => setCompareSourceVerNum(parseInt(val, 10))}
+                  />
+                  <Select
+                    label="Version B (Target)"
+                    options={versionOptions}
+                    value={String(verB.version)}
+                    onChange={(val) => setCompareTargetVerNum(parseInt(val, 10))}
+                  />
+                </FormLayout.Group>
+              </FormLayout>
+
+              {/* Side-by-Side Diff Table */}
+              <div className="diff-table-card">
+                <div className="diff-grid diff-header">
+                  <div>Setting</div>
+                  <div>Version v{verA.version} {verA.version === versions[0].version ? "(Active)" : ""}</div>
+                  <div>Version v{verB.version} {verB.version === versions[0].version ? "(Active)" : ""}</div>
+                </div>
+
+                {/* Title */}
+                <div className={`diff-grid ${verA.title !== verB.title ? "diff-changed" : "diff-same"}`}>
+                  <div style={{ fontWeight: "600", color: "#475569" }}>Title</div>
+                  <div className={verA.title !== verB.title ? "diff-val-del" : ""}>{verA.title}</div>
+                  <div className={verA.title !== verB.title ? "diff-val-add" : ""}>{verB.title}</div>
+                </div>
+
+                {/* Priority */}
+                <div className={`diff-grid ${verA.priority !== verB.priority ? "diff-changed" : "diff-same"}`}>
+                  <div style={{ fontWeight: "600", color: "#475569" }}>Priority</div>
+                  <div className={verA.priority !== verB.priority ? "diff-val-del" : ""}>{verA.priority}</div>
+                  <div className={verA.priority !== verB.priority ? "diff-val-add" : ""}>{verB.priority}</div>
+                </div>
+
+                {/* Target Shop */}
+                <div className={`diff-grid ${verA.target_shop !== verB.target_shop ? "diff-changed" : "diff-same"}`}>
+                  <div style={{ fontWeight: "600", color: "#475569" }}>Store Scope</div>
+                  <div>{verA.target_shop || "All Stores"}</div>
+                  <div>{verB.target_shop || "All Stores"}</div>
+                </div>
+
+                {/* Target Field */}
+                <div className={`diff-grid ${verA.error_target !== verB.error_target ? "diff-changed" : "diff-same"}`}>
+                  <div style={{ fontWeight: "600", color: "#475569" }}>Target Field</div>
+                  <div><code>{verA.error_target || "$.cart"}</code></div>
+                  <div><code>{verB.error_target || "$.cart"}</code></div>
+                </div>
+
+                {/* Message */}
+                <div className={`diff-grid ${verA.error_message !== verB.error_message ? "diff-changed" : "diff-same"}`}>
+                  <div style={{ fontWeight: "600", color: "#475569" }}>Message</div>
+                  <div className={verA.error_message !== verB.error_message ? "diff-val-del" : ""}>{verA.error_message || "—"}</div>
+                  <div className={verA.error_message !== verB.error_message ? "diff-val-add" : ""}>{verB.error_message || "—"}</div>
+                </div>
+              </div>
+
+              {/* Conditions Diff Comparison */}
+              <div>
+                <Text variant="headingSm" as="h4">Conditions Comparison</Text>
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {condDiffs.length > 0 ? (
+                    condDiffs.map((diff, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          border: `1px solid ${diff.status === "added" ? "#86efac" : diff.status === "removed" ? "#fca5a5" : diff.status === "modified" ? "#fcd34d" : "#e2e8f0"}`,
+                          background: diff.status === "added" ? "#f0fdf4" : diff.status === "removed" ? "#fef2f2" : diff.status === "modified" ? "#fffbeb" : "#ffffff",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          wordBreak: "break-word"
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: "700", fontSize: "13px" }}>
+                            {CONDITION_LABELS[diff.type] || diff.type}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                            Operator: <code>{OPERATOR_LABELS[diff.operator] || diff.operator}</code>
+                          </div>
+                          <div style={{ fontSize: "12px", marginTop: "4px" }}>
+                            {diff.status === "added" && <span style={{ color: "#166534", fontWeight: "600" }}>Added in v{verB.version}: {diff.valB}</span>}
+                            {diff.status === "removed" && <span style={{ color: "#991b1b", fontWeight: "600" }}>Only in v{verA.version}: {diff.valA}</span>}
+                            {diff.status === "modified" && (
+                              <span>
+                                <span style={{ textDecoration: "line-through", color: "#991b1b", marginRight: "8px" }}>v{verA.version}: {diff.valA}</span>
+                                <span style={{ color: "#166534", fontWeight: "600" }}>v{verB.version}: {diff.valB}</span>
+                              </span>
+                            )}
+                            {diff.status === "same" && <span>Value: <code>{diff.valA || "—"}</code></span>}
+                          </div>
+                        </div>
+
+                        <div style={{ flexShrink: 0, marginLeft: "8px" }}>
+                          {diff.status === "added" && <Badge tone="success">+ Added in v{verB.version}</Badge>}
+                          {diff.status === "removed" && <Badge tone="critical">- Removed in v{verB.version}</Badge>}
+                          {diff.status === "modified" && <Badge tone="warning">~ Value Changed</Badge>}
+                          {diff.status === "same" && <Badge tone="subdued">Identical</Badge>}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <Text tone="subdued">No condition differences detected.</Text>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Modal.Section>
+        </Modal>
+      )}
     </Page>
   );
 }
-

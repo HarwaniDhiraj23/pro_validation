@@ -807,6 +807,15 @@ async function initPostgresTables(client) {
         schedule_end TIMESTAMP,
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        discount_type VARCHAR(50) DEFAULT NULL,
+        discount_target VARCHAR(50) DEFAULT 'order',
+        discount_value NUMERIC(10, 2) DEFAULT NULL,
+        discount_config JSONB DEFAULT '{}',
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(50) DEFAULT NULL,
+        banner_style VARCHAR(50) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -824,8 +833,44 @@ async function initPostgresTables(client) {
         error_target VARCHAR(255) DEFAULT '$.cart',
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        discount_type VARCHAR(50) DEFAULT NULL,
+        discount_target VARCHAR(50) DEFAULT 'order',
+        discount_value NUMERIC(10, 2) DEFAULT NULL,
+        discount_config JSONB DEFAULT '{}',
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(50) DEFAULT NULL,
+        banner_style VARCHAR(50) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Migration: Ensure columns exist on existing databases
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_target VARCHAR(50) DEFAULT 'order';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
+
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_target VARCHAR(50) DEFAULT 'order';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
 
       CREATE TABLE IF NOT EXISTS rule_analytics (
         id SERIAL PRIMARY KEY,
