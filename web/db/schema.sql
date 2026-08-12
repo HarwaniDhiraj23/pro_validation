@@ -40,8 +40,12 @@ CREATE TABLE IF NOT EXISTS rules (
   error_target VARCHAR(255) DEFAULT '$.cart',
   schedule_start TIMESTAMP,
   schedule_end TIMESTAMP,
-  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery
+  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, discount
   delivery_action VARCHAR(50) DEFAULT NULL,   -- hide, rename, move
+  discount_type VARCHAR(50) DEFAULT NULL,     -- tiered, volume, bogo, customer_tag, percentage, fixed_amount
+  discount_target VARCHAR(255) DEFAULT 'order',
+  discount_value VARCHAR(100) DEFAULT NULL,
+  discount_config JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -60,6 +64,10 @@ CREATE TABLE IF NOT EXISTS rule_versions (
   error_target VARCHAR(255) DEFAULT '$.cart',
   rule_type VARCHAR(50) DEFAULT 'validation',
   delivery_action VARCHAR(50) DEFAULT NULL,
+  discount_type VARCHAR(50) DEFAULT NULL,
+  discount_target VARCHAR(255) DEFAULT 'order',
+  discount_value VARCHAR(100) DEFAULT NULL,
+  discount_config JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -85,12 +93,16 @@ CREATE TABLE IF NOT EXISTS rule_templates (
   error_target VARCHAR(255) DEFAULT '$.cart',
   rule_type VARCHAR(50) DEFAULT 'validation',
   delivery_action VARCHAR(50) DEFAULT NULL,
+  discount_type VARCHAR(50) DEFAULT NULL,
+  discount_target VARCHAR(255) DEFAULT 'order',
+  discount_value VARCHAR(100) DEFAULT NULL,
+  discount_config JSONB DEFAULT '{}',
   guidance_message VARCHAR(500) DEFAULT NULL
 );
 
 -- Seed pre-built templates
 TRUNCATE TABLE rule_templates RESTART IDENTITY CASCADE;
-INSERT INTO rule_templates (title, category, description, conditions, error_message, error_target, rule_type, delivery_action, guidance_message)
+INSERT INTO rule_templates (title, category, description, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, guidance_message)
 VALUES
 ('Block PO Box Addresses', 'Address', 'Prevents shipping to PO Box addresses by checking the address lines for PO Box indicators, ensuring orders are sent to physical locations suitable for standard carrier deliveries.', 
   '[{"type": "shipping_address_pobox", "operator": "is_pobox", "value": ""}]', 
@@ -252,7 +264,25 @@ VALUES
  '[]', 'Please indicate whether item substitutions are permitted.', 'purchase.checkout.block.render', 'checkbox', NULL, 'I allow equal-value item substitutions if an ordered product is out of stock.'),
 
 ('Customer Assembly Required Disclaimer', 'Checkbox', 'Ensures customers understand that furniture or equipment items arrive flat-packed and require self-assembly.',
- '[]', 'Please confirm you understand assembly is required.', 'purchase.checkout.block.render', 'checkbox', NULL, 'I acknowledge that products in this order require customer assembly.'),
+ '[]', 'Please confirm you understand assembly is required.', 'purchase.checkout.block.render', 'checkbox', NULL, NULL, 'order', NULL, '{}', 'I acknowledge that products in this order require customer assembly.'),
 
 ('Minimal Eco-Friendly Packaging Consent', 'Checkbox', 'Consents to consolidated shipping and minimal recyclable packaging to reduce environmental waste.',
- '[]', 'Please indicate your packaging preference.', 'purchase.checkout.block.render', 'checkbox', NULL, 'I opt in to minimal eco-friendly recyclable packaging for my shipment.');
+ '[]', 'Please indicate your packaging preference.', 'purchase.checkout.block.render', 'checkbox', NULL, NULL, 'order', NULL, '{}', 'I opt in to minimal eco-friendly recyclable packaging for my shipment.'),
+
+('Tiered Spend Savings ($100 -> 10% Off, $200 -> 20% Off)', 'Discounts', 'Applies progressive discount percentages based on customer cart subtotal spend thresholds.',
+ '[]', 'Tiered Spend Discount Applied', '$.cart', 'discount', NULL, 'tiered', 'order', NULL, '{"tiered_brackets": [{"spend_threshold": "100", "discount_percent": "10"}, {"spend_threshold": "200", "discount_percent": "20"}]}', NULL),
+
+('Bulk Volume Discount (Buy 3+ Get 15% Off)', 'Discounts', 'Rewards customers buying multiple units by applying a 15% volume discount when cart item count reaches 3 or more.',
+ '[]', 'Volume Savings Applied', '$.cart', 'discount', NULL, 'volume', 'line_items', NULL, '{"volume_brackets": [{"min_qty": "3", "max_qty": "99", "discount_percent": "15"}]}', NULL),
+
+('Buy 1 Get 1 50% Off (Custom BOGO)', 'Discounts', 'Applies a 50% discount to target items when a customer adds required trigger items to their cart.',
+ '[]', 'BOGO Special Applied', '$.cart', 'discount', NULL, 'bogo', 'line_items', NULL, '{"bogo_config": {"buy_qty": 1, "get_qty": 1, "get_discount_percent": 50}}', NULL),
+
+('VIP Customer Exclusive 15% Off', 'Discounts', 'Automatically grants a 15% discount for customers logged in with the VIP account tag.',
+ '[{"type": "customer_tags", "operator": "contains", "value": "vip"}]', 'VIP Member Discount', '$.cart', 'discount', NULL, 'customer_tag', 'order', '15', '{"required_customer_tags": ["vip"]}', NULL),
+
+('Wholesale Volume Tiered Savings', 'Discounts', 'Applies 20% discount on wholesale orders exceeding 10 total items.',
+ '[{"type": "customer_tags", "operator": "contains", "value": "wholesale"}]', 'Wholesale Order Discount', '$.cart', 'discount', NULL, 'volume', 'order', NULL, '{"required_customer_tags": ["wholesale"], "volume_brackets": [{"min_qty": "10", "max_qty": "999", "discount_percent": "20"}]}', NULL),
+
+('High Cart Capped Discount (10% Off up to $30)', 'Discounts', 'Gives 10% off cart subtotal over $75 with a maximum savings limit cap of $30.',
+ '[]', 'Special Order Discount', '$.cart', 'discount', NULL, 'tiered', 'order', NULL, '{"tiered_brackets": [{"spend_threshold": "75", "discount_percent": "10"}], "max_discount_cap": "30.00"}', NULL);

@@ -477,6 +477,85 @@ const PREBUILT_TEMPLATES = [
     error_target: "purchase.checkout.block.render",
     guidance_message: "I opt in to minimal eco-friendly recyclable packaging for my shipment.",
     rule_type: "checkbox"
+  },
+  {
+    id: 46,
+    title: "Tiered Spend Savings ($100 -> 10% Off, $200 -> 20% Off)",
+    category: "Discounts",
+    description: "Applies progressive discount percentages based on customer cart subtotal spend thresholds.",
+    conditions: [],
+    error_message: "Tiered Spend Discount Applied",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "tiered",
+    discount_target: "order",
+    discount_config: { tiered_brackets: [{ spend_threshold: "100", discount_percent: "10" }, { spend_threshold: "200", discount_percent: "20" }] }
+  },
+  {
+    id: 47,
+    title: "Bulk Volume Discount (Buy 3+ Get 15% Off)",
+    category: "Discounts",
+    description: "Rewards customers buying multiple units by applying a 15% volume discount when cart item count reaches 3 or more.",
+    conditions: [],
+    error_message: "Volume Savings Applied",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "volume",
+    discount_target: "line_items",
+    discount_config: { volume_brackets: [{ min_qty: "3", max_qty: "99", discount_percent: "15" }] }
+  },
+  {
+    id: 48,
+    title: "Buy 1 Get 1 50% Off (Custom BOGO)",
+    category: "Discounts",
+    description: "Applies a 50% discount to target items when a customer adds required trigger items to their cart.",
+    conditions: [],
+    error_message: "BOGO Special Applied",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "bogo",
+    discount_target: "line_items",
+    discount_config: { bogo_config: { buy_qty: 1, get_qty: 1, get_discount_percent: 50 } }
+  },
+  {
+    id: 49,
+    title: "VIP Customer Exclusive 15% Off",
+    category: "Discounts",
+    description: "Automatically grants a 15% discount for customers logged in with the VIP account tag.",
+    conditions: [{ type: "customer_tags", operator: "contains", value: "vip" }],
+    error_message: "VIP Member Discount",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "customer_tag",
+    discount_target: "order",
+    discount_value: "15",
+    discount_config: { required_customer_tags: ["vip"] }
+  },
+  {
+    id: 50,
+    title: "Wholesale Volume Tiered Savings",
+    category: "Discounts",
+    description: "Applies 20% discount on wholesale orders exceeding 10 total items.",
+    conditions: [{ type: "customer_tags", operator: "contains", value: "wholesale" }],
+    error_message: "Wholesale Order Discount",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "volume",
+    discount_target: "order",
+    discount_config: { required_customer_tags: ["wholesale"], volume_brackets: [{ min_qty: "10", max_qty: "999", discount_percent: "20" }] }
+  },
+  {
+    id: 51,
+    title: "High Cart Capped Discount (10% Off up to $30)",
+    category: "Discounts",
+    description: "Gives 10% off cart subtotal over $75 with a maximum savings limit cap of $30.",
+    conditions: [],
+    error_message: "Special Order Discount",
+    error_target: "$.cart",
+    rule_type: "discount",
+    discount_type: "tiered",
+    discount_target: "order",
+    discount_config: { tiered_brackets: [{ spend_threshold: "75", discount_percent: "10" }], max_discount_cap: "30.00" }
   }
 ];
 

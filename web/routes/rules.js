@@ -559,6 +559,150 @@ async function syncPaymentRulesToShopify(session) {
   }
 }
 
+// Helper to sync active discount rules to Shopify
+async function syncDiscountRulesToShopify(session) {
+  const shop = session.shop;
+  console.log(`Syncing discount rules for ${shop} to Shopify...`);
+
+  try {
+    // 1. Fetch active discount rules
+    const result = await dbQuery(
+      `SELECT * FROM rules 
+       WHERE (shop = $1 OR target_shop = $1) 
+         AND status = 'active'
+         AND rule_type = 'discount'
+         AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
+         AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
+       ORDER BY priority DESC, id DESC`,
+      [shop]
+    );
+    const activeRules = result.rows || [];
+    const rulesJson = JSON.stringify(activeRules);
+
+    // 2. Client for GraphQL Admin API
+    const client = new shopify.api.clients.Graphql({ session });
+
+    // 3. Find if there's an existing automatic discount node
+    const findQuery = `
+      query {
+        automaticDiscountNodes(first: 10) {
+          nodes {
+            id
+            automaticDiscount {
+              ... on DiscountAutomaticApp {
+                title
+                status
+              }
+            }
+          }
+        }
+      }
+    `;
+    const findRes = await client.request(findQuery);
+    const discountNodes = findRes.data?.automaticDiscountNodes?.nodes || [];
+
+    let discountNodeId = null;
+    const targetNode = discountNodes.find(n => n.automaticDiscount?.title === "RuleForge Custom Discount Allocator");
+
+    if (targetNode) {
+      discountNodeId = targetNode.id;
+    } else if (discountNodes.length > 0) {
+      discountNodeId = discountNodes[0].id;
+    }
+
+    // 4. If no discount node exists, create one using shopifyFunctions
+    if (!discountNodeId) {
+      const appQuery = `
+        query {
+          shopifyFunctions(first: 20) {
+            nodes {
+              id
+              title
+              apiType
+            }
+          }
+        }
+      `;
+      const appRes = await client.request(appQuery);
+      const functions = appRes.data?.shopifyFunctions?.nodes || [];
+      const func = functions.find(f => f.apiType === "product_discount" || f.title.toLowerCase().includes("discount"));
+
+      if (func) {
+        const createMutation = `
+          mutation discountAutomaticAppCreate($automaticAppDiscount: DiscountAutomaticAppInput!) {
+            discountAutomaticAppCreate(automaticAppDiscount: $automaticAppDiscount) {
+              automaticAppDiscountNode {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
+        const createRes = await client.request(createMutation, {
+          variables: {
+            automaticAppDiscount: {
+              title: "RuleForge Custom Discount Allocator",
+              functionId: func.id,
+              startsAt: new Date().toISOString(),
+              combinesWith: {
+                orderDiscounts: true,
+                productDiscounts: true,
+                shippingDiscounts: true
+              }
+            }
+          }
+        });
+        discountNodeId = createRes.data?.discountAutomaticAppCreate?.automaticAppDiscountNode?.id;
+      }
+    }
+
+    if (!discountNodeId) {
+      console.warn("[Discount Sync] Could not locate or create an Automatic Discount node. Skipping Shopify metafield sync.");
+      return;
+    }
+
+    // 5. Save rules to discount node metafield
+    const setMetafieldMutation = `
+      mutation metafieldsSet($metafields: [MetafieldInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+    const setRes = await client.request(setMetafieldMutation, {
+      variables: {
+        metafields: [
+          {
+            ownerId: discountNodeId,
+            namespace: "ruleforge",
+            key: "discount_rules",
+            type: "json",
+            value: rulesJson
+          }
+        ]
+      }
+    });
+
+    const errors = setRes.data?.metafieldsSet?.userErrors || [];
+    if (errors.length > 0) {
+      console.error("[Discount Sync] Metafield set errors:", errors);
+    } else {
+      console.log("Successfully synced discount rules to Shopify metafield.");
+    }
+  } catch (error) {
+    console.warn(`[Shopify Sync] Could not sync discount rules for ${shop}:`, formatShopifyError(error));
+  }
+}
+
 
 // Helper to sync multiple shops affected by a rule change
 async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetShopAfter) {
@@ -590,6 +734,7 @@ async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetSh
         await syncRulesToShopify(session);
         await syncDeliveryRulesToShopify(session);
         await syncPaymentRulesToShopify(session);
+        await syncDiscountRulesToShopify(session);
       } else {
         console.warn(`[Sync propagation] No offline session found for shop: ${shop}`);
       }
@@ -913,7 +1058,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Fetch shop plan & active rules count
     const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
@@ -936,17 +1081,17 @@ router.post("/", async (req, res) => {
 
     // Insert rule
     const ruleRes = await dbQuery(
-      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
-      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
     const newRule = ruleRes.rows[0];
 
     // Create version 1
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
 
     // Sync product collections metafields if needed
@@ -966,7 +1111,7 @@ router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Check if exists
     const checkRes = await dbQuery("SELECT * FROM rules WHERE id = $1 AND shop = $2", [id, shop]);
@@ -1003,9 +1148,9 @@ router.put("/:id", async (req, res) => {
     // Update rule
     const ruleRes = await dbQuery(
       `UPDATE rules 
-       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, warning_banner = $13, custom_icon = $14, banner_style = $15, guidance_message = $16, display_in_checkout = $17, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $18 AND shop = $19 RETURNING *`,
-      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop]
+       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, discount_type = $13, discount_target = $14, discount_value = $15, discount_config = $16, warning_banner = $17, custom_icon = $18, banner_style = $19, guidance_message = $20, display_in_checkout = $21, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $22 AND shop = $23 RETURNING *`,
+      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop]
     );
     const updatedRule = ruleRes.rows[0];
 
@@ -1015,18 +1160,18 @@ router.put("/:id", async (req, res) => {
       // Free plan: overwrite/upsert single version record
       await dbQuery("DELETE FROM rule_versions WHERE rule_id = $1", [id]);
       await dbQuery(
-        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-        [id, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+        [id, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
       );
     } else {
       const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
       const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
 
       await dbQuery(
-        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-        [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+        [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
       );
 
       // Prune old versions based on plan limit (Basic: 3, Growth: 10)

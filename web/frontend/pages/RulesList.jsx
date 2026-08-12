@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, Box, HorizontalStack, VerticalStack, Button, Checkbox, Text, Spinner, Badge, TextField } from "@shopify/polaris";
+import { Page, Card, Box, HorizontalStack, VerticalStack, Button, Checkbox, Text, Spinner, Badge, TextField, Popover, ActionList } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { formatConditionType } from "../utils/utils";
 
@@ -15,6 +15,8 @@ export default function RulesList({ navigate }) {
   const [filterType, setFilterType] = useState("all");
   const [togglingRuleId, setTogglingRuleId] = useState(null);
   const [bulkToggling, setBulkToggling] = useState(null);
+  const [createPopoverActive, setCreatePopoverActive] = useState(false);
+  const toggleCreatePopover = () => setCreatePopoverActive((active) => !active);
 
   // Get unique stores from rules to populate store filter options
   const uniqueStores = [...new Set(rules.map(r => r.target_shop).filter(Boolean))];
@@ -162,12 +164,47 @@ export default function RulesList({ navigate }) {
       title="Validation Rules"
       subtitle="Configure rules that prevent checkout based on cart attributes."
       backAction={{ content: "Dashboard", onAction: () => navigate("/") }}
-      primaryAction={
-        <HorizontalStack gap="2">
-          <Button onClick={() => navigate("/templates")}>Pre-built Rules</Button>
-          <Button onClick={() => navigate("/rules/new?type=checkbox&fixed=true")}>＋ Create Checkbox Rule</Button>
-          <Button primary onClick={() => navigate("/rules/new")}>＋ Create Rule</Button>
-        </HorizontalStack>
+      primaryAction={{
+        content: "Pre-built Rules",
+        onAction: () => navigate("/templates")
+      }}
+      secondaryActions={
+        <Popover
+          active={createPopoverActive}
+          activator={
+            <Button onClick={toggleCreatePopover} disclosure>
+              ＋ Create Rule
+            </Button>
+          }
+          onClose={toggleCreatePopover}
+          autofocusTarget="first-node"
+        >
+          <ActionList
+            actionRole="menuitem"
+            items={[
+              {
+                content: "Checkout Validation Rule",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=validation"); }
+              },
+              {
+                content: "Checkout Checkbox Rule",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=checkbox&fixed=true"); }
+              },
+              {
+                content: "Delivery Customization",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=delivery&fixed=true"); }
+              },
+              {
+                content: "Payment Customization",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=payment&fixed=true"); }
+              },
+              {
+                content: "Discount Allocator Rule",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=discount&fixed=true"); }
+              }
+            ]}
+          />
+        </Popover>
       }
     >
       <style>{`
@@ -535,6 +572,7 @@ export default function RulesList({ navigate }) {
                 <option value="checkbox">Checkout Checkbox</option>
                 <option value="delivery">Delivery Customization</option>
                 <option value="payment">Payment Customization</option>
+                <option value="discount">Discount Allocator</option>
               </select>
             </div>
           </div>
@@ -553,23 +591,23 @@ export default function RulesList({ navigate }) {
               >
                 {bulkToggling === "active" ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div className="tiny-spinner" /> Activating...
+                    <Spinner size="small" /> Updating...
                   </span>
-                ) : "Activate All"}
+                ) : "Activate Selected"}
               </button>
               <button
-                className="bulk-btn gray"
+                className="bulk-btn yellow"
                 onClick={() => handleBulkToggle("inactive")}
                 disabled={bulkToggling === "inactive"}
                 style={{ opacity: bulkToggling === "inactive" ? 0.7 : 1 }}
               >
                 {bulkToggling === "inactive" ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <div className="tiny-spinner" /> Deactivating...
+                    <Spinner size="small" /> Updating...
                   </span>
-                ) : "Deactivate All"}
+                ) : "Deactivate Selected"}
               </button>
-              <button className="bulk-btn red" onClick={handleBulkDelete}>Delete All</button>
+              <button className="bulk-btn red" onClick={handleBulkDelete}>Delete Selected</button>
             </div>
           </div>
         )}
@@ -586,7 +624,11 @@ export default function RulesList({ navigate }) {
             <span className="rl-header-hint">Rules are evaluated top-down by priority ↓</span>
           </div>
 
-          {filteredRules.length > 0 ? (
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "60px 0" }}>
+              <Spinner size="large" />
+            </div>
+          ) : filteredRules.length > 0 ? (
             filteredRules.map((rule) => {
               const isSelected = selectedIds.includes(rule.id);
               const isActive = rule.status === "active";
@@ -654,6 +696,11 @@ export default function RulesList({ navigate }) {
                         </>
                       ) : rule.rule_type === "checkbox" ? (
                         <Badge tone="attention">Checkout Checkbox</Badge>
+                      ) : rule.rule_type === "discount" ? (
+                        <>
+                          <Badge tone="success">Discount Allocator</Badge>
+                          <Badge tone="info">{rule.discount_type ? rule.discount_type.toUpperCase() : "TIERED"}</Badge>
+                        </>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>
                       )}

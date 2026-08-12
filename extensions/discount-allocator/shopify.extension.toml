@@ -1,0 +1,17 @@
+api_version = "2026-04"
+uid = "46394816-9794-9275-2b41-b1de780d0afdfcb8ae8b"
+
+[[extensions]]
+name = "discount-allocator"
+handle = "discount-allocator"
+type = "function"
+description = "Calculates custom tier discounts, volume pricing, BOGO logic, and customer tag discounts for RuleForge"
+
+  [[extensions.targeting]]
+  target = "purchase.product-discount.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"

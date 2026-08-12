@@ -1,0 +1,4 @@
+{
+  "name": "Discount Allocator",
+  "description": "Calculates custom tier discounts, volume pricing, BOGO logic, and customer tag discounts"
+}

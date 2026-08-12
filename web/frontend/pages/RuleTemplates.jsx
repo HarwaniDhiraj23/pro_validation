@@ -82,6 +82,20 @@ export default function RuleTemplates({ navigate }) {
       <style>{`
         .filter-bar {
           margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          overflow-x: auto;
+          padding-bottom: 6px;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .filter-bar::-webkit-scrollbar {
+          display: none;
+        }
+        .filter-bar-item {
+          flex-shrink: 0;
+          white-space: nowrap;
         }
         .template-card {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -130,17 +144,17 @@ export default function RuleTemplates({ navigate }) {
 
       {/* Categories Filter Tabs */}
       <div className="filter-bar">
-        <HorizontalStack gap="2">
-          {categories.map((cat) => (
+        {categories.map((cat) => (
+          <div key={cat} className="filter-bar-item">
             <Button
-              key={cat}
               pressed={filterCategory === cat}
               onClick={() => setFilterCategory(cat)}
+              size="slim"
             >
               {cat}
             </Button>
-          ))}
-        </HorizontalStack>
+          </div>
+        ))}
       </div>
 
       {/* Grid Library */}

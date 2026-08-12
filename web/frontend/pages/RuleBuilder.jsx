@@ -313,7 +313,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [targetShop, setTargetShop] = useState(""); // "" means All Stores / Default
   const [installedShops, setInstalledShops] = useState([]);
   const [conditionsOperator, setConditionsOperator] = useState("AND");
-  const [ruleType, setRuleType] = useState("validation"); // validation or delivery
+  const [ruleType, setRuleType] = useState("validation"); // validation, delivery, payment, checkbox, discount
   const [isTypeFixed, setIsTypeFixed] = useState(false);
   const [deliveryAction, setDeliveryAction] = useState("hide"); // hide or rename
   const [errorMessage, setErrorMessage] = useState("We cannot complete your checkout with the current items or address details.");
@@ -327,6 +327,26 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [conditions, setConditions] = useState([
     { type: "minimum_order_value", operator: "less_than", value: "50" }
   ]);
+
+  // Discount Rule state
+  const [discountType, setDiscountType] = useState("tiered");
+  const [discountTarget, setDiscountTarget] = useState("order");
+  const [discountValue, setDiscountValue] = useState("");
+  const [tieredBrackets, setTieredBrackets] = useState([
+    { spend_threshold: "100", discount_percent: "10", discount_amount: "" },
+    { spend_threshold: "200", discount_percent: "20", discount_amount: "" }
+  ]);
+  const [volumeBrackets, setVolumeBrackets] = useState([
+    { min_qty: "3", max_qty: "99", discount_percent: "15", discount_amount: "" }
+  ]);
+  const [bogoConfig, setBogoConfig] = useState({
+    buy_qty: 1,
+    get_qty: 1,
+    get_discount_percent: 50,
+    buy_product_ids: [],
+    get_product_ids: []
+  });
+  const [maxDiscountCap, setMaxDiscountCap] = useState("");
 
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
@@ -397,6 +417,70 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setTargetShop(data.target_shop || "");
             setRuleType(data.rule_type || "validation");
             setDeliveryAction(data.delivery_action || "hide");
+            setDiscountType(data.discount_type || "tiered");
+            setDiscountTarget(data.discount_target || "order");
+            setDiscountValue(data.discount_value || "");
+            if (data.discount_config) {
+              if (Array.isArray(data.discount_config.tiered_brackets)) setTieredBrackets(data.discount_config.tiered_brackets);
+              if (Array.isArray(data.discount_config.volume_brackets)) setVolumeBrackets(data.discount_config.volume_brackets);
+              if (data.discount_config.bogo_config) setBogoConfig(data.discount_config.bogo_config);
+              if (data.discount_config.max_discount_cap) setMaxDiscountCap(data.discount_config.max_discount_cap);
+            }
+            setConditionsOperator(data.conditions_operator || "AND");
+            setErrorMessage(data.error_message);
+            setErrorTarget(data.error_target || "$.cart");
+            setConditions(data.conditions || []);
+            setWarningBanner(!!data.warning_banner);
+            setCustomIcon(data.custom_icon || "none");
+            setBannerStyle(data.banner_style || "warning");
+            setGuidanceMessage(data.guidance_message || "");
+            setDisplayInCheckout(data.display_in_checkout !== false);
+            const toLocalDateTimeString = (dateInput) => {
+              if (!dateInput) return "";
+              const d = new Date(dateInput);
+              if (isNaN(d.getTime())) return "";
+              const tzOffset = d.getTimezoneOffset() * 60000;
+              const localISOTime = new Date(d.getTime() - tzOffset).toISOString();
+              return localISOTime.slice(0, 16);
+            };
+
+            if (data.schedule_start) {
+              setScheduleStart(toLocalDateTimeString(data.schedule_start));
+              setEnableScheduling(true);
+            }
+            if (data.schedule_end) {
+              setScheduleEnd(toLocalDateTimeString(data.schedule_end));
+              setEnableScheduling(true);
+            }
+          }
+        })
+        .catch(err => {
+          shopify.toast.show("Error loading rule data", { isError: true });
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else if (templateId) {
+      setLoading(true);
+      fetch(`/api/templates/${templateId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            setTitle(data.title);
+            setPriority("0");
+            setStatus("active");
+            setTargetShop("");
+            setRuleType(data.rule_type || "validation");
+            setDeliveryAction(data.delivery_action || "hide");
+            setDiscountType(data.discount_type || "tiered");
+            setDiscountTarget(data.discount_target || "order");
+            setDiscountValue(data.discount_value || "");
+            if (data.discount_config) {
+              if (Array.isArray(data.discount_config.tiered_brackets)) setTieredBrackets(data.discount_config.tiered_brackets);
+              if (Array.isArray(data.discount_config.volume_brackets)) setVolumeBrackets(data.discount_config.volume_brackets);
+              if (data.discount_config.bogo_config) setBogoConfig(data.discount_config.bogo_config);
+              if (data.discount_config.max_discount_cap) setMaxDiscountCap(data.discount_config.max_discount_cap);
+            }
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
@@ -479,6 +563,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
         } else if (typeParam === "payment") {
           setErrorTarget("Cash on Delivery (COD)");
           setErrorMessage("");
+        } else if (typeParam === "discount") {
+          setErrorTarget("$.cart");
+          setErrorMessage("");
+          setConditions([]);
         }
       }
     }
@@ -640,44 +728,46 @@ export default function RuleBuilder({ ruleId, navigate }) {
         shopify.toast.show("Renamed title is required for rename action", { isError: true });
         return;
       }
-    } else if (ruleType !== "checkbox") {
+    } else if (ruleType !== "checkbox" && ruleType !== "discount") {
       if (!errorMessage.trim()) {
         shopify.toast.show("Error message is required", { isError: true });
         return;
       }
     }
-    if (ruleType !== "checkbox" && conditions.length === 0) {
+    if (ruleType !== "checkbox" && ruleType !== "discount" && conditions.length === 0) {
       shopify.toast.show("At least one condition must be specified", { isError: true });
       return;
     }
 
     // Validate conditions
-    for (let i = 0; i < conditions.length; i++) {
-      const cond = conditions[i];
-      if (cond.type !== "shipping_address_pobox" &&
-        cond.type !== "login_required" &&
-        cond.type !== "b2b_only" &&
-        cond.type !== "guest_checkout_restriction" &&
-        cond.type !== "has_hazardous_item" &&
-        cond.type !== "has_subscription") {
+    if (ruleType !== "discount") {
+      for (let i = 0; i < conditions.length; i++) {
+        const cond = conditions[i];
+        if (cond.type !== "shipping_address_pobox" &&
+          cond.type !== "login_required" &&
+          cond.type !== "b2b_only" &&
+          cond.type !== "guest_checkout_restriction" &&
+          cond.type !== "has_hazardous_item" &&
+          cond.type !== "has_subscription") {
 
-        if (!cond.value || !cond.value.trim()) {
-          shopify.toast.show(`Condition #${i + 1} value is required`, { isError: true });
-          return;
-        }
-
-        // Numeric validation checks
-        if (cond.type === "minimum_order_value" || cond.type === "maximum_order_value" || cond.type === "weight_limit") {
-          if (isNaN(Number(cond.value))) {
-            shopify.toast.show(`Condition #${i + 1} value must be a valid number`, { isError: true });
+          if (!cond.value || !cond.value.trim()) {
+            shopify.toast.show(`Condition #${i + 1} value is required`, { isError: true });
             return;
           }
-        }
-        if (cond.type === "quantity_limit" || cond.type === "sku_limit" || cond.type === "customer_age") {
-          const num = Number(cond.value);
-          if (isNaN(num) || !Number.isInteger(num)) {
-            shopify.toast.show(`Condition #${i + 1} value must be a valid whole number`, { isError: true });
-            return;
+
+          // Numeric validation checks
+          if (cond.type === "minimum_order_value" || cond.type === "maximum_order_value" || cond.type === "weight_limit") {
+            if (isNaN(Number(cond.value))) {
+              shopify.toast.show(`Condition #${i + 1} value must be a valid number`, { isError: true });
+              return;
+            }
+          }
+          if (cond.type === "quantity_limit" || cond.type === "sku_limit" || cond.type === "customer_age") {
+            const num = Number(cond.value);
+            if (isNaN(num) || !Number.isInteger(num)) {
+              shopify.toast.show(`Condition #${i + 1} value must be a valid whole number`, { isError: true });
+              return;
+            }
           }
         }
       }
@@ -718,6 +808,15 @@ export default function RuleBuilder({ ruleId, navigate }) {
       error_target: errorTarget,
       rule_type: ruleType,
       delivery_action: (ruleType === "delivery" || ruleType === "payment") ? deliveryAction : null,
+      discount_type: ruleType === "discount" ? discountType : null,
+      discount_target: ruleType === "discount" ? discountTarget : "order",
+      discount_value: ruleType === "discount" ? discountValue : null,
+      discount_config: ruleType === "discount" ? {
+        tiered_brackets: tieredBrackets,
+        volume_brackets: volumeBrackets,
+        bogo_config: bogoConfig,
+        max_discount_cap: maxDiscountCap
+      } : {},
       schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
       schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null,
       warning_banner: false,
@@ -782,6 +881,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
       label: !isGrowthOrPro ? "Checkout Checkbox 🔒 (Requires Growth Plan)" : "Checkout Checkbox",
       value: "checkbox",
       disabled: !isGrowthOrPro
+    },
+    {
+      label: !isGrowthOrPro ? "Discount Allocator 🔒 (Requires Growth Plan)" : "Discount Allocator",
+      value: "discount",
+      disabled: !isGrowthOrPro
     }
   ];
 
@@ -808,8 +912,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
   return (
     <Page
       title={ruleId && ruleId !== "new"
-        ? (ruleType === "delivery" ? "Edit Delivery Customization" : ruleType === "payment" ? "Edit Payment Customization" : "Edit Validation Rule")
-        : (ruleType === "delivery" ? "Create Delivery Customization" : ruleType === "payment" ? "Create Payment Customization" : "Create Validation Rule")
+        ? (ruleType === "delivery" ? "Edit Delivery Customization" : ruleType === "payment" ? "Edit Payment Customization" : ruleType === "discount" ? "Edit Discount Allocator Rule" : "Edit Validation Rule")
+        : (ruleType === "delivery" ? "Create Delivery Customization" : ruleType === "payment" ? "Create Payment Customization" : ruleType === "discount" ? "Create Discount Allocator Rule" : "Create Validation Rule")
       }
       backAction={{ content: "Rules", onAction: () => navigate("/rules") }}
       primaryAction={{
@@ -911,6 +1015,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setErrorMessage("Please accept the checkbox to complete checkout.");
                         setGuidanceMessage("I agree to the Terms & Conditions.");
                         setConditions([]); // Default to no conditions so it always shows
+                      } else if (val === "discount") {
+                        setErrorTarget("$.cart");
+                        setErrorMessage("");
+                        setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
                         setErrorMessage("We cannot complete your checkout with the current items or address details.");
@@ -1015,13 +1123,208 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       </div>
                     )}
                   </div>
-                  )}
+                )}
                 </FormLayout>
               </Box>
             </Card>
 
+            {/* Discount Allocator Rules Card */}
+            {ruleType === "discount" && (
+              <Card title="Discount Allocator Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Discount Rule Strategy"
+                      options={[
+                        { label: "Tiered Spend Savings (Spend $X get Y% Off)", value: "tiered" },
+                        { label: "Bulk Volume Pricing (Buy X items get Y% Off)", value: "volume" },
+                        { label: "Custom Buy 1 Get 1 (BOGO Logic)", value: "bogo" },
+                        { label: "Customer Tag Exclusive Discount (VIP/Wholesale)", value: "customer_tag" },
+                        { label: "Order Percentage Discount", value: "percentage" },
+                        { label: "Order Fixed Amount Discount", value: "fixed_amount" }
+                      ]}
+                      value={discountType}
+                      onChange={setDiscountType}
+                    />
+
+                    <Select
+                      label="Apply Discount To"
+                      options={[
+                        { label: "Entire Order Subtotal", value: "order" },
+                        { label: "Individual Line Items", value: "line_items" }
+                      ]}
+                      value={discountTarget}
+                      onChange={setDiscountTarget}
+                    />
+
+                    {discountType === "tiered" && (
+                      <Box padding="4" background="bg-subdued" borderRadius="200">
+                        <Text variant="headingSm">Spend Tiers Configuration</Text>
+                        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                          {tieredBrackets.map((bracket, bIdx) => (
+                            <HorizontalStack key={bIdx} gap="3" align="space-between" blockAlign="center">
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Spend Threshold ($)"
+                                  type="number"
+                                  value={bracket.spend_threshold}
+                                  onChange={(val) => {
+                                    const newBrackets = [...tieredBrackets];
+                                    newBrackets[bIdx].spend_threshold = val;
+                                    setTieredBrackets(newBrackets);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Discount Percentage (%)"
+                                  type="number"
+                                  value={bracket.discount_percent}
+                                  onChange={(val) => {
+                                    const newBrackets = [...tieredBrackets];
+                                    newBrackets[bIdx].discount_percent = val;
+                                    setTieredBrackets(newBrackets);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ paddingTop: "20px" }}>
+                                <Button tone="critical" size="slim" onClick={() => {
+                                  setTieredBrackets(tieredBrackets.filter((_, i) => i !== bIdx));
+                                }}>Remove Tier</Button>
+                              </div>
+                            </HorizontalStack>
+                          ))}
+                          <div style={{ marginTop: "6px" }}>
+                            <Button onClick={() => setTieredBrackets([...tieredBrackets, { spend_threshold: "300", discount_percent: "30" }])}>+ Add Tier Bracket</Button>
+                          </div>
+                        </div>
+                      </Box>
+                    )}
+
+                    {discountType === "volume" && (
+                      <Box padding="4" background="bg-subdued" borderRadius="200">
+                        <Text variant="headingSm">Volume Quantity Tiers Configuration</Text>
+                        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                          {volumeBrackets.map((vBracket, vIdx) => (
+                            <HorizontalStack key={vIdx} gap="3" align="space-between" blockAlign="center">
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Min Quantity"
+                                  type="number"
+                                  value={vBracket.min_qty}
+                                  onChange={(val) => {
+                                    const newV = [...volumeBrackets];
+                                    newV[vIdx].min_qty = val;
+                                    setVolumeBrackets(newV);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Max Quantity"
+                                  type="number"
+                                  value={vBracket.max_qty}
+                                  onChange={(val) => {
+                                    const newV = [...volumeBrackets];
+                                    newV[vIdx].max_qty = val;
+                                    setVolumeBrackets(newV);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="Discount %"
+                                  type="number"
+                                  value={vBracket.discount_percent}
+                                  onChange={(val) => {
+                                    const newV = [...volumeBrackets];
+                                    newV[vIdx].discount_percent = val;
+                                    setVolumeBrackets(newV);
+                                  }}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <div style={{ paddingTop: "20px" }}>
+                                <Button tone="critical" size="slim" onClick={() => {
+                                  setVolumeBrackets(volumeBrackets.filter((_, i) => i !== vIdx));
+                                }}>Remove Tier</Button>
+                              </div>
+                            </HorizontalStack>
+                          ))}
+                          <div style={{ marginTop: "6px" }}>
+                            <Button onClick={() => setVolumeBrackets([...volumeBrackets, { min_qty: "5", max_qty: "10", discount_percent: "20" }])}>+ Add Volume Bracket</Button>
+                          </div>
+                        </div>
+                      </Box>
+                    )}
+
+                    {discountType === "bogo" && (
+                      <Box padding="4" background="bg-subdued" borderRadius="200">
+                        <Text variant="headingSm">BOGO Logic Settings</Text>
+                        <HorizontalStack gap="3" style={{ marginTop: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Buy Quantity"
+                              type="number"
+                              value={String(bogoConfig.buy_qty || 1)}
+                              onChange={(val) => setBogoConfig({ ...bogoConfig, buy_qty: parseInt(val) || 1 })}
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Get Quantity"
+                              type="number"
+                              value={String(bogoConfig.get_qty || 1)}
+                              onChange={(val) => setBogoConfig({ ...bogoConfig, get_qty: parseInt(val) || 1 })}
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Get Item Discount %"
+                              type="number"
+                              value={String(bogoConfig.get_discount_percent || 50)}
+                              onChange={(val) => setBogoConfig({ ...bogoConfig, get_discount_percent: parseFloat(val) || 50 })}
+                              helpText="100% for Buy 1 Get 1 Free"
+                              autoComplete="off"
+                            />
+                          </div>
+                        </HorizontalStack>
+                      </Box>
+                    )}
+
+                    {(discountType === "customer_tag" || discountType === "percentage" || discountType === "fixed_amount") && (
+                      <TextField
+                        label={discountType === "fixed_amount" ? "Fixed Discount Amount ($)" : "Discount Percentage (%)"}
+                        type="number"
+                        value={discountValue}
+                        onChange={setDiscountValue}
+                        placeholder={discountType === "fixed_amount" ? "15.00" : "15"}
+                        autoComplete="off"
+                      />
+                    )}
+
+                    <TextField
+                      label="Maximum Discount Cap ($ - Optional)"
+                      type="number"
+                      value={maxDiscountCap}
+                      onChange={setMaxDiscountCap}
+                      placeholder="e.g. 50.00"
+                      helpText="Limits maximum savings generated by this discount rule."
+                      autoComplete="off"
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            )}
+
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -1293,7 +1596,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
-            ) : (
+            ) : ruleType === "discount" ? null : (
               <Card>
                 <Box padding="5">
                   <VerticalStack gap="4">
