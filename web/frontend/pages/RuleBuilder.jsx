@@ -333,30 +333,46 @@ export default function RuleBuilder({ ruleId, navigate }) {
   };
 
   const handleOpenVariantPicker = async (targetKey, isMulti = true, currentGidsString = "") => {
-    try {
-      const selected = await shopify.resourcePicker({
-        type: "product",
-        multiple: isMulti,
-      });
-      if (selected && selected.selection) {
-        const selectedGids = [];
-        selected.selection.forEach(prod => {
-          if (prod.variants && prod.variants.length > 0) {
-            prod.variants.forEach(v => {
-              if (v.id) selectedGids.push(v.id);
-            });
-          } else if (prod.id) {
-            selectedGids.push(prod.id);
-          }
+    if (typeof shopify !== "undefined" && shopify.resourcePicker) {
+      try {
+        const selected = await shopify.resourcePicker({
+          type: "product",
+          multiple: isMulti,
         });
+        if (selected && selected.selection) {
+          const selectedGids = [];
+          let extractedImgUrl = "";
+          selected.selection.forEach(prod => {
+            if (prod.images && prod.images.length > 0) {
+              extractedImgUrl = prod.images[0].originalSrc || prod.images[0].src || prod.images[0].url || "";
+            } else if (prod.featuredImage) {
+              extractedImgUrl = prod.featuredImage.originalSrc || prod.featuredImage.url || prod.featuredImage.src || "";
+            }
 
-        if (selectedGids.length > 0) {
-          applySelectedGidsToTarget(targetKey, isMulti ? selectedGids.join(", ") : selectedGids[0]);
-          return;
+            if (prod.variants && prod.variants.length > 0) {
+              prod.variants.forEach(v => {
+                if (v.id) selectedGids.push(v.id);
+                if (!extractedImgUrl && v.image) {
+                  extractedImgUrl = v.image.originalSrc || v.image.src || v.image.url || "";
+                }
+              });
+            } else if (prod.id) {
+              selectedGids.push(prod.id);
+            }
+          });
+
+          if (selectedGids.length > 0) {
+            applySelectedGidsToTarget(targetKey, isMulti ? selectedGids.join(", ") : selectedGids[0]);
+            if (targetKey === "upsell_variant" && extractedImgUrl && !upsellImageUrl) {
+              setUpsellImageUrl(extractedImgUrl);
+            }
+          }
         }
+        // App Bridge resource picker completed or cancelled - return immediately
+        return;
+      } catch (e) {
+        console.log("App Bridge resource picker fallback to custom modal:", e);
       }
-    } catch (e) {
-      console.log("App Bridge resource picker fallback to custom modal:", e);
     }
 
     await fetchStoreVariants();
@@ -364,6 +380,47 @@ export default function RuleBuilder({ ruleId, navigate }) {
     setVariantModalIsMulti(isMulti);
     const initialGids = currentGidsString ? currentGidsString.split(",").map(g => g.trim()).filter(Boolean) : [];
     setSelectedVariantGids(initialGids);
+    setVariantModalOpen(true);
+  };
+
+  const handleSelectUpsellImage = async () => {
+    if (typeof shopify !== "undefined" && shopify.resourcePicker) {
+      try {
+        const selected = await shopify.resourcePicker({
+          type: "product",
+          multiple: false,
+        });
+        if (selected && selected.selection && selected.selection.length > 0) {
+          const prod = selected.selection[0];
+          let imgUrl = "";
+          if (prod.images && prod.images.length > 0) {
+            imgUrl = prod.images[0].originalSrc || prod.images[0].src || prod.images[0].url || "";
+          } else if (prod.featuredImage) {
+            imgUrl = prod.featuredImage.originalSrc || prod.featuredImage.url || prod.featuredImage.src || "";
+          } else if (prod.variants && prod.variants.length > 0 && prod.variants[0].image) {
+            imgUrl = prod.variants[0].image.originalSrc || prod.variants[0].image.src || prod.variants[0].image.url || "";
+          }
+
+          if (imgUrl) {
+            setUpsellImageUrl(imgUrl);
+            shopify.toast.show("Product thumbnail image selected!");
+          } else {
+            shopify.toast.show("No image found on selected product.", { isError: true });
+          }
+
+          if (!variantGid && prod.variants && prod.variants.length > 0 && prod.variants[0].id) {
+            setVariantGid(prod.variants[0].id);
+          }
+        }
+        return;
+      } catch (e) {
+        console.log("Resource picker image selection error:", e);
+      }
+    }
+
+    await fetchStoreVariants();
+    setVariantModalTarget("upsell_image");
+    setVariantModalIsMulti(false);
     setVariantModalOpen(true);
   };
 
@@ -383,6 +440,16 @@ export default function RuleBuilder({ ruleId, navigate }) {
       setTransformComponentVariantIds(gidValue);
     } else if (targetKey === "bundle_parent") {
       setTransformParentVariantId(gidValue);
+    } else if (targetKey === "upsell_variant") {
+      setVariantGid(gidValue);
+    } else if (targetKey === "upsell_image") {
+      const matched = storeVariants.find(v => v.id === gidValue);
+      if (matched && matched.image_url) {
+        setUpsellImageUrl(matched.image_url);
+      }
+      if (!variantGid) {
+        setVariantGid(gidValue);
+      }
     }
   };
 
@@ -502,6 +569,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [validationPattern, setValidationPattern] = useState("");
   const [selectOptionsRaw, setSelectOptionsRaw] = useState("Option 1, Option 2, Option 3");
 
+  // Upsell & Cross-sell state
+  const [variantGid, setVariantGid] = useState("");
+  const [upsellPrice, setUpsellPrice] = useState("$4.99");
+  const [upsellImageUrl, setUpsellImageUrl] = useState("");
+
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
   const [browseIdx, setBrowseIdx] = useState(null);
@@ -604,6 +676,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setIsRequired(!!data.is_required);
             setMaxLength(data.max_length || "");
             setSelectOptionsRaw(Array.isArray(data.select_options) ? data.select_options.join(", ") : "Option 1, Option 2, Option 3");
+            setVariantGid(data.variant_gid || data.discount_value || "");
+            setUpsellImageUrl(data.image_url || "");
             const toLocalDateTimeString = (dateInput) => {
               if (!dateInput) return "";
               const d = new Date(dateInput);
@@ -668,6 +742,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setIsRequired(!!data.is_required);
             setMaxLength(data.max_length || "");
             setSelectOptionsRaw(Array.isArray(data.select_options) ? data.select_options.join(", ") : "Option 1, Option 2, Option 3");
+            setVariantGid(data.variant_gid || data.discount_value || "");
+            setUpsellImageUrl(data.image_url || "");
             const toLocalDateTimeString = (dateInput) => {
               if (!dateInput) return "";
               const d = new Date(dateInput);
@@ -1018,7 +1094,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
       field_type: ruleType === "custom_input" ? fieldType : null,
       is_required: ruleType === "custom_input" ? isRequired : false,
       max_length: ruleType === "custom_input" ? maxLength : null,
-      select_options: ruleType === "custom_input" && fieldType === "select" ? selectOptionsRaw.split(",").map(s => s.trim()).filter(Boolean) : null
+      select_options: ruleType === "custom_input" && fieldType === "select" ? selectOptionsRaw.split(",").map(s => s.trim()).filter(Boolean) : null,
+      variant_gid: ruleType === "upsell" ? variantGid : null,
+      image_url: ruleType === "upsell" ? upsellImageUrl : null
     };
 
     try {
@@ -1069,7 +1147,9 @@ export default function RuleBuilder({ ruleId, navigate }) {
     { label: "Cart Transform & Native Bundling", value: "cart_transform" },
     { label: "Fulfillment Constraints & Order Routing", value: "fulfillment" },
     { label: "Custom Banner & Announcement", value: "banner" },
-    { label: "Custom Input Fields", value: "custom_input" }
+    { label: "Custom Input Fields", value: "custom_input" },
+    { label: "In-Checkout Upsell & Cross-sell", value: "upsell" },
+    { label: "Conditional Interactivity & Modals", value: "interactive_modal" }
   ];
 
   const restrictedConditionTypes = planConfig?.restrictedConditionTypes || [
@@ -1217,6 +1297,21 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setIsRequired(false);
                         setErrorMessage("Enter your gift note or card message.");
                         setGuidanceMessage("Will be printed on card and included with your order.");
+                        setConditions([]);
+                      } else if (val === "upsell") {
+                        setErrorTarget("purchase.checkout.reductions.render-before");
+                        setTitle("Shipping Protection & Warranty");
+                        setErrorMessage("$4.99");
+                        setGuidanceMessage("Covers lost, damaged, or stolen packages.");
+                        setCustomIcon("shield");
+                        setConditions([]);
+                      } else if (val === "interactive_modal") {
+                        setErrorTarget("purchase.checkout.actions.render-before");
+                        setTitle("Age Verification Required (21+)");
+                        setFieldType("age_gate");
+                        setIsRequired(true);
+                        setErrorMessage("Age Verification Required");
+                        setGuidanceMessage("You must verify your date of birth (21+) to purchase regulated items in your cart.");
                         setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
@@ -1751,7 +1846,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && ruleType !== "upsell" && ruleType !== "interactive_modal" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2323,6 +2418,129 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
+            ) : ruleType === "upsell" ? (
+              <Card title="In-Checkout Upsell & Cross-sell Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Offer Title / Heading *"
+                          placeholder="e.g. Add Extended 2-Year Protection"
+                          value={title}
+                          onChange={setTitle}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Display Price Callout *"
+                          placeholder="e.g. $4.99 or FREE"
+                          value={errorMessage}
+                          onChange={setErrorMessage}
+                          helpText="Price tag displayed on the offer banner."
+                          autoComplete="off"
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    <TextField
+                      label="Product Variant GID *"
+                      placeholder="gid://shopify/ProductVariant/123456789"
+                      value={variantGid}
+                      onChange={setVariantGid}
+                      helpText="The Shopify Variant GID added to cart when buyer clicks the offer."
+                      autoComplete="off"
+                      connectedRight={
+                        <Button onClick={() => handleOpenVariantPicker("upsell_variant", false, variantGid)}>
+                          🛍️ Browse Variant
+                        </Button>
+                      }
+                    />
+
+                    <TextField
+                      label="Offer Description / Subtext *"
+                      placeholder="e.g. Covers accidental drops, spills, and hardware failures for 24 months."
+                      value={guidanceMessage}
+                      onChange={setGuidanceMessage}
+                      autoComplete="off"
+                    />
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Order Summary - Below Discount Code", value: "purchase.checkout.reductions.render-after" },
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Payment Methods (Before)", value: "purchase.checkout.payment-method-list.render-before" },
+                        { label: "Checkout Footer (After)", value: "purchase.checkout.footer.render-after" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : ruleType === "interactive_modal" ? (
+              <Card title="Conditional Interactivity & Modal Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Modal Title / Heading *"
+                          placeholder="e.g. Age Verification Required (21+)"
+                          value={title}
+                          onChange={setTitle}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Verification Type *"
+                          options={[
+                            { label: "Age Verification Gate & DOB Check", value: "age_gate" },
+                            { label: "Terms & Conditions Legal Waiver", value: "terms_ack" },
+                            { label: "Address & PO Box Confirmation Modal", value: "address_confirm" }
+                          ]}
+                          value={fieldType}
+                          onChange={setFieldType}
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    <TextField
+                      label="Modal Body Text & Instructions *"
+                      placeholder="Enter the full policy, age restriction message, or agreement waiver text displayed inside the modal dialog..."
+                      value={guidanceMessage}
+                      onChange={setGuidanceMessage}
+                      multiline={3}
+                      autoComplete="off"
+                    />
+
+                    <Checkbox
+                      label="Block Checkout Submit Until Verified (Required)"
+                      checked={isRequired}
+                      onChange={setIsRequired}
+                      helpText="When enabled, buyers cannot complete their order until they acknowledge/verify the modal."
+                    />
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Actions / Submit Button (Before)", value: "purchase.checkout.actions.render-before" },
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Contact Information (After)", value: "purchase.checkout.contact.render-after" },
+                        { label: "Delivery Address (After)", value: "purchase.checkout.delivery-address.render-after" },
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
             ) : (ruleType === "discount" || ruleType === "cart_transform") ? null : (
               <Card>
                 <Box padding="5">
@@ -2475,7 +2693,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                     color: "#38bdf8",
                                     border: "1px solid #374151"
                                   }}>
-                                    {ruleType === "banner" ? "Custom Banner" : ruleType === "custom_input" ? "Custom Input Field" : "Checkout UI Extension"}
+                                    {ruleType === "banner" ? "Custom Banner" : ruleType === "custom_input" ? "Custom Input Field" : ruleType === "interactive_modal" ? "Interactive Modal" : "Checkout UI Extension"}
                                   </span>
                                 </div>
 

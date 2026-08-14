@@ -217,6 +217,14 @@ export default function RulesList({ navigate }) {
               {
                 content: "Custom Input Field",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=custom_input&fixed=true"); }
+              },
+              {
+                content: "In-Checkout Upsell & Cross-sell",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=upsell&fixed=true"); }
+              },
+              {
+                content: "Conditional Interactivity & Modals",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=interactive_modal&fixed=true"); }
               }
             ]}
           />
@@ -732,6 +740,10 @@ export default function RulesList({ navigate }) {
                         <Badge tone="info">Custom Banner</Badge>
                       ) : rule.rule_type === "custom_input" ? (
                         <Badge tone="attention">Custom Input</Badge>
+                      ) : rule.rule_type === "upsell" ? (
+                        <Badge tone="magic">Upsell / Cross-sell</Badge>
+                      ) : rule.rule_type === "interactive_modal" ? (
+                        <Badge tone="attention">Interactive Modal</Badge>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>
                       )}

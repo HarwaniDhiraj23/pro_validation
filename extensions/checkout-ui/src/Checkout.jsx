@@ -2,6 +2,8 @@ import '@shopify/ui-extensions/preact';
 import { render } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { CustomInputField } from "./components/CustomInputField.jsx";
+import { CheckoutUpsell } from "./components/CheckoutUpsell.jsx";
+import { InteractiveModal } from "./components/InteractiveModal.jsx";
 import { BannerNotice } from "./components/BannerNotice.jsx";
 
 // 1. Export the extension
@@ -74,6 +76,26 @@ function Extension() {
       rule.status === "active" &&
       rule.display_in_checkout !== false &&
       rule.rule_type === "custom_input" &&
+      (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Filter upsell & cross-sell rules matching this target
+  const matchingUpsellRules = activeRules.filter(
+    (rule) =>
+      rule.status === "active" &&
+      rule.display_in_checkout !== false &&
+      rule.rule_type === "upsell" &&
+      (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Filter interactive modal rules matching this target
+  const matchingInteractiveModalRules = activeRules.filter(
+    (rule) =>
+      rule.status === "active" &&
+      rule.display_in_checkout !== false &&
+      rule.rule_type === "interactive_modal" &&
       (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
       (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
   );
@@ -301,6 +323,14 @@ function Extension() {
     );
   });
 
+  const renderedUpsells = matchingUpsellRules.map((rule) => (
+    <CheckoutUpsell key={rule.id} rule={rule} cartState={cartState} />
+  ));
+
+  const renderedModals = matchingInteractiveModalRules.map((rule) => (
+    <InteractiveModal key={rule.id} rule={rule} cartState={cartState} showErrors={showErrors} />
+  ));
+
   const renderedCustomInputs = matchingCustomInputRules.map((rule) => (
     <CustomInputField key={rule.id} rule={rule} cartState={cartState} showErrors={showErrors} />
   ));
@@ -309,13 +339,15 @@ function Extension() {
     <BannerNotice key={rule.id} rule={rule} cartState={cartState} />
   ));
 
-  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0 && renderedCustomInputs.length === 0) {
+  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0 && renderedCustomInputs.length === 0 && renderedUpsells.length === 0 && renderedModals.length === 0) {
     return null;
   }
 
   return (
     <s-stack gap="base">
       {renderedCustomBanners}
+      {renderedModals}
+      {renderedUpsells}
       {renderedCustomInputs}
       {renderedCheckboxes}
       {renderedBanners}
