@@ -1,6 +1,7 @@
 import '@shopify/ui-extensions/preact';
 import { render } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
+import { CustomInputField } from "./components/CustomInputField.jsx";
 import { BannerNotice } from "./components/BannerNotice.jsx";
 
 // 1. Export the extension
@@ -64,6 +65,16 @@ function Extension() {
       rule.rule_type === "checkbox" &&
       rule.status === "active" &&
       rule.error_target === currentTarget &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Filter custom input rules matching this target
+  const matchingCustomInputRules = activeRules.filter(
+    (rule) =>
+      rule.status === "active" &&
+      rule.display_in_checkout !== false &&
+      rule.rule_type === "custom_input" &&
+      (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
       (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
   );
 
@@ -290,17 +301,22 @@ function Extension() {
     );
   });
 
+  const renderedCustomInputs = matchingCustomInputRules.map((rule) => (
+    <CustomInputField key={rule.id} rule={rule} cartState={cartState} showErrors={showErrors} />
+  ));
+
   const renderedCustomBanners = matchingBannerRules.map((rule) => (
     <BannerNotice key={rule.id} rule={rule} cartState={cartState} />
   ));
 
-  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0) {
+  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0 && renderedCustomInputs.length === 0) {
     return null;
   }
 
   return (
     <s-stack gap="base">
       {renderedCustomBanners}
+      {renderedCustomInputs}
       {renderedCheckboxes}
       {renderedBanners}
     </s-stack>

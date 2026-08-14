@@ -691,6 +691,79 @@ const PREBUILT_TEMPLATES = [
       promo_code: "SAVE15",
       max_cap: ""
     }
+  },
+  {
+    id: 70,
+    title: "Gift Message & Card Personalization",
+    category: "Custom Input Fields",
+    description: "Capture a custom gift note or card message from buyers directly during checkout.",
+    conditions: [],
+    error_message: "Enter your gift note or card message...",
+    guidance_message: "Printed on a physical card and included with your order.",
+    error_target: "purchase.checkout.block.render",
+    rule_type: "custom_input",
+    attribute_key: "gift_message",
+    field_type: "multiline",
+    is_required: false,
+    max_length: "200"
+  },
+  {
+    id: 71,
+    title: "Preferred Delivery Date Picker",
+    category: "Custom Input Fields",
+    description: "Allow customers to select their preferred delivery date during checkout.",
+    conditions: [],
+    error_message: "Select your preferred delivery date",
+    guidance_message: "Orders are dispatched to arrive on or before your selected date.",
+    error_target: "purchase.checkout.shipping-option-list.render-before",
+    rule_type: "custom_input",
+    attribute_key: "delivery_date",
+    field_type: "date",
+    is_required: true
+  },
+  {
+    id: 72,
+    title: "Delivery Instructions & Gate Notes",
+    category: "Custom Input Fields",
+    description: "Collect special delivery instructions, driver notes, or gate access codes.",
+    conditions: [],
+    error_message: "Gate code, leave at back door, driver notes...",
+    guidance_message: "Passes directly to the carrier driver.",
+    error_target: "purchase.checkout.delivery-address.render-after",
+    rule_type: "custom_input",
+    attribute_key: "delivery_instructions",
+    field_type: "multiline",
+    is_required: false,
+    max_length: "150"
+  },
+  {
+    id: 73,
+    title: "Tax ID & Business VAT Registration",
+    category: "Custom Input Fields",
+    description: "Require business buyers to enter their Tax ID or VAT Registration number for invoicing.",
+    conditions: [],
+    error_message: "e.g. VAT12345678",
+    guidance_message: "Required for official commercial tax invoicing.",
+    error_target: "purchase.checkout.contact.render-after",
+    rule_type: "custom_input",
+    attribute_key: "tax_id",
+    field_type: "text",
+    is_required: true
+  },
+  {
+    id: 74,
+    title: "Custom Item Engraving Text",
+    category: "Custom Input Fields",
+    description: "Capture custom text for engraved or personalized items in the order.",
+    conditions: [],
+    error_message: "e.g. A & B - 2026",
+    guidance_message: "Max 30 characters for custom engraving.",
+    error_target: "purchase.checkout.block.render",
+    rule_type: "custom_input",
+    attribute_key: "engraving_text",
+    field_type: "text",
+    is_required: false,
+    max_length: "30"
   }
 ];
 

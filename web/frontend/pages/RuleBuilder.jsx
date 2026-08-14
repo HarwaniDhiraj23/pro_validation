@@ -489,10 +489,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
   // Banner promotional offer state
   const [bannerOfferType, setBannerOfferType] = useState("promotional_offer");
   const [bannerMinAmount, setBannerMinAmount] = useState("75");
-  const [bannerDiscountVal, setBannerDiscountVal] = useState("15");
+  const [bannerDiscountValue, setBannerDiscountValue] = useState("15");
   const [bannerDiscountType, setBannerDiscountType] = useState("percentage");
   const [bannerPromoCode, setBannerPromoCode] = useState("SAVE15");
   const [bannerMaxCap, setBannerMaxCap] = useState("");
+
+  // Custom Input Fields state
+  const [attributeKey, setAttributeKey] = useState("gift_message");
+  const [fieldType, setFieldType] = useState("text");
+  const [isRequired, setIsRequired] = useState(false);
+  const [maxLength, setMaxLength] = useState("");
+  const [validationPattern, setValidationPattern] = useState("");
+  const [selectOptionsRaw, setSelectOptionsRaw] = useState("Option 1, Option 2, Option 3");
 
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
@@ -591,6 +599,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setBannerStyle(data.banner_style || "warning");
             setGuidanceMessage(data.guidance_message || "");
             setDisplayInCheckout(data.display_in_checkout !== false);
+            setAttributeKey(data.attribute_key || "gift_message");
+            setFieldType(data.field_type || "text");
+            setIsRequired(!!data.is_required);
+            setMaxLength(data.max_length || "");
+            setSelectOptionsRaw(Array.isArray(data.select_options) ? data.select_options.join(", ") : "Option 1, Option 2, Option 3");
             const toLocalDateTimeString = (dateInput) => {
               if (!dateInput) return "";
               const d = new Date(dateInput);
@@ -650,6 +663,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setBannerStyle(data.banner_style || "warning");
             setGuidanceMessage(data.guidance_message || "");
             setDisplayInCheckout(data.display_in_checkout !== false);
+            setAttributeKey(data.attribute_key || "gift_message");
+            setFieldType(data.field_type || "text");
+            setIsRequired(!!data.is_required);
+            setMaxLength(data.max_length || "");
+            setSelectOptionsRaw(Array.isArray(data.select_options) ? data.select_options.join(", ") : "Option 1, Option 2, Option 3");
             const toLocalDateTimeString = (dateInput) => {
               if (!dateInput) return "";
               const d = new Date(dateInput);
@@ -995,7 +1013,12 @@ export default function RuleBuilder({ ruleId, navigate }) {
       custom_icon: customIcon,
       banner_style: isFieldTarget ? "critical" : bannerStyle,
       guidance_message: guidanceMessage,
-      display_in_checkout: displayInCheckout
+      display_in_checkout: displayInCheckout,
+      attribute_key: ruleType === "custom_input" ? attributeKey : null,
+      field_type: ruleType === "custom_input" ? fieldType : null,
+      is_required: ruleType === "custom_input" ? isRequired : false,
+      max_length: ruleType === "custom_input" ? maxLength : null,
+      select_options: ruleType === "custom_input" && fieldType === "select" ? selectOptionsRaw.split(",").map(s => s.trim()).filter(Boolean) : null
     };
 
     try {
@@ -1045,7 +1068,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
     { label: "Discount Allocator", value: "discount" },
     { label: "Cart Transform & Native Bundling", value: "cart_transform" },
     { label: "Fulfillment Constraints & Order Routing", value: "fulfillment" },
-    { label: "Custom Banner & Announcement", value: "banner" }
+    { label: "Custom Banner & Announcement", value: "banner" },
+    { label: "Custom Input Fields", value: "custom_input" }
   ];
 
   const restrictedConditionTypes = planConfig?.restrictedConditionTypes || [
@@ -1184,6 +1208,15 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setGuidanceMessage("Applies automatically at checkout.");
                         setBannerStyle("info");
                         setCustomIcon("info");
+                        setConditions([]);
+                      } else if (val === "custom_input") {
+                        setErrorTarget("purchase.checkout.block.render");
+                        setTitle("Gift Message / Personalization");
+                        setAttributeKey("gift_message");
+                        setFieldType("text");
+                        setIsRequired(false);
+                        setErrorMessage("Enter your gift note or card message.");
+                        setGuidanceMessage("Will be printed on card and included with your order.");
                         setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
@@ -1718,7 +1751,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2179,6 +2212,117 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
+            ) : ruleType === "custom_input" ? (
+              <Card title="Custom Input Field Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Field Label / Title *"
+                          placeholder="e.g. Gift Message, Tax ID / VAT Number"
+                          value={title}
+                          onChange={setTitle}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Order Attribute Key *"
+                          placeholder="e.g. gift_message, delivery_date, tax_id"
+                          value={attributeKey}
+                          onChange={setAttributeKey}
+                          helpText="Attribute key saved to the Shopify Order."
+                          autoComplete="off"
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Input Component Type *"
+                          options={[
+                            { label: "Single Line Text", value: "text" },
+                            { label: "Multiline Textarea", value: "multiline" },
+                            { label: "Date Picker", value: "date" },
+                            { label: "Select Dropdown List", value: "select" },
+                            { label: "Checkbox", value: "checkbox" }
+                          ]}
+                          value={fieldType}
+                          onChange={setFieldType}
+                        />
+                      </div>
+                      <div style={{ flex: 1, display: "flex", alignItems: "center", paddingTop: "20px" }}>
+                        <Checkbox
+                          label="Is Field Required?"
+                          checked={isRequired}
+                          onChange={setIsRequired}
+                          helpText="Blocks checkout progress until customer fills out this field."
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    {fieldType === "select" && (
+                      <TextField
+                        label="Dropdown Options (Comma-separated) *"
+                        placeholder="Option 1, Option 2, Option 3"
+                        value={selectOptionsRaw}
+                        onChange={setSelectOptionsRaw}
+                        helpText="Enter options separated by commas."
+                        autoComplete="off"
+                      />
+                    )}
+
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Placeholder Text (Optional)"
+                          placeholder="e.g. Type your personal note here..."
+                          value={errorMessage}
+                          onChange={setErrorMessage}
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Help Subtext (Optional)"
+                          placeholder="e.g. Printed on a physical gift card."
+                          value={guidanceMessage}
+                          onChange={setGuidanceMessage}
+                          autoComplete="off"
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    {fieldType === "text" && (
+                      <TextField
+                        label="Character Limit / Max Length (Optional)"
+                        type="number"
+                        placeholder="e.g. 150"
+                        value={maxLength}
+                        onChange={setMaxLength}
+                        autoComplete="off"
+                      />
+                    )}
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Contact Information (After)", value: "purchase.checkout.contact.render-after" },
+                        { label: "Delivery Address (After)", value: "purchase.checkout.delivery-address.render-after" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Payment Methods (Before)", value: "purchase.checkout.payment-method-list.render-before" },
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Actions / Submit Button (Before)", value: "purchase.checkout.actions.render-before" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
             ) : (ruleType === "discount" || ruleType === "cart_transform") ? null : (
               <Card>
                 <Box padding="5">
@@ -2331,7 +2475,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                     color: "#38bdf8",
                                     border: "1px solid #374151"
                                   }}>
-                                    {ruleType === "banner" ? "Custom Banner" : ruleType === "compliance_notice" ? "Compliance Notice" : "Checkout UI Extension"}
+                                    {ruleType === "banner" ? "Custom Banner" : ruleType === "custom_input" ? "Custom Input Field" : "Checkout UI Extension"}
                                   </span>
                                 </div>
 

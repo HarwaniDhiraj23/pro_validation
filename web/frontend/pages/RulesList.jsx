@@ -213,6 +213,10 @@ export default function RulesList({ navigate }) {
               {
                 content: "Custom Banner & Announcement",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=banner&fixed=true"); }
+              },
+              {
+                content: "Custom Input Field",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=custom_input&fixed=true"); }
               }
             ]}
           />
@@ -726,6 +730,8 @@ export default function RulesList({ navigate }) {
                         </>
                       ) : rule.rule_type === "banner" ? (
                         <Badge tone="info">Custom Banner</Badge>
+                      ) : rule.rule_type === "custom_input" ? (
+                        <Badge tone="attention">Custom Input</Badge>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>
                       )}
