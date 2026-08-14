@@ -467,6 +467,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
     buy_product_ids: [],
     get_product_ids: []
   });
+  const [maxDiscountCap, setMaxDiscountCap] = useState("");
   // Fulfillment Constraints state
   const [fulfillmentAction, setFulfillmentAction] = useState("require_location");
   const [fulfillmentLocationIds, setFulfillmentLocationIds] = useState("gid://shopify/Location/main-warehouse");
@@ -484,6 +485,14 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [transformComponentVariantIds, setTransformComponentVariantIds] = useState("");
   const [transformBundlePrice, setTransformBundlePrice] = useState("");
   const [transformBundleTitle, setTransformBundleTitle] = useState("");
+
+  // Banner promotional offer state
+  const [bannerOfferType, setBannerOfferType] = useState("promotional_offer");
+  const [bannerMinAmount, setBannerMinAmount] = useState("75");
+  const [bannerDiscountVal, setBannerDiscountVal] = useState("15");
+  const [bannerDiscountType, setBannerDiscountType] = useState("percentage");
+  const [bannerPromoCode, setBannerPromoCode] = useState("SAVE15");
+  const [bannerMaxCap, setBannerMaxCap] = useState("");
 
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
@@ -557,11 +566,21 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setDiscountType(data.discount_type || "tiered");
             setDiscountTarget(data.discount_target || "order");
             setDiscountValue(data.discount_value || "");
-            if (data.discount_config) {
-              if (Array.isArray(data.discount_config.tiered_brackets)) setTieredBrackets(data.discount_config.tiered_brackets);
-              if (Array.isArray(data.discount_config.volume_brackets)) setVolumeBrackets(data.discount_config.volume_brackets);
-              if (data.discount_config.bogo_config) setBogoConfig(data.discount_config.bogo_config);
-              if (data.discount_config.max_discount_cap) setMaxDiscountCap(data.discount_config.max_discount_cap);
+            let discConfig = data.discount_config || {};
+            if (typeof discConfig === "string") {
+              try { discConfig = JSON.parse(discConfig); } catch(e){}
+            }
+            if (discConfig && typeof discConfig === "object") {
+              if (Array.isArray(discConfig.tiered_brackets)) setTieredBrackets(discConfig.tiered_brackets);
+              if (Array.isArray(discConfig.volume_brackets)) setVolumeBrackets(discConfig.volume_brackets);
+              if (discConfig.bogo_config) setBogoConfig(discConfig.bogo_config);
+              if (discConfig.max_discount_cap) setMaxDiscountCap(String(discConfig.max_discount_cap || ""));
+              if (discConfig.offer_type) setBannerOfferType(discConfig.offer_type);
+              if (discConfig.min_amount) setBannerMinAmount(String(discConfig.min_amount));
+              if (discConfig.discount_value) setBannerDiscountVal(String(discConfig.discount_value));
+              if (discConfig.discount_type) setBannerDiscountType(discConfig.discount_type);
+              if (discConfig.promo_code !== undefined) setBannerPromoCode(discConfig.promo_code);
+              if (discConfig.max_cap !== undefined) setBannerMaxCap(String(discConfig.max_cap || ""));
             }
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
@@ -612,11 +631,15 @@ export default function RuleBuilder({ ruleId, navigate }) {
             setDiscountType(data.discount_type || "tiered");
             setDiscountTarget(data.discount_target || "order");
             setDiscountValue(data.discount_value || "");
-            if (data.discount_config) {
-              if (Array.isArray(data.discount_config.tiered_brackets)) setTieredBrackets(data.discount_config.tiered_brackets);
-              if (Array.isArray(data.discount_config.volume_brackets)) setVolumeBrackets(data.discount_config.volume_brackets);
-              if (data.discount_config.bogo_config) setBogoConfig(data.discount_config.bogo_config);
-              if (data.discount_config.max_discount_cap) setMaxDiscountCap(data.discount_config.max_discount_cap);
+            let templateDiscConfig = data.discount_config || {};
+            if (typeof templateDiscConfig === "string") {
+              try { templateDiscConfig = JSON.parse(templateDiscConfig); } catch(e){}
+            }
+            if (templateDiscConfig && typeof templateDiscConfig === "object") {
+              if (Array.isArray(templateDiscConfig.tiered_brackets)) setTieredBrackets(templateDiscConfig.tiered_brackets);
+              if (Array.isArray(templateDiscConfig.volume_brackets)) setVolumeBrackets(templateDiscConfig.volume_brackets);
+              if (templateDiscConfig.bogo_config) setBogoConfig(templateDiscConfig.bogo_config);
+              if (templateDiscConfig.max_discount_cap) setMaxDiscountCap(String(templateDiscConfig.max_discount_cap || ""));
             }
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
@@ -953,6 +976,13 @@ export default function RuleBuilder({ ruleId, navigate }) {
         volume_brackets: volumeBrackets,
         bogo_config: bogoConfig,
         max_discount_cap: maxDiscountCap
+      } : ruleType === "banner" ? {
+        offer_type: bannerOfferType,
+        min_amount: bannerMinAmount,
+        discount_value: bannerDiscountVal,
+        discount_type: bannerDiscountType,
+        promo_code: bannerPromoCode,
+        max_cap: bannerMaxCap
       } : {},
       fulfillment_action: ruleType === "fulfillment" ? fulfillmentAction : null,
       fulfillment_config: ruleType === "fulfillment" ? {
@@ -1032,6 +1062,16 @@ export default function RuleBuilder({ ruleId, navigate }) {
     {
       label: !isGrowthOrPro ? "Fulfillment Constraints & Order Routing 🔒 (Requires Growth Plan)" : "Fulfillment Constraints & Order Routing",
       value: "fulfillment",
+      disabled: !isGrowthOrPro
+    },
+    {
+      label: !isGrowthOrPro ? "Custom Banner & Announcement 🔒 (Requires Growth Plan)" : "Custom Banner & Announcement",
+      value: "banner",
+      disabled: !isGrowthOrPro
+    },
+    {
+      label: !isGrowthOrPro ? "Shipping Threshold 🔒 (Requires Growth Plan)" : "Shipping Threshold",
+      value: "shipping_threshold",
       disabled: !isGrowthOrPro
     }
   ];
@@ -1165,6 +1205,21 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       } else if (val === "discount") {
                         setErrorTarget("$.cart");
                         setErrorMessage("");
+                        setConditions([]);
+                      } else if (val === "banner") {
+                        setErrorTarget("purchase.checkout.block.render");
+                        setErrorMessage("Special Announcement: Free shipping on selected products!");
+                        setGuidanceMessage("Applies automatically at checkout.");
+                        setBannerStyle("info");
+                        setCustomIcon("info");
+                        setConditions([]);
+                      } else if (val === "shipping_threshold") {
+                        setErrorTarget("purchase.checkout.reductions.render-after");
+                        setErrorMessage("Add {remaining} more to get FREE shipping!");
+                        setGuidanceMessage("🎉 Congratulations! You unlocked FREE shipping!");
+                        setDiscountValue("100");
+                        setBannerStyle("info");
+                        setCustomIcon("delivery");
                         setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
@@ -1357,7 +1412,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       <Box padding="4" background="bg-subdued" borderRadius="200">
                         <Text variant="headingSm">Spend Tiers Configuration</Text>
                         <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                          {tieredBrackets.map((bracket, bIdx) => (
+                          {(tieredBrackets || []).map((bracket, bIdx) => (
                             <HorizontalStack key={bIdx} gap="3" align="space-between" blockAlign="center">
                               <div style={{ flex: 1 }}>
                                 <TextField
@@ -1365,7 +1420,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   type="number"
                                   value={bracket.spend_threshold}
                                   onChange={(val) => {
-                                    const newBrackets = [...tieredBrackets];
+                                    const newBrackets = [...(tieredBrackets || [])];
                                     newBrackets[bIdx].spend_threshold = val;
                                     setTieredBrackets(newBrackets);
                                   }}
@@ -1378,7 +1433,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   type="number"
                                   value={bracket.discount_percent}
                                   onChange={(val) => {
-                                    const newBrackets = [...tieredBrackets];
+                                    const newBrackets = [...(tieredBrackets || [])];
                                     newBrackets[bIdx].discount_percent = val;
                                     setTieredBrackets(newBrackets);
                                   }}
@@ -1387,13 +1442,13 @@ export default function RuleBuilder({ ruleId, navigate }) {
                               </div>
                               <div style={{ paddingTop: "20px" }}>
                                 <Button tone="critical" size="slim" onClick={() => {
-                                  setTieredBrackets(tieredBrackets.filter((_, i) => i !== bIdx));
+                                  setTieredBrackets((tieredBrackets || []).filter((_, i) => i !== bIdx));
                                 }}>Remove Tier</Button>
                               </div>
                             </HorizontalStack>
                           ))}
                           <div style={{ marginTop: "6px" }}>
-                            <Button onClick={() => setTieredBrackets([...tieredBrackets, { spend_threshold: "300", discount_percent: "30" }])}>+ Add Tier Bracket</Button>
+                            <Button onClick={() => setTieredBrackets([...(tieredBrackets || []), { spend_threshold: "300", discount_percent: "30" }])}>+ Add Tier Bracket</Button>
                           </div>
                         </div>
                       </Box>
@@ -1403,7 +1458,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       <Box padding="4" background="bg-subdued" borderRadius="200">
                         <Text variant="headingSm">Volume Quantity Tiers Configuration</Text>
                         <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                          {volumeBrackets.map((vBracket, vIdx) => (
+                          {(volumeBrackets || []).map((vBracket, vIdx) => (
                             <HorizontalStack key={vIdx} gap="3" align="space-between" blockAlign="center">
                               <div style={{ flex: 1 }}>
                                 <TextField
@@ -1411,7 +1466,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   type="number"
                                   value={vBracket.min_qty}
                                   onChange={(val) => {
-                                    const newV = [...volumeBrackets];
+                                    const newV = [...(volumeBrackets || [])];
                                     newV[vIdx].min_qty = val;
                                     setVolumeBrackets(newV);
                                   }}
@@ -1424,7 +1479,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   type="number"
                                   value={vBracket.max_qty}
                                   onChange={(val) => {
-                                    const newV = [...volumeBrackets];
+                                    const newV = [...(volumeBrackets || [])];
                                     newV[vIdx].max_qty = val;
                                     setVolumeBrackets(newV);
                                   }}
@@ -1437,7 +1492,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                   type="number"
                                   value={vBracket.discount_percent}
                                   onChange={(val) => {
-                                    const newV = [...volumeBrackets];
+                                    const newV = [...(volumeBrackets || [])];
                                     newV[vIdx].discount_percent = val;
                                     setVolumeBrackets(newV);
                                   }}
@@ -1446,13 +1501,13 @@ export default function RuleBuilder({ ruleId, navigate }) {
                               </div>
                               <div style={{ paddingTop: "20px" }}>
                                 <Button tone="critical" size="slim" onClick={() => {
-                                  setVolumeBrackets(volumeBrackets.filter((_, i) => i !== vIdx));
+                                  setVolumeBrackets((volumeBrackets || []).filter((_, i) => i !== vIdx));
                                 }}>Remove Tier</Button>
                               </div>
                             </HorizontalStack>
                           ))}
                           <div style={{ marginTop: "6px" }}>
-                            <Button onClick={() => setVolumeBrackets([...volumeBrackets, { min_qty: "5", max_qty: "10", discount_percent: "20" }])}>+ Add Volume Bracket</Button>
+                            <Button onClick={() => setVolumeBrackets([...(volumeBrackets || []), { min_qty: "5", max_qty: "10", discount_percent: "20" }])}>+ Add Volume Bracket</Button>
                           </div>
                         </div>
                       </Box>
@@ -1466,8 +1521,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
                             <TextField
                               label="Buy Quantity"
                               type="number"
-                              value={String(bogoConfig.buy_qty || 1)}
-                              onChange={(val) => setBogoConfig({ ...bogoConfig, buy_qty: parseInt(val) || 1 })}
+                              value={String((bogoConfig || {}).buy_qty || 1)}
+                              onChange={(val) => setBogoConfig({ ...(bogoConfig || {}), buy_qty: parseInt(val) || 1 })}
                               autoComplete="off"
                             />
                           </div>
@@ -1475,8 +1530,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
                             <TextField
                               label="Get Quantity"
                               type="number"
-                              value={String(bogoConfig.get_qty || 1)}
-                              onChange={(val) => setBogoConfig({ ...bogoConfig, get_qty: parseInt(val) || 1 })}
+                              value={String((bogoConfig || {}).get_qty || 1)}
+                              onChange={(val) => setBogoConfig({ ...(bogoConfig || {}), get_qty: parseInt(val) || 1 })}
                               autoComplete="off"
                             />
                           </div>
@@ -1484,8 +1539,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
                             <TextField
                               label="Get Item Discount %"
                               type="number"
-                              value={String(bogoConfig.get_discount_percent || 50)}
-                              onChange={(val) => setBogoConfig({ ...bogoConfig, get_discount_percent: parseFloat(val) || 50 })}
+                              value={String((bogoConfig || {}).get_discount_percent || 50)}
+                              onChange={(val) => setBogoConfig({ ...(bogoConfig || {}), get_discount_percent: parseFloat(val) || 50 })}
                               helpText="100% for Buy 1 Get 1 Free"
                               autoComplete="off"
                             />
@@ -1699,7 +1754,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "shipping_threshold" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -1971,6 +2026,243 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
+            ) : ruleType === "shipping_threshold" ? (
+              <Card title="Shipping Threshold Progress Bar Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <TextField
+                      label="Target Spend Threshold ($) *"
+                      type="number"
+                      placeholder="100"
+                      value={discountValue}
+                      onChange={setDiscountValue}
+                      helpText="Cart subtotal target required to unlock free shipping."
+                      autoComplete="off"
+                    />
+
+                    <TextField
+                      label="In-Progress Message *"
+                      placeholder="Add {remaining} more to get FREE shipping!"
+                      value={errorMessage}
+                      onChange={setErrorMessage}
+                      autoComplete="off"
+                      helpText="Message displayed while below threshold. Use {remaining} for the calculated remaining amount."
+                    />
+
+                    <TextField
+                      label="Goal Achieved Message *"
+                      placeholder="🎉 Congratulations! You unlocked FREE shipping!"
+                      value={guidanceMessage}
+                      onChange={setGuidanceMessage}
+                      autoComplete="off"
+                      helpText="Message displayed when cart subtotal reaches or exceeds threshold."
+                    />
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Order Summary - Below Discount Code", value: "purchase.checkout.reductions.render-after" },
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Order Summary - Below Cart Items", value: "purchase.checkout.cart-line-list.render-after" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                      helpText="Select where the progress bar appears in checkout."
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : ruleType === "banner" ? (
+              <Card title="Custom Banner & Announcement Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Banner Purpose / Offer Type *"
+                      options={[
+                        { label: "Promotional Offer (Dynamic Spend & Discount)", value: "promotional_offer" },
+                        { label: "General Store Announcement (Static Text)", value: "general_announcement" }
+                      ]}
+                      value={bannerOfferType}
+                      onChange={setBannerOfferType}
+                      helpText="Select whether this banner promotes a dynamic spend offer or acts as a general announcement."
+                    />
+
+                    {bannerOfferType === "promotional_offer" ? (
+                      <>
+                        <HorizontalStack gap="4">
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Minimum Order Subtotal ($) *"
+                              type="number"
+                              placeholder="75"
+                              value={bannerMinAmount}
+                              onChange={setBannerMinAmount}
+                              helpText="Cart subtotal required to qualify for discount."
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <Select
+                              label="Discount Type *"
+                              options={[
+                                { label: "Percentage (%)", value: "percentage" },
+                                { label: "Fixed Amount ($)", value: "fixed_amount" }
+                              ]}
+                              value={bannerDiscountType}
+                              onChange={(newType) => {
+                                const minAmt = parseFloat(bannerMinAmount) || 0;
+                                const currentVal = parseFloat(bannerDiscountVal) || 0;
+                                if (minAmt > 0 && currentVal > 0) {
+                                  if (newType === "percentage" && bannerDiscountType === "fixed_amount") {
+                                    const calculatedPct = Math.min(100, Math.round((currentVal / minAmt) * 100));
+                                    setBannerDiscountVal(String(calculatedPct));
+                                  } else if (newType === "fixed_amount" && bannerDiscountType === "percentage") {
+                                    const calculatedFixed = Math.round((currentVal / 100) * minAmt * 100) / 100;
+                                    setBannerDiscountVal(String(calculatedFixed));
+                                  }
+                                }
+                                setBannerDiscountType(newType);
+                              }}
+                              helpText="Auto-converts percentage / dollar values on toggle."
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label={bannerDiscountType === "percentage" ? "Discount Percentage (%) *" : "Discount Amount ($) *"}
+                              type="number"
+                              placeholder={bannerDiscountType === "percentage" ? "15" : "10"}
+                              value={bannerDiscountVal}
+                              onChange={setBannerDiscountVal}
+                              autoComplete="off"
+                            />
+                          </div>
+                        </HorizontalStack>
+
+                        <HorizontalStack gap="4">
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Promo Code / Auto-Apply Note (Optional)"
+                              placeholder="e.g. SAVE15 (Leave empty if auto-applies)"
+                              value={bannerPromoCode}
+                              onChange={setBannerPromoCode}
+                              autoComplete="off"
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <TextField
+                              label="Maximum Discount Cap ($) (Optional)"
+                              type="number"
+                              placeholder="e.g. 25"
+                              value={bannerMaxCap}
+                              onChange={setBannerMaxCap}
+                              helpText="Caps the maximum discount value."
+                              autoComplete="off"
+                            />
+                          </div>
+                        </HorizontalStack>
+
+                        <TextField
+                          label="Below Minimum Message *"
+                          placeholder="Special Offer: Add {remaining} more to get {discount} off!"
+                          value={errorMessage}
+                          onChange={setErrorMessage}
+                          multiline={2}
+                          autoComplete="off"
+                          helpText="Displayed when cart subtotal is below minimum. Placeholders: {remaining}, {discount}, {min_amount}."
+                        />
+
+                        <TextField
+                          label="Qualified Goal Message *"
+                          placeholder="🎉 Congratulations! You qualified for {discount} off your order!"
+                          value={guidanceMessage}
+                          onChange={setGuidanceMessage}
+                          multiline={2}
+                          autoComplete="off"
+                          helpText="Displayed when cart subtotal reaches or exceeds minimum amount. Placeholder: {discount}."
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <TextField
+                          label="Banner Title *"
+                          placeholder="e.g. Store Announcement"
+                          value={title}
+                          onChange={setTitle}
+                          autoComplete="off"
+                        />
+
+                        <TextField
+                          label="Banner Message Body *"
+                          placeholder="e.g. Orders placed today will ship within 24 hours!"
+                          value={errorMessage}
+                          onChange={setErrorMessage}
+                          multiline={2}
+                          autoComplete="off"
+                        />
+
+                        <TextField
+                          label="Secondary Subtext (Optional)"
+                          placeholder="e.g. Free tracking included on all orders."
+                          value={guidanceMessage}
+                          onChange={setGuidanceMessage}
+                          autoComplete="off"
+                        />
+                      </>
+                    )}
+
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Banner Style / Tone *"
+                          options={[
+                            { label: "Info (Blue)", value: "info" },
+                            { label: "Success (Green)", value: "success" },
+                            { label: "Warning (Orange)", value: "warning" },
+                            { label: "Critical (Red)", value: "critical" }
+                          ]}
+                          value={bannerStyle}
+                          onChange={setBannerStyle}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Banner Icon *"
+                          options={[
+                            { label: "Gift Icon (🎁)", value: "gift" },
+                            { label: "Info Icon (ℹ️)", value: "info" },
+                            { label: "Success Icon (✅)", value: "success" },
+                            { label: "Warning Icon (⚠️)", value: "warning" },
+                            { label: "Critical Icon (🚨)", value: "critical" },
+                            { label: "Delivery Truck (🚚)", value: "delivery" },
+                            { label: "Lock (🔒)", value: "lock" },
+                            { label: "No Icon", value: "none" }
+                          ]}
+                          value={customIcon}
+                          onChange={setCustomIcon}
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Order Summary - Below Discount Code", value: "purchase.checkout.reductions.render-after" },
+                        { label: "Contact Information (After)", value: "purchase.checkout.contact.render-after" },
+                        { label: "Delivery Address (After)", value: "purchase.checkout.delivery-address.render-after" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Payment Methods (Before)", value: "purchase.checkout.payment-method-list.render-before" },
+                        { label: "Checkout Footer (After)", value: "purchase.checkout.footer.render-after" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
             ) : (ruleType === "discount" || ruleType === "cart_transform") ? null : (
               <Card>
                 <Box padding="5">
@@ -2123,7 +2415,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                     color: "#38bdf8",
                                     border: "1px solid #374151"
                                   }}>
-                                    Checkout UI Extension
+                                    {ruleType === "shipping_threshold" ? "Shipping Threshold" : ruleType === "banner" ? "Custom Banner" : "Checkout UI Extension"}
                                   </span>
                                 </div>
 

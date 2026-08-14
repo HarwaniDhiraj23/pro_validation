@@ -1,6 +1,8 @@
 import '@shopify/ui-extensions/preact';
 import { render } from "preact";
 import { useState, useEffect, useRef } from "preact/hooks";
+import { ShippingProgressBar } from "./components/ShippingProgressBar.jsx";
+import { BannerNotice } from "./components/BannerNotice.jsx";
 
 // 1. Export the extension
 export default async () => {
@@ -63,6 +65,26 @@ function Extension() {
       rule.rule_type === "checkbox" &&
       rule.status === "active" &&
       rule.error_target === currentTarget &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Filter shipping progress bar rules matching this target
+  const matchingProgressBarRules = activeRules.filter(
+    (rule) =>
+      rule.status === "active" &&
+      rule.display_in_checkout !== false &&
+      rule.rule_type === "shipping_threshold" &&
+      (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && (isBlockTarget || currentTarget === "purchase.checkout.reductions.render-after")) &&
+      (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
+  );
+
+  // Filter custom banner rules matching this target
+  const matchingBannerRules = activeRules.filter(
+    (rule) =>
+      rule.status === "active" &&
+      rule.display_in_checkout !== false &&
+      rule.rule_type === "banner" &&
+      (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
       (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
   );
 
@@ -279,23 +301,22 @@ function Extension() {
     );
   });
 
-  const renderedBanners = isBlockTarget
-    ? triggeredBanners.map((banner) => (
-        <s-stack key={banner.id} gap="base">
-          <s-banner heading={banner.heading} tone={banner.tone} />
-          {banner.guidance && (
-            <s-banner heading={banner.guidance} tone="info" />
-          )}
-        </s-stack>
-      ))
-    : [];
+  const renderedProgressBars = matchingProgressBarRules.map((rule) => (
+    <ShippingProgressBar key={rule.id} rule={rule} cartState={cartState} />
+  ));
 
-  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0) {
+  const renderedCustomBanners = matchingBannerRules.map((rule) => (
+    <BannerNotice key={rule.id} rule={rule} cartState={cartState} />
+  ));
+
+  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedProgressBars.length === 0 && renderedCustomBanners.length === 0) {
     return null;
   }
 
   return (
     <s-stack gap="base">
+      {renderedProgressBars}
+      {renderedCustomBanners}
       {renderedCheckboxes}
       {renderedBanners}
     </s-stack>

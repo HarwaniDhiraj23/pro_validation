@@ -670,6 +670,20 @@ const PREBUILT_TEMPLATES = [
     rule_type: "fulfillment",
     fulfillment_action: "require_location",
     fulfillment_config: { location_ids: ["gid://shopify/Location/wholesale-hub"], location_name: "Central Wholesale Hub" }
+  },
+  {
+    id: 60,
+    title: "Free Shipping Threshold Progress Bar ($100)",
+    category: "Shipping Threshold",
+    description: "Displays a dynamic spending progress bar in checkout encouraging buyers to reach $100 for Free Shipping.",
+    conditions: [],
+    error_message: "Add {remaining} more to get FREE shipping!",
+    guidance_message: "🎉 Congratulations! You unlocked FREE shipping!",
+    error_target: "purchase.checkout.reductions.render-after",
+    rule_type: "shipping_threshold",
+    discount_value: "100",
+    banner_style: "info",
+    custom_icon: "delivery"
   }
 ];
 
@@ -695,6 +709,18 @@ function initFallbackDB() {
     try {
       const existingData = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
       existingData.rule_templates = PREBUILT_TEMPLATES;
+      if (Array.isArray(existingData.rules)) {
+        existingData.rules = existingData.rules.filter(r => 
+          r.rule_type !== "compliance_notice" &&
+          r.title !== "Holiday Promotion Announcement Banner" &&
+          r.title !== "Age & Hazmat Regulatory Compliance Notice"
+        );
+      }
+      if (Array.isArray(existingData.rule_versions)) {
+        existingData.rule_versions = existingData.rule_versions.filter(v => 
+          v.rule_type !== "compliance_notice"
+        );
+      }
       if (!existingData.subscriptions_log) existingData.subscriptions_log = [];
       fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(existingData, null, 2));
     } catch (e) {
@@ -805,6 +831,18 @@ export async function syncTemplatesToPostgres() {
         );
       }
     }
+
+    // Purge removed compliance_notice rule type and template IDs 61 & 62
+    await pool.query(
+      `DELETE FROM rule_templates WHERE rule_type = 'compliance_notice' OR id IN (61, 62) OR title IN ('Holiday Promotion Announcement Banner', 'Age & Hazmat Regulatory Compliance Notice')`
+    );
+    await pool.query(
+      `DELETE FROM rules WHERE rule_type = 'compliance_notice' OR title IN ('Holiday Promotion Announcement Banner', 'Age & Hazmat Regulatory Compliance Notice')`
+    );
+    await pool.query(
+      `DELETE FROM rule_versions WHERE rule_type = 'compliance_notice'`
+    );
+
     console.log(`[DB Sync] Successfully synced all ${PREBUILT_TEMPLATES.length} templates to PostgreSQL!`);
   } catch (err) {
     console.error("[DB Sync] Template sync error:", err.message);
