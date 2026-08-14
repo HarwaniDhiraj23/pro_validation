@@ -209,6 +209,10 @@ export default function RulesList({ navigate }) {
               {
                 content: "Fulfillment Routing Rule",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=fulfillment&fixed=true"); }
+              },
+              {
+                content: "Custom Banner & Announcement",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=banner&fixed=true"); }
               }
             ]}
           />
@@ -720,8 +724,6 @@ export default function RulesList({ navigate }) {
                           <Badge tone="warning">Fulfillment Constraints</Badge>
                           <Badge tone="info">{rule.fulfillment_action ? rule.fulfillment_action.toUpperCase() : "REQUIRE_LOCATION"}</Badge>
                         </>
-                      ) : rule.rule_type === "shipping_threshold" ? (
-                        <Badge tone="success">Shipping Threshold</Badge>
                       ) : rule.rule_type === "banner" ? (
                         <Badge tone="info">Custom Banner</Badge>
                       ) : (

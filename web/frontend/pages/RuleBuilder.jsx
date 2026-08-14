@@ -1038,42 +1038,14 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const isGrowthOrPro = shopPlan === "Growth" || shopPlan === "Pro";
 
   const ruleTypeOptions = [
-    { label: "Checkout Validation (Free Plan)", value: "validation" },
-    {
-      label: isFree ? "Delivery Customization 🔒 (Requires Basic Plan)" : "Delivery Customization",
-      value: "delivery",
-      disabled: isFree
-    },
-    {
-      label: !isGrowthOrPro ? "Payment Customization 🔒 (Requires Growth Plan)" : "Payment Customization",
-      value: "payment",
-      disabled: !isGrowthOrPro
-    },
-    {
-      label: !isGrowthOrPro ? "Checkout Checkbox 🔒 (Requires Growth Plan)" : "Checkout Checkbox",
-      value: "checkbox",
-      disabled: !isGrowthOrPro
-    },
-    {
-      label: !isGrowthOrPro ? "Discount Allocator 🔒 (Requires Growth Plan)" : "Discount Allocator",
-      value: "discount",
-      disabled: !isGrowthOrPro
-    },
-    {
-      label: !isGrowthOrPro ? "Fulfillment Constraints & Order Routing 🔒 (Requires Growth Plan)" : "Fulfillment Constraints & Order Routing",
-      value: "fulfillment",
-      disabled: !isGrowthOrPro
-    },
-    {
-      label: !isGrowthOrPro ? "Custom Banner & Announcement 🔒 (Requires Growth Plan)" : "Custom Banner & Announcement",
-      value: "banner",
-      disabled: !isGrowthOrPro
-    },
-    {
-      label: !isGrowthOrPro ? "Shipping Threshold 🔒 (Requires Growth Plan)" : "Shipping Threshold",
-      value: "shipping_threshold",
-      disabled: !isGrowthOrPro
-    }
+    { label: "Checkout Validation", value: "validation" },
+    { label: "Delivery Customization", value: "delivery" },
+    { label: "Payment Customization", value: "payment" },
+    { label: "Checkout Checkbox", value: "checkbox" },
+    { label: "Discount Allocator", value: "discount" },
+    { label: "Cart Transform & Native Bundling", value: "cart_transform" },
+    { label: "Fulfillment Constraints & Order Routing", value: "fulfillment" },
+    { label: "Custom Banner & Announcement", value: "banner" }
   ];
 
   const restrictedConditionTypes = planConfig?.restrictedConditionTypes || [
@@ -1212,14 +1184,6 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setGuidanceMessage("Applies automatically at checkout.");
                         setBannerStyle("info");
                         setCustomIcon("info");
-                        setConditions([]);
-                      } else if (val === "shipping_threshold") {
-                        setErrorTarget("purchase.checkout.reductions.render-after");
-                        setErrorMessage("Add {remaining} more to get FREE shipping!");
-                        setGuidanceMessage("🎉 Congratulations! You unlocked FREE shipping!");
-                        setDiscountValue("100");
-                        setBannerStyle("info");
-                        setCustomIcon("delivery");
                         setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
@@ -1754,7 +1718,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "shipping_threshold" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2023,54 +1987,6 @@ export default function RuleBuilder({ ruleId, navigate }) {
                     )}
 
 
-                  </FormLayout>
-                </Box>
-              </Card>
-            ) : ruleType === "shipping_threshold" ? (
-              <Card title="Shipping Threshold Progress Bar Configuration">
-                <Box padding="5">
-                  <FormLayout>
-                    <TextField
-                      label="Target Spend Threshold ($) *"
-                      type="number"
-                      placeholder="100"
-                      value={discountValue}
-                      onChange={setDiscountValue}
-                      helpText="Cart subtotal target required to unlock free shipping."
-                      autoComplete="off"
-                    />
-
-                    <TextField
-                      label="In-Progress Message *"
-                      placeholder="Add {remaining} more to get FREE shipping!"
-                      value={errorMessage}
-                      onChange={setErrorMessage}
-                      autoComplete="off"
-                      helpText="Message displayed while below threshold. Use {remaining} for the calculated remaining amount."
-                    />
-
-                    <TextField
-                      label="Goal Achieved Message *"
-                      placeholder="🎉 Congratulations! You unlocked FREE shipping!"
-                      value={guidanceMessage}
-                      onChange={setGuidanceMessage}
-                      autoComplete="off"
-                      helpText="Message displayed when cart subtotal reaches or exceeds threshold."
-                    />
-
-                    <Select
-                      label="Placement Target *"
-                      options={[
-                        { label: "Order Summary - Below Discount Code", value: "purchase.checkout.reductions.render-after" },
-                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
-                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
-                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
-                        { label: "Order Summary - Below Cart Items", value: "purchase.checkout.cart-line-list.render-after" }
-                      ]}
-                      value={errorTarget}
-                      onChange={setErrorTarget}
-                      helpText="Select where the progress bar appears in checkout."
-                    />
                   </FormLayout>
                 </Box>
               </Card>
@@ -2415,7 +2331,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
                                     color: "#38bdf8",
                                     border: "1px solid #374151"
                                   }}>
-                                    {ruleType === "shipping_threshold" ? "Shipping Threshold" : ruleType === "banner" ? "Custom Banner" : "Checkout UI Extension"}
+                                    {ruleType === "banner" ? "Custom Banner" : ruleType === "compliance_notice" ? "Compliance Notice" : "Checkout UI Extension"}
                                   </span>
                                 </div>
 

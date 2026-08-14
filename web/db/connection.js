@@ -672,18 +672,25 @@ const PREBUILT_TEMPLATES = [
     fulfillment_config: { location_ids: ["gid://shopify/Location/wholesale-hub"], location_name: "Central Wholesale Hub" }
   },
   {
-    id: 60,
-    title: "Free Shipping Threshold Progress Bar ($100)",
-    category: "Shipping Threshold",
-    description: "Displays a dynamic spending progress bar in checkout encouraging buyers to reach $100 for Free Shipping.",
+    id: 61,
+    title: "Promotional Banner & Store Announcement",
+    category: "Custom Banner & Announcement",
+    description: "Displays a prominent promotional banner or general store announcement in checkout with dynamic spend discount callouts.",
     conditions: [],
-    error_message: "Add {remaining} more to get FREE shipping!",
-    guidance_message: "🎉 Congratulations! You unlocked FREE shipping!",
-    error_target: "purchase.checkout.reductions.render-after",
-    rule_type: "shipping_threshold",
-    discount_value: "100",
+    error_message: "Special Offer: Add {remaining} more to get {discount} off your order!",
+    guidance_message: "🎉 Congratulations! You qualified for {discount} off your order!",
+    error_target: "purchase.checkout.block.render",
+    rule_type: "banner",
     banner_style: "info",
-    custom_icon: "delivery"
+    custom_icon: "gift",
+    discount_config: {
+      offer_type: "promotional_offer",
+      min_amount: "75",
+      discount_value: "15",
+      discount_type: "percentage",
+      promo_code: "SAVE15",
+      max_cap: ""
+    }
   }
 ];
 
@@ -712,13 +719,16 @@ function initFallbackDB() {
       if (Array.isArray(existingData.rules)) {
         existingData.rules = existingData.rules.filter(r => 
           r.rule_type !== "compliance_notice" &&
+          r.rule_type !== "shipping_threshold" &&
           r.title !== "Holiday Promotion Announcement Banner" &&
-          r.title !== "Age & Hazmat Regulatory Compliance Notice"
+          r.title !== "Age & Hazmat Regulatory Compliance Notice" &&
+          r.title !== "Free Shipping Threshold Progress Bar ($100)"
         );
       }
       if (Array.isArray(existingData.rule_versions)) {
         existingData.rule_versions = existingData.rule_versions.filter(v => 
-          v.rule_type !== "compliance_notice"
+          v.rule_type !== "compliance_notice" &&
+          v.rule_type !== "shipping_threshold"
         );
       }
       if (!existingData.subscriptions_log) existingData.subscriptions_log = [];
@@ -832,15 +842,15 @@ export async function syncTemplatesToPostgres() {
       }
     }
 
-    // Purge removed compliance_notice rule type and template IDs 61 & 62
+    // Purge removed compliance_notice & shipping_threshold rule types and templates
     await pool.query(
-      `DELETE FROM rule_templates WHERE rule_type = 'compliance_notice' OR id IN (61, 62) OR title IN ('Holiday Promotion Announcement Banner', 'Age & Hazmat Regulatory Compliance Notice')`
+      `DELETE FROM rule_templates WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR id IN (60, 62) OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`
     );
     await pool.query(
-      `DELETE FROM rules WHERE rule_type = 'compliance_notice' OR title IN ('Holiday Promotion Announcement Banner', 'Age & Hazmat Regulatory Compliance Notice')`
+      `DELETE FROM rules WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`
     );
     await pool.query(
-      `DELETE FROM rule_versions WHERE rule_type = 'compliance_notice'`
+      `DELETE FROM rule_versions WHERE rule_type IN ('compliance_notice', 'shipping_threshold')`
     );
 
     console.log(`[DB Sync] Successfully synced all ${PREBUILT_TEMPLATES.length} templates to PostgreSQL!`);
