@@ -1,0 +1,54 @@
+query RunInput {
+  shop {
+    metafield(namespace: "fulfillment-constraints", key: "rules") {
+      value
+    }
+  }
+  cart {
+    buyerIdentity {
+      customer {
+        id
+        metafield(namespace: "cart-validation", key: "metadata") {
+          value
+        }
+      }
+    }
+    deliveryGroups {
+      id
+      deliveryAddress {
+        address1
+        address2
+        city
+        provinceCode
+        countryCode
+        zip
+      }
+    }
+    lines {
+      id
+      quantity
+      cost {
+        totalAmount {
+          amount
+          currencyCode
+        }
+      }
+      merchandise {
+        ... on ProductVariant {
+          id
+          sku
+          title
+          weight
+          product {
+            id
+            vendor
+            title
+            metafield(namespace: "cart-validation", key: "metadata") {
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+}

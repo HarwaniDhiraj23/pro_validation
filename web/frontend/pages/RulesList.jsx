@@ -205,6 +205,10 @@ export default function RulesList({ navigate }) {
               {
                 content: "Cart Transform Rule",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=cart_transform&fixed=true"); }
+              },
+              {
+                content: "Fulfillment Routing Rule",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=fulfillment&fixed=true"); }
               }
             ]}
           />
@@ -577,6 +581,7 @@ export default function RulesList({ navigate }) {
                 <option value="delivery">Delivery Customization</option>
                 <option value="payment">Payment Customization</option>
                 <option value="discount">Discount Allocator</option>
+                <option value="fulfillment">Fulfillment Constraints</option>
               </select>
             </div>
           </div>
@@ -709,6 +714,11 @@ export default function RulesList({ navigate }) {
                         <>
                           <Badge tone="magic">Cart Transform</Badge>
                           <Badge tone="info">{rule.transform_type ? rule.transform_type.toUpperCase() : "PRICE_OVERRIDE"}</Badge>
+                        </>
+                      ) : rule.rule_type === "fulfillment" ? (
+                        <>
+                          <Badge tone="warning">Fulfillment Constraints</Badge>
+                          <Badge tone="info">{rule.fulfillment_action ? rule.fulfillment_action.toUpperCase() : "REQUIRE_LOCATION"}</Badge>
                         </>
                       ) : (
                         <Badge tone="info">Checkout Validation</Badge>

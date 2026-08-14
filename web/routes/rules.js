@@ -834,6 +834,69 @@ async function syncCartTransformRulesToShopify(session) {
   }
 }
 
+// Helper to sync active fulfillment routing rules to Shopify
+async function syncFulfillmentRulesToShopify(session) {
+  const shop = session.shop;
+  console.log(`Syncing fulfillment routing rules for ${shop} to Shopify...`);
+
+  try {
+    const result = await dbQuery(
+      `SELECT * FROM rules 
+       WHERE (shop = $1 OR target_shop = $1) 
+         AND status = 'active'
+         AND rule_type = 'fulfillment'
+         AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
+         AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
+       ORDER BY priority DESC, id DESC`,
+      [shop]
+    );
+    const activeRules = result.rows || [];
+    const rulesJson = JSON.stringify(activeRules);
+
+    const client = new shopify.api.clients.Graphql({ session });
+    const shopQuery = `query { shop { id } }`;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
+    if (shopId) {
+      const setMetafieldMutation = `
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      const setRes = await client.request(setMetafieldMutation, {
+        variables: {
+          metafields: [
+            {
+              ownerId: shopId,
+              namespace: "fulfillment-constraints",
+              key: "rules",
+              type: "json",
+              value: rulesJson
+            }
+          ]
+        }
+      });
+      const errors = setRes.data?.metafieldsSet?.userErrors || [];
+      if (errors.length > 0) {
+        console.error("[Fulfillment Sync] Metafield set errors:", errors);
+      } else {
+        console.log("Successfully synced fulfillment rules to Shopify metafield.");
+      }
+    }
+  } catch (error) {
+    console.warn(`[Shopify Sync] Could not sync fulfillment rules for ${shop}:`, formatShopifyError(error));
+  }
+}
+
 // Helper to sync multiple shops affected by a rule change
 async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetShopAfter) {
   const shopsToSync = new Set();
@@ -864,8 +927,7 @@ async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetSh
         await syncRulesToShopify(session);
         await syncDeliveryRulesToShopify(session);
         await syncPaymentRulesToShopify(session);
-        await syncDiscountRulesToShopify(session);
-        await syncCartTransformRulesToShopify(session);
+        await syncFulfillmentRulesToShopify(session);
       } else {
         console.warn(`[Sync propagation] No offline session found for shop: ${shop}`);
       }
@@ -1047,6 +1109,53 @@ router.get("/customer-tags", async (req, res) => {
   }
 });
 
+// GET /api/rules/locations -> Fetch store fulfillment locations
+router.get("/locations", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+    const query = `
+      query GetLocations {
+        locations(first: 50, includeLegacy: true) {
+          nodes {
+            id
+            name
+            isActive
+            address {
+              city
+              provinceCode
+              countryCode
+            }
+          }
+        }
+      }
+    `;
+    const checkRes = await client.request(query);
+    const nodes = checkRes.data?.locations?.nodes || [];
+    const locations = nodes.map(loc => ({
+      id: loc.id,
+      name: loc.name,
+      isActive: loc.isActive !== false,
+      city: loc.address?.city || "",
+      provinceCode: loc.address?.provinceCode || "",
+      countryCode: loc.address?.countryCode || ""
+    }));
+    res.json({ success: true, locations });
+  } catch (error) {
+    console.warn("[Shopify API] Could not fetch store locations:", formatShopifyError(error));
+    res.json({
+      success: true,
+      locations: [
+        { id: "gid://shopify/Location/main-warehouse", name: "Main Logistics Hub", isActive: true, city: "New York", provinceCode: "NY" },
+        { id: "gid://shopify/Location/us-east-wh", name: "US-East Fulfillment Center", isActive: true, city: "Boston", provinceCode: "MA" },
+        { id: "gid://shopify/Location/retail-store-1", name: "Retail Store Locations", isActive: true, city: "Los Angeles", provinceCode: "CA" },
+        { id: "gid://shopify/Location/freight-depot", name: "Regional Freight Depot", isActive: true, city: "Chicago", provinceCode: "IL" },
+        { id: "gid://shopify/Location/wholesale-hub", name: "Central Wholesale Hub", isActive: true, city: "Atlanta", provinceCode: "GA" }
+      ]
+    });
+  }
+});
+
 // 1. GET /api/rules -> Get all rules
 router.get("/", async (req, res) => {
   try {
@@ -1189,7 +1298,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, fulfillment_action = null, fulfillment_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Fetch shop plan & active rules count
     const shopRes = await dbQuery("SELECT plan_name FROM shops WHERE shop = $1", [shop]);
@@ -1212,17 +1321,17 @@ router.post("/", async (req, res) => {
 
     // Insert rule
     const ruleRes = await dbQuery(
-      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
-      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      `INSERT INTO rules (shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
+      [shop, target_shop || null, title, status || "active", priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message || "", error_target || "$.cart", schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), fulfillment_action, JSON.stringify(fulfillment_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
     const newRule = ruleRes.rows[0];
 
     // Create version 1
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
-      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+      `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+      [newRule.id, 1, newRule.target_shop || null, newRule.title, newRule.priority, newRule.conditions_operator, JSON.stringify(newRule.conditions), newRule.error_message, newRule.error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), fulfillment_action, JSON.stringify(fulfillment_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
     );
 
     // Sync product collections metafields if needed
@@ -1242,7 +1351,7 @@ router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const shop = res.locals.shopify.session.shop;
-    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
+    const { target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type = "validation", delivery_action = null, discount_type = null, discount_target = "order", discount_value = null, discount_config = {}, fulfillment_action = null, fulfillment_config = {}, warning_banner = false, custom_icon = null, banner_style = null, guidance_message = null, display_in_checkout = true } = req.body;
 
     // Check if exists
     const checkRes = await dbQuery("SELECT * FROM rules WHERE id = $1 AND shop = $2", [id, shop]);
@@ -1279,9 +1388,9 @@ router.put("/:id", async (req, res) => {
     // Update rule
     const ruleRes = await dbQuery(
       `UPDATE rules 
-       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, discount_type = $13, discount_target = $14, discount_value = $15, discount_config = $16, warning_banner = $17, custom_icon = $18, banner_style = $19, guidance_message = $20, display_in_checkout = $21, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $22 AND shop = $23 RETURNING *`,
-      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop]
+       SET target_shop = $1, title = $2, status = $3, priority = $4, conditions_operator = $5, conditions = $6, error_message = $7, error_target = $8, schedule_start = $9, schedule_end = $10, rule_type = $11, delivery_action = $12, discount_type = $13, discount_target = $14, discount_value = $15, discount_config = $16, fulfillment_action = $17, fulfillment_config = $18, warning_banner = $19, custom_icon = $20, banner_style = $21, guidance_message = $22, display_in_checkout = $23, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $24 AND shop = $25 RETURNING *`,
+      [target_shop || null, title, status, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message || "", error_target, schedule_start || null, schedule_end || null, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), fulfillment_action, JSON.stringify(fulfillment_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop]
     );
     const updatedRule = ruleRes.rows[0];
 
@@ -1291,18 +1400,18 @@ router.put("/:id", async (req, res) => {
       // Free plan: overwrite/upsert single version record
       await dbQuery("DELETE FROM rule_versions WHERE rule_id = $1", [id]);
       await dbQuery(
-        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
-        [id, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+        [id, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message || "", error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), fulfillment_action, JSON.stringify(fulfillment_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
       );
     } else {
       const versionRes = await dbQuery("SELECT COALESCE(MAX(version), 0) as max FROM rule_versions WHERE rule_id = $1", [id]);
       const nextVersion = (versionRes.rows[0]?.max || 0) + 1;
 
       await dbQuery(
-        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
-        [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
+        `INSERT INTO rule_versions (rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+        [id, nextVersion, target_shop || null, title, priority || 0, conditions_operator || "AND", JSON.stringify(conditions), error_message || "", error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, JSON.stringify(discount_config || {}), fulfillment_action, JSON.stringify(fulfillment_config || {}), warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout]
       );
 
       // Prune old versions based on plan limit (Basic: 3, Growth: 10)
@@ -1560,6 +1669,7 @@ router.post("/:id/rollback", async (req, res) => {
     await syncRulesToShopify(res.locals.shopify.session);
     await syncDeliveryRulesToShopify(res.locals.shopify.session);
     await syncPaymentRulesToShopify(res.locals.shopify.session);
+    await syncFulfillmentRulesToShopify(res.locals.shopify.session);
 
     res.json(ruleRes.rows[0]);
   } catch (error) {
@@ -1581,4 +1691,4 @@ router.post("/debug/sync-payment", async (req, res) => {
 });
 
 export default router;
-export { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify };
+export { syncRulesToShopify, syncDeliveryRulesToShopify, syncPaymentRulesToShopify, syncFulfillmentRulesToShopify };

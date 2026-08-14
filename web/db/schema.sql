@@ -40,12 +40,14 @@ CREATE TABLE IF NOT EXISTS rules (
   error_target VARCHAR(255) DEFAULT '$.cart',
   schedule_start TIMESTAMP,
   schedule_end TIMESTAMP,
-  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, discount
+  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, discount, fulfillment
   delivery_action VARCHAR(50) DEFAULT NULL,   -- hide, rename, move
   discount_type VARCHAR(50) DEFAULT NULL,     -- tiered, volume, bogo, customer_tag, percentage, fixed_amount
   discount_target VARCHAR(255) DEFAULT 'order',
   discount_value VARCHAR(100) DEFAULT NULL,
   discount_config JSONB DEFAULT '{}',
+  fulfillment_action VARCHAR(50) DEFAULT NULL, -- require_location, restrict_location, prefer_location
+  fulfillment_config JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -68,6 +70,8 @@ CREATE TABLE IF NOT EXISTS rule_versions (
   discount_target VARCHAR(255) DEFAULT 'order',
   discount_value VARCHAR(100) DEFAULT NULL,
   discount_config JSONB DEFAULT '{}',
+  fulfillment_action VARCHAR(50) DEFAULT NULL,
+  fulfillment_config JSONB DEFAULT '{}',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -97,12 +101,14 @@ CREATE TABLE IF NOT EXISTS rule_templates (
   discount_target VARCHAR(255) DEFAULT 'order',
   discount_value VARCHAR(100) DEFAULT NULL,
   discount_config JSONB DEFAULT '{}',
+  fulfillment_action VARCHAR(50) DEFAULT NULL,
+  fulfillment_config JSONB DEFAULT '{}',
   guidance_message VARCHAR(500) DEFAULT NULL
 );
 
 -- Seed pre-built templates
 TRUNCATE TABLE rule_templates RESTART IDENTITY CASCADE;
-INSERT INTO rule_templates (title, category, description, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, guidance_message)
+INSERT INTO rule_templates (title, category, description, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, guidance_message)
 VALUES
 ('Block PO Box Addresses', 'Address', 'Prevents shipping to PO Box addresses by checking the address lines for PO Box indicators, ensuring orders are sent to physical locations suitable for standard carrier deliveries.', 
   '[{"type": "shipping_address_pobox", "operator": "is_pobox", "value": ""}]', 
@@ -285,4 +291,19 @@ VALUES
  '[{"type": "customer_tags", "operator": "contains", "value": "wholesale"}]', 'Wholesale Order Discount', '$.cart', 'discount', NULL, 'volume', 'order', NULL, '{"required_customer_tags": ["wholesale"], "volume_brackets": [{"min_qty": "10", "max_qty": "999", "discount_percent": "20"}]}', NULL),
 
 ('High Cart Capped Discount (10% Off up to $30)', 'Discounts', 'Gives 10% off cart subtotal over $75 with a maximum savings limit cap of $30.',
- '[]', 'Special Order Discount', '$.cart', 'discount', NULL, 'tiered', 'order', NULL, '{"tiered_brackets": [{"spend_threshold": "75", "discount_percent": "10"}], "max_discount_cap": "30.00"}', NULL);
+ '[]', 'Special Order Discount', '$.cart', 'discount', NULL, 'tiered', 'order', NULL, '{"tiered_brackets": [{"spend_threshold": "75", "discount_percent": "10"}], "max_discount_cap": "30.00"}', NULL, '{}', NULL),
+
+('Hazardous Items Warehouse Restriction', 'Fulfillment & Routing', 'Restricts fulfillment of hazardous products exclusively to the certified Main Logistics Hub warehouse location.',
+ '[{"type": "has_hazardous_item", "operator": "equals", "value": "true"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/main-warehouse"], "location_name": "Main Logistics Hub"}', NULL),
+
+('East Coast Regional Fulfillment Routing', 'Fulfillment & Routing', 'Routes orders destined for East Coast states (NY, NJ, MA, PA, FL, GA) to the US-East Fulfillment Center.',
+ '[{"type": "block_states", "operator": "in_states", "value": "NY,NJ,MA,PA,FL,GA,NC,VA,CT,MD"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'prefer_location', '{"location_ids": ["gid://shopify/Location/us-east-wh"], "location_name": "US-East Fulfillment Center"}', NULL),
+
+('Exclude Retail Stores for International Shipping', 'Fulfillment & Routing', 'Prevents international orders from shipping out of retail store inventory, restricting fulfillment to central export hubs.',
+ '[{"type": "block_countries", "operator": "not_in_countries", "value": "US,CA"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'restrict_location', '{"location_ids": ["gid://shopify/Location/retail-store-1"], "location_name": "Retail Store Locations"}', NULL),
+
+('Heavy Freight Origin Locking', 'Fulfillment & Routing', 'Forces heavy cart orders (>30kg) to ship directly from the Regional Freight Depot.',
+ '[{"type": "weight_limit", "operator": "greater_than", "value": "30"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/freight-depot"], "location_name": "Regional Freight Depot"}', NULL),
+
+('B2B Wholesale Central Hub Fulfillment', 'Fulfillment & Routing', 'Ensures wholesale and B2B orders are routed exclusively to the Central Wholesale Fulfillment Hub.',
+ '[{"type": "customer_tags", "operator": "contains", "value": "b2b,wholesale"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/wholesale-hub"], "location_name": "Central Wholesale Hub"}', NULL);

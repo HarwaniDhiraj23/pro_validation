@@ -1,0 +1,17 @@
+api_version = "2026-04"
+uid = "a8f12c34-5678-90ab-cdef-123456789abc"
+
+[[extensions]]
+name = "fulfillment-constraints"
+handle = "fulfillment-constraints"
+type = "function"
+description = "Custom business rules to dictate shipping origin locations and fulfillment routing constraints for RuleForge"
+
+  [[extensions.targeting]]
+  target = "purchase.order-routing-location-rule.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"

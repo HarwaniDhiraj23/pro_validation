@@ -610,6 +610,66 @@ const PREBUILT_TEMPLATES = [
       bundle_price: "89.99",
       bundle_title: "Complete Gift Bundle"
     }
+  },
+  {
+    id: 55,
+    title: "Hazardous Items Warehouse Restriction",
+    category: "Fulfillment & Routing",
+    description: "Restricts fulfillment of hazardous products exclusively to the certified Main Logistics Hub warehouse location.",
+    conditions: [{ type: "has_hazardous_item", operator: "equals", value: "true" }],
+    error_message: "",
+    error_target: "$.cart",
+    rule_type: "fulfillment",
+    fulfillment_action: "require_location",
+    fulfillment_config: { location_ids: ["gid://shopify/Location/main-warehouse"], location_name: "Main Logistics Hub" }
+  },
+  {
+    id: 56,
+    title: "East Coast Regional Fulfillment Routing",
+    category: "Fulfillment & Routing",
+    description: "Routes orders destined for East Coast states (NY, NJ, MA, PA, FL, GA) to the US-East Fulfillment Center.",
+    conditions: [{ type: "block_states", operator: "in_states", value: "NY,NJ,MA,PA,FL,GA,NC,VA,CT,MD" }],
+    error_message: "",
+    error_target: "$.cart",
+    rule_type: "fulfillment",
+    fulfillment_action: "prefer_location",
+    fulfillment_config: { location_ids: ["gid://shopify/Location/us-east-wh"], location_name: "US-East Fulfillment Center" }
+  },
+  {
+    id: 57,
+    title: "Exclude Retail Stores for International Shipping",
+    category: "Fulfillment & Routing",
+    description: "Prevents international orders from shipping out of retail store inventory, restricting fulfillment to central export hubs.",
+    conditions: [{ type: "block_countries", operator: "not_in_countries", value: "US,CA" }],
+    error_message: "",
+    error_target: "$.cart",
+    rule_type: "fulfillment",
+    fulfillment_action: "restrict_location",
+    fulfillment_config: { location_ids: ["gid://shopify/Location/retail-store-1"], location_name: "Retail Store Locations" }
+  },
+  {
+    id: 58,
+    title: "Heavy Freight Origin Locking",
+    category: "Fulfillment & Routing",
+    description: "Forces heavy cart orders (>30kg) to ship directly from the Regional Freight Depot.",
+    conditions: [{ type: "weight_limit", operator: "greater_than", value: "30" }],
+    error_message: "",
+    error_target: "$.cart",
+    rule_type: "fulfillment",
+    fulfillment_action: "require_location",
+    fulfillment_config: { location_ids: ["gid://shopify/Location/freight-depot"], location_name: "Regional Freight Depot" }
+  },
+  {
+    id: 59,
+    title: "B2B Wholesale Central Hub Fulfillment",
+    category: "Fulfillment & Routing",
+    description: "Ensures wholesale and B2B orders are routed exclusively to the Central Wholesale Fulfillment Hub.",
+    conditions: [{ type: "customer_tags", operator: "contains", value: "b2b,wholesale" }],
+    error_message: "",
+    error_target: "$.cart",
+    rule_type: "fulfillment",
+    fulfillment_action: "require_location",
+    fulfillment_config: { location_ids: ["gid://shopify/Location/wholesale-hub"], location_name: "Central Wholesale Hub" }
   }
 ];
 
