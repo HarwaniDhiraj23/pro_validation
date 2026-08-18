@@ -351,7 +351,7 @@ export default function Dashboard({ navigate }) {
       {/* KPI Section */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-title">Total Checkout Checks</div>
+          <div className="kpi-title">Total Checkout Success</div>
           <div className="kpi-val">{summary?.totalChecks || 0}</div>
           <div style={{ fontSize: "13px", fontWeight: "600", color: "#16a34a", display: "flex", alignItems: "center", gap: "4px" }}>
             <span>🛡️</span> Active Shielding

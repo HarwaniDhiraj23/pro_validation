@@ -494,6 +494,7 @@ function initFallbackDB() {
       rule_versions: [],
       rule_analytics: [],
       subscriptions_log: [],
+      rule_templates: PREBUILT_TEMPLATES,
     };
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
     fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(initialData, null, 2));
@@ -501,8 +502,12 @@ function initFallbackDB() {
     // Update templates and ensure subscriptions_log inside existing fallback DB
     try {
       const existingData = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
-      existingData.rule_templates = PREBUILT_TEMPLATES;
+      if (!existingData.shops) existingData.shops = [];
+      if (!existingData.rules) existingData.rules = [];
+      if (!existingData.rule_versions) existingData.rule_versions = [];
+      if (!existingData.rule_analytics) existingData.rule_analytics = [];
       if (!existingData.subscriptions_log) existingData.subscriptions_log = [];
+      existingData.rule_templates = PREBUILT_TEMPLATES;
       fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(existingData, null, 2));
     } catch (e) {
       console.error("Failed to update fallback_db.json templates:", e.message);
@@ -621,7 +626,7 @@ export async function syncTemplatesToPostgres() {
 // Auto-create all required database tables in PostgreSQL if they do not exist
 async function initPostgresTables(client) {
   try {
-    console.log("[DB Init] Ensuring all PostgreSQL database tables exist...");
+    console.log("[DB Init] Ensuring all PostgreSQL database tables exist and migrations applied...");
     await client.query(`
       CREATE TABLE IF NOT EXISTS shops (
         id SERIAL PRIMARY KEY,
@@ -674,9 +679,25 @@ async function initPostgresTables(client) {
         schedule_end TIMESTAMP,
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(255) DEFAULT NULL,
+        banner_style VARCHAR(255) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS schedule_start TIMESTAMP DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS schedule_end TIMESTAMP DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
 
       CREATE TABLE IF NOT EXISTS rule_versions (
         id SERIAL PRIMARY KEY,
@@ -691,8 +712,22 @@ async function initPostgresTables(client) {
         error_target VARCHAR(255) DEFAULT '$.cart',
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(255) DEFAULT NULL,
+        banner_style VARCHAR(255) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS banner_style VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
 
       CREATE TABLE IF NOT EXISTS rule_analytics (
         id SERIAL PRIMARY KEY,
@@ -703,6 +738,9 @@ async function initPostgresTables(client) {
         cart_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rule_analytics ADD COLUMN IF NOT EXISTS cart_value NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE rule_analytics ADD COLUMN IF NOT EXISTS cart_id VARCHAR(255) DEFAULT NULL;
 
       CREATE TABLE IF NOT EXISTS rule_templates (
         id SERIAL PRIMARY KEY,
@@ -716,6 +754,10 @@ async function initPostgresTables(client) {
         delivery_action VARCHAR(50) DEFAULT NULL,
         guidance_message VARCHAR(500) DEFAULT NULL
       );
+
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
     `);
     console.log("[DB Init] All PostgreSQL tables created/verified successfully!");
   } catch (e) {

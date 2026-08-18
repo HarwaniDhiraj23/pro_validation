@@ -7,6 +7,106 @@ import { validateCheckoutPayload } from "../utils/webhookValidator.js";
  * These webhooks allow us to track checkout attempts and completed orders
  * to calculate blocked checkout statistics for the dashboard.
  */
+const inFlightLocks = new Map();
+
+async function processCheckoutAnalytics(shop, payload, eventName) {
+  const cartValue = parseFloat(payload.total_line_items_price || payload.total_price || 0);
+  const cartId = String(payload.token || payload.id || `checkout_${Date.now()}`);
+  const lockKey = `${shop}_${cartId}`;
+
+  // If another webhook for this cart_id is currently executing in-flight, await its completion to prevent race conditions
+  if (inFlightLocks.has(lockKey)) {
+    try {
+      await inFlightLocks.get(lockKey);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  let resolveLock;
+  const lockPromise = new Promise((resolve) => { resolveLock = resolve; });
+  inFlightLocks.set(lockKey, lockPromise);
+
+  try {
+    console.log(`[Webhook] ${eventName} for ${shop} - Cart: ${cartId}, Value: $${cartValue}`);
+
+    // Fetch active validation rules for this shop
+    const rulesRes = await dbQuery(
+      "SELECT * FROM rules WHERE shop = $1 AND status = 'active'",
+      [shop]
+    );
+    let activeRules = rulesRes.rows || [];
+    activeRules = activeRules.filter(r => !r.rule_type || r.rule_type === 'validation');
+
+    if (activeRules.length === 0) {
+      return;
+    }
+
+    // Validate payload against active rules
+    const triggeredRules = validateCheckoutPayload(payload, activeRules);
+    const triggeredRulesList = Array.isArray(triggeredRules) ? triggeredRules : (triggeredRules ? [triggeredRules] : []);
+
+    if (triggeredRulesList.length > 0) {
+      // BLOCKED: Remove any previous 'check' entry for this cart_id
+      await dbQuery(
+        "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check'",
+        [shop, cartId]
+      );
+
+      for (const triggeredRule of triggeredRulesList) {
+        // Check if block already logged for this rule and cart
+        const existingBlock = await dbQuery(
+          "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block' AND rule_id = $3 LIMIT 1",
+          [shop, cartId, triggeredRule.id]
+        );
+        if (existingBlock.rows && existingBlock.rows.length > 0) {
+          await dbQuery(
+            "UPDATE rule_analytics SET cart_value = $1 WHERE id = $2",
+            [cartValue, existingBlock.rows[0].id]
+          );
+          continue;
+        }
+
+        console.log(`[Webhook] Block detected by rule "${triggeredRule.title}" (ID: ${triggeredRule.id}) for ${shop}`);
+        await dbQuery(
+          `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [shop, triggeredRule.id, 'block', cartValue, cartId]
+        );
+      }
+    } else {
+      // NOT BLOCKED: If there were previous block entries for this cart_id (e.g. user corrected address), clean block
+      await dbQuery(
+        "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block'",
+        [shop, cartId]
+      );
+
+      // Ensure strictly 1 'check' event exists for this cart_id
+      const existingCheck = await dbQuery(
+        "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check' LIMIT 1",
+        [shop, cartId]
+      );
+
+      if (existingCheck.rows && existingCheck.rows.length > 0) {
+        await dbQuery(
+          "UPDATE rule_analytics SET cart_value = $1 WHERE id = $2",
+          [cartValue, existingCheck.rows[0].id]
+        );
+      } else {
+        console.log(`[Webhook] Logging check event for ${shop} (Cart: ${cartId})`);
+        await dbQuery(
+          `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [shop, activeRules[0].id, 'check', cartValue, cartId]
+        );
+      }
+    }
+  } finally {
+    inFlightLocks.delete(lockKey);
+    if (typeof resolveLock === "function") resolveLock();
+  }
+}
+
 const WebhookHandlers = {
   CHECKOUTS_CREATE: {
     deliveryMethod: DeliveryMethod.Http,
@@ -14,75 +114,7 @@ const WebhookHandlers = {
     callback: async (topic, shop, body, webhookId) => {
       try {
         const payload = JSON.parse(body);
-        const cartValue = parseFloat(payload.total_line_items_price || payload.total_price || 0);
-        const cartId = String(payload.token || payload.id || `checkout_${Date.now()}`);
-
-        console.log(`[Webhook] CHECKOUTS_CREATE for ${shop} - Cart: ${cartId}, Value: $${cartValue}`);
-
-        // If checkout has already been completed and allowed, do not modify analytics
-        const existingAllow = await dbQuery(
-          "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'allow' LIMIT 1",
-          [shop, cartId]
-        );
-        if (existingAllow.rows && existingAllow.rows.length > 0) {
-          console.log(`[Webhook] Checkout ${cartId} is already completed/allowed. Ignoring create.`);
-          return;
-        }
-
-        // 1. Fetch active rules for this shop
-        const rulesRes = await dbQuery(
-          "SELECT * FROM rules WHERE shop = $1 AND status = 'active'",
-          [shop]
-        );
-        let activeRules = rulesRes.rows || [];
-        // Only validation rules actually block checkouts. Delivery/Payment rules just alter options.
-        activeRules = activeRules.filter(r => !r.rule_type || r.rule_type === 'validation');
-        console.log(`[Webhook] Active validation rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
-
-        // 2. Validate payload against active rules
-        const triggeredRule = validateCheckoutPayload(payload, activeRules);
-        console.log(`[Webhook] triggeredRule evaluation:`, triggeredRule ? { id: triggeredRule.id, title: triggeredRule.title } : "None matched");
-
-        if (triggeredRule) {
-          // If blocked:
-          // Remove previous check event if any
-          await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check'",
-            [shop, cartId]
-          );
-
-          // First check if block is already logged
-          const existingBlock = await dbQuery(
-            "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block' AND rule_id = $3 LIMIT 1",
-            [shop, cartId, triggeredRule.id]
-          );
-          if (existingBlock.rows && existingBlock.rows.length > 0) {
-            return;
-          }
-
-          console.log(`[Webhook] Block detected by rule "${triggeredRule.title}" (ID: ${triggeredRule.id}) for ${shop}`);
-          await dbQuery(
-            `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [shop, triggeredRule.id, 'block', cartValue, cartId]
-          );
-        } else {
-          // If not blocked:
-          // Remove any previous block or check event to prevent duplicates (fixing the 2 entry bug)
-          await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type IN ('check', 'block')",
-            [shop, cartId]
-          );
-
-          if (activeRules.length > 0) {
-            console.log(`[Webhook] Logging check event for ${shop}`);
-            await dbQuery(
-              `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [shop, activeRules[0].id, 'check', cartValue, cartId]
-            );
-          }
-        }
+        await processCheckoutAnalytics(shop, payload, "CHECKOUTS_CREATE");
       } catch (err) {
         console.error("[Webhook] CHECKOUTS_CREATE error:", err.stack || err.message);
       }
@@ -95,76 +127,7 @@ const WebhookHandlers = {
     callback: async (topic, shop, body, webhookId) => {
       try {
         const payload = JSON.parse(body);
-        const cartValue = parseFloat(payload.total_line_items_price || payload.total_price || 0);
-        const cartId = String(payload.token || payload.id || `checkout_${Date.now()}`);
-
-        console.log(`[Webhook] CHECKOUTS_UPDATE for ${shop} - Cart: ${cartId}, Value: $${cartValue}`);
-        console.log("[Webhook] CHECKOUTS_UPDATE raw payload:", JSON.stringify(payload));
-
-        // If checkout has already been completed and allowed, do not modify analytics
-        const existingAllow = await dbQuery(
-          "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'allow' LIMIT 1",
-          [shop, cartId]
-        );
-        if (existingAllow.rows && existingAllow.rows.length > 0) {
-          console.log(`[Webhook] Checkout ${cartId} is already completed/allowed. Ignoring update.`);
-          return;
-        }
-
-        // 1. Fetch active rules for this shop
-        const rulesRes = await dbQuery(
-          "SELECT * FROM rules WHERE shop = $1 AND status = 'active'",
-          [shop]
-        );
-        let activeRules = rulesRes.rows || [];
-        // Only validation rules actually block checkouts. Delivery/Payment rules just alter options.
-        activeRules = activeRules.filter(r => !r.rule_type || r.rule_type === 'validation');
-        console.log(`[Webhook] CHECKOUTS_UPDATE Active validation rules fetched: ${activeRules.length}`, activeRules.map(r => ({ id: r.id, title: r.title })));
-
-        // 2. Validate payload against active rules
-        const triggeredRule = validateCheckoutPayload(payload, activeRules);
-        console.log(`[Webhook] CHECKOUTS_UPDATE triggeredRule evaluation:`, triggeredRule ? { id: triggeredRule.id, title: triggeredRule.title } : "None matched");
-
-        if (triggeredRule) {
-          // If blocked:
-          // We can delete previous "check" event for this cart to keep analytics clean if it now blocks
-          await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'check'",
-            [shop, cartId]
-          );
-
-          // Check if block already logged
-          const existingBlock = await dbQuery(
-            "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'block' AND rule_id = $3 LIMIT 1",
-            [shop, cartId, triggeredRule.id]
-          );
-          if (existingBlock.rows && existingBlock.rows.length > 0) {
-            return;
-          }
-
-          console.log(`[Webhook] Block detected by rule "${triggeredRule.title}" (ID: ${triggeredRule.id}) for ${shop}`);
-          await dbQuery(
-            `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [shop, triggeredRule.id, 'block', cartValue, cartId]
-          );
-        } else {
-          // If not blocked:
-          // Remove any previous block or check event to prevent duplicates (fixing the 2 entry bug)
-          await dbQuery(
-            "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type IN ('check', 'block')",
-            [shop, cartId]
-          );
-
-          if (activeRules.length > 0) {
-            console.log(`[Webhook] Logging check event for ${shop}`);
-            await dbQuery(
-              `INSERT INTO rule_analytics (shop, rule_id, event_type, cart_value, cart_id)
-               VALUES ($1, $2, $3, $4, $5)`,
-              [shop, activeRules[0].id, 'check', cartValue, cartId]
-            );
-          }
-        }
+        await processCheckoutAnalytics(shop, payload, "CHECKOUTS_UPDATE");
       } catch (err) {
         console.error("[Webhook] CHECKOUTS_UPDATE error:", err.stack || err.message);
       }
@@ -182,24 +145,8 @@ const WebhookHandlers = {
 
         console.log(`[Webhook] ORDERS_CREATE for ${shop} - Order: ${payload.id}, Value: $${cartValue}`);
 
-        // Deduplication: Check if we already recorded an allow event for this checkout/order cartId
-        const existingOrder = await dbQuery(
-          "SELECT id FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type = 'allow' LIMIT 1",
-          [shop, cartId]
-        );
-        if (existingOrder.rows && existingOrder.rows.length > 0) {
-          console.log(`[Webhook] Duplicate order event for order/cart ${cartId} ignored.`);
-          return;
-        }
-
-        // Clean up any check/block events for this cart first!
-        await dbQuery(
-          "DELETE FROM rule_analytics WHERE shop = $1 AND cart_id = $2 AND event_type IN ('check', 'block')",
-          [shop, cartId]
-        );
-
-        // DO NOT log 'allow' event to database (per user request: on event_type = allow then do not update database)
-        console.log(`[Webhook] Order completed successfully. Skipping allow event insert.`);
+        // Keep historical check & block analytics so dashboard counts do not drop to 0
+        console.log(`[Webhook] Order completed successfully for cart ${cartId}. Analytics history retained.`);
       } catch (err) {
         console.error("[Webhook] ORDERS_CREATE error:", err.message);
       }
@@ -212,7 +159,7 @@ const WebhookHandlers = {
     callback: async (topic, shop, body, webhookId) => {
       try {
         console.log(`[Webhook] APP_UNINSTALLED for shop: ${shop}`);
-        
+
         await dbQuery(
           `UPDATE shops 
            SET uninstalled = TRUE, uninstalled_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
@@ -233,12 +180,12 @@ const WebhookHandlers = {
         console.log(`[Webhook] APP_SUBSCRIPTIONS_UPDATE for shop: ${shop}`);
         const payload = JSON.parse(body);
         const appSubscription = payload.app_subscription;
-        
+
         if (appSubscription) {
           const status = appSubscription.status;
           const subscriptionId = appSubscription.admin_graphql_api_id || String(appSubscription.id);
           const planName = appSubscription.name || "Free";
-          
+
           if (status === "CANCELLED" || status === "EXPIRED" || status === "DECLINED") {
             await dbQuery(
               "UPDATE shops SET plan_name = $1, subscription_id = $2, subscription_status = $3, trial_ends_at = $4 WHERE shop = $5",

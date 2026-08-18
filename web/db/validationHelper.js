@@ -28,12 +28,23 @@ function evaluateCondition(cond, cartInput) {
   const cart = cartInput?.cart || {};
   const buyerIdentity = cart.buyerIdentity || {};
   const customer = buyerIdentity.customer || {};
+  const isLogged = buyerIdentity.isAuthenticated === true || !!(customer.id || customer.email);
+  const isGuest = !isLogged;
   const lines = cart.lines || [];
   
-  // Get shipping address details
-  const shippingAddress = cart.shippingAddress || 
-    cart.deliveryGroups?.[0]?.deliveryAddress || 
-    cart.billingAddress || {};
+  // Get shipping address details cleanly merging top-level and deliveryGroups
+  const rawAddr = cart.shippingAddress || cart.shipping_address || {};
+  const devGroupAddr = cart.deliveryGroups?.[0]?.deliveryAddress || {};
+
+  const shippingAddress = {
+    address1: devGroupAddr.address1 || rawAddr.address1 || rawAddr.address_1 || "",
+    address2: devGroupAddr.address2 || rawAddr.address2 || rawAddr.address_2 || "",
+    city: devGroupAddr.city || rawAddr.city || "",
+    province: devGroupAddr.province || rawAddr.province || "",
+    provinceCode: devGroupAddr.provinceCode || devGroupAddr.province_code || rawAddr.provinceCode || rawAddr.province_code || "",
+    countryCode: devGroupAddr.countryCode || devGroupAddr.country_code || rawAddr.countryCode || rawAddr.country_code || "",
+    zip: devGroupAddr.zip || rawAddr.zip || rawAddr.zip_code || "",
+  };
 
   switch (cond.type) {
     case "customer_tags": {
@@ -44,7 +55,6 @@ function evaluateCondition(cond, cartInput) {
     }
 
     case "login_required": {
-      const isGuest = !buyerIdentity.isAuthenticated;
       return cond.operator === "is_guest" ? isGuest : !isGuest;
     }
 
@@ -54,7 +64,6 @@ function evaluateCondition(cond, cartInput) {
     }
 
     case "guest_checkout_restriction": {
-      const isGuest = !buyerIdentity.isAuthenticated;
       return isGuest;
     }
 

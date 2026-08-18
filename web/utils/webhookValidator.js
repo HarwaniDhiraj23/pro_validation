@@ -3,20 +3,43 @@
  * to determine if it would be blocked by any active rules.
  */
 export function validateCheckoutPayload(checkout, rules) {
-  // Support both Shopify Admin API Webhook structures (shipping_address) and Extension simulation structures (deliveryGroups)
-  const shippingAddress = checkout.shipping_address || 
-                          checkout.shippingAddress || 
-                          checkout.cart?.deliveryGroups?.[0]?.deliveryAddress || 
-                          checkout.deliveryGroups?.[0]?.deliveryAddress || {};
-  const customer = checkout.customer || checkout.cart?.buyerIdentity?.customer || {};
-  const isGuest = !customer || customer.state !== "enabled";
+  console.log("checkout =>>>",checkout)
+  // Support both Shopify Admin API Webhook structures (shipping_address), GraphQL structures (deliveryGroups), and nested cart structures
+  const rawAddr = checkout.shipping_address || checkout.shippingAddress || checkout.cart?.shippingAddress || {};
+  const devGroupAddr = checkout.deliveryGroups?.[0]?.deliveryAddress || checkout.cart?.deliveryGroups?.[0]?.deliveryAddress || {};
+
+  const shippingAddress = {
+    address1: devGroupAddr.address1 || rawAddr.address1 || rawAddr.address_1 || "",
+    address2: devGroupAddr.address2 || rawAddr.address2 || rawAddr.address_2 || "",
+    city: devGroupAddr.city || rawAddr.city || "",
+    province: devGroupAddr.province || rawAddr.province || "",
+    province_code: devGroupAddr.provinceCode || devGroupAddr.province_code || rawAddr.province_code || rawAddr.provinceCode || "",
+    provinceCode: devGroupAddr.provinceCode || devGroupAddr.province_code || rawAddr.provinceCode || rawAddr.province_code || "",
+    country: devGroupAddr.country || rawAddr.country || "",
+    country_code: devGroupAddr.countryCode || devGroupAddr.country_code || rawAddr.country_code || rawAddr.countryCode || "",
+    countryCode: devGroupAddr.countryCode || devGroupAddr.country_code || rawAddr.countryCode || rawAddr.country_code || "",
+    zip: devGroupAddr.zip || rawAddr.zip || rawAddr.zip_code || "",
+    zip_code: devGroupAddr.zip || rawAddr.zip_code || rawAddr.zip || "",
+  };
+  const buyerIdentity = checkout.buyerIdentity || checkout.cart?.buyerIdentity || {};
+  const customer = checkout.customer || buyerIdentity.customer || {};
+
+  // Customer is logged in if buyerIdentity.isAuthenticated is true OR customer has an ID/email OR user_id is present
+  const isLogged = buyerIdentity.isAuthenticated === true || !!(customer.id || customer.email || checkout.user_id || checkout.customer_id);
+  const isGuest = !isLogged;
+
   const lineItems = checkout.line_items || checkout.lineItems || checkout.cart?.lines || [];
   const subtotal = parseFloat(checkout.subtotal_price || checkout.total_line_items_price || checkout.totalPrice || checkout.cart?.cost?.subtotalAmount?.amount || 0);
 
   console.log("[Validator Debug] Extracting payload elements:");
+  console.log(" - isLogged:", isLogged, "isGuest:", isGuest);
+  console.log(" - customer ID/Email:", customer.id || customer.email);
   console.log(" - shippingAddress:", JSON.stringify(shippingAddress));
   console.log(" - lineItems Count:", lineItems.length);
   console.log(" - subtotal:", subtotal);
+
+  // const trig
+  const triggeredRule = []
 
   for (const rule of rules) {
     if (rule.status !== "active") continue;
@@ -27,6 +50,7 @@ export function validateCheckoutPayload(checkout, rules) {
     const op = rule.conditions_operator || "AND";
     const results = conditions.map(cond => {
       try {
+
         const res = evaluateCondition(cond, {
           shippingAddress,
           customer,
@@ -42,18 +66,18 @@ export function validateCheckoutPayload(checkout, rules) {
       }
     });
 
-    const isTriggered = op === "OR" 
+    const isTriggered = op === "OR"
       ? results.some(r => r === true)
       : results.every(r => r === true);
 
     console.log(` - Rule "${rule.title}" final outcome: ${isTriggered}`);
 
     if (isTriggered) {
-      return rule; // Returns the first rule that triggers a block
+      triggeredRule.push(rule); // Returns the first rule that triggers a block
     }
   }
-
-  return null;
+  console.log("trrigger rules new ==>",triggeredRule)
+  return triggeredRule;
 }
 
 function evaluateCondition(cond, data) {
@@ -62,6 +86,8 @@ function evaluateCondition(cond, data) {
 
   switch (cond.type) {
     case "login_required":
+      return cond.operator === "is_guest" ? isGuest : !isGuest;
+
     case "guest_checkout_restriction":
       return isGuest;
 
@@ -75,7 +101,7 @@ function evaluateCondition(cond, data) {
       if (!hasAddress) return false;
       const addr1 = (shippingAddress.address1 || shippingAddress.address_1 || "").toLowerCase();
       const addr2 = (shippingAddress.address2 || shippingAddress.address_2 || "").toLowerCase();
-      const poBoxRegex = /\b(p\s*o\s*box|post\s*office\s*box|p\.?\s*o\.?\s*box)\b/i;
+      const poBoxRegex = /\b(p\.?\s*o\.?\s*b(ox)?|post\s*(office)?\s*box|postal\s*box)\b/i;
       const isPoBox = poBoxRegex.test(addr1) || poBoxRegex.test(addr2);
       return cond.operator === "is_pobox" ? isPoBox : !isPoBox;
     }
@@ -163,7 +189,7 @@ function evaluateCondition(cond, data) {
     case "restricted_collections": {
       const cleanId = id => id.includes("gid://") ? id.split("/").pop() : id;
       const restrictedCollIds = (cond.value || "").split(",").map(c => cleanId(c.trim()));
-      
+
       const hasItem = lineItems.some(item => {
         // Shopify checkout line items can have collection details depending on payload version
         // We look for collection lists or matching collection IDs

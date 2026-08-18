@@ -40,8 +40,13 @@ CREATE TABLE IF NOT EXISTS rules (
   error_target VARCHAR(255) DEFAULT '$.cart',
   schedule_start TIMESTAMP,
   schedule_end TIMESTAMP,
-  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery
+  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, checkbox
   delivery_action VARCHAR(50) DEFAULT NULL,   -- hide, rename, move
+  warning_banner BOOLEAN DEFAULT FALSE,
+  custom_icon VARCHAR(255) DEFAULT NULL,
+  banner_style VARCHAR(255) DEFAULT NULL,
+  guidance_message VARCHAR(500) DEFAULT NULL,
+  display_in_checkout BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -60,6 +65,11 @@ CREATE TABLE IF NOT EXISTS rule_versions (
   error_target VARCHAR(255) DEFAULT '$.cart',
   rule_type VARCHAR(50) DEFAULT 'validation',
   delivery_action VARCHAR(50) DEFAULT NULL,
+  warning_banner BOOLEAN DEFAULT FALSE,
+  custom_icon VARCHAR(255) DEFAULT NULL,
+  banner_style VARCHAR(255) DEFAULT NULL,
+  guidance_message VARCHAR(500) DEFAULT NULL,
+  display_in_checkout BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
