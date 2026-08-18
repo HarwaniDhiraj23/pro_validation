@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS rules (
   error_target VARCHAR(255) DEFAULT '$.cart',
   schedule_start TIMESTAMP,
   schedule_end TIMESTAMP,
-  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, discount, fulfillment
+  rule_type VARCHAR(50) DEFAULT 'validation', -- validation, delivery, payment, checkbox, payment, discount, fulfillment
   delivery_action VARCHAR(50) DEFAULT NULL,   -- hide, rename, move
   discount_type VARCHAR(50) DEFAULT NULL,     -- tiered, volume, bogo, customer_tag, percentage, fixed_amount
   discount_target VARCHAR(255) DEFAULT 'order',
@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS rules (
   discount_config JSONB DEFAULT '{}',
   fulfillment_action VARCHAR(50) DEFAULT NULL, -- require_location, restrict_location, prefer_location
   fulfillment_config JSONB DEFAULT '{}',
+  warning_banner BOOLEAN DEFAULT FALSE,
+  custom_icon VARCHAR(255) DEFAULT NULL,
+  banner_style VARCHAR(255) DEFAULT NULL,
+  guidance_message VARCHAR(500) DEFAULT NULL,
+  display_in_checkout BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -66,6 +71,11 @@ CREATE TABLE IF NOT EXISTS rule_versions (
   error_target VARCHAR(255) DEFAULT '$.cart',
   rule_type VARCHAR(50) DEFAULT 'validation',
   delivery_action VARCHAR(50) DEFAULT NULL,
+  warning_banner BOOLEAN DEFAULT FALSE,
+  custom_icon VARCHAR(255) DEFAULT NULL,
+  banner_style VARCHAR(255) DEFAULT NULL,
+  guidance_message VARCHAR(500) DEFAULT NULL,
+  display_in_checkout BOOLEAN DEFAULT TRUE,
   discount_type VARCHAR(50) DEFAULT NULL,
   discount_target VARCHAR(255) DEFAULT 'order',
   discount_value VARCHAR(100) DEFAULT NULL,

@@ -17,7 +17,16 @@ function Extension() {
 
   // 2. Fetch stateful values from the shopify context
   const lines = shopify.lines?.value || [];
-  const shippingAddress = shopify.shippingAddress?.value || {};
+  const rawShippingAddr = shopify.shippingAddress?.value || {};
+  const devGroupAddr = shopify.deliveryGroups?.value?.[0]?.deliveryAddress || {};
+  const shippingAddress = {
+    address1: devGroupAddr.address1 || rawShippingAddr.address1 || "",
+    address2: devGroupAddr.address2 || rawShippingAddr.address2 || "",
+    city: devGroupAddr.city || rawShippingAddr.city || "",
+    provinceCode: devGroupAddr.provinceCode || rawShippingAddr.provinceCode || "",
+    countryCode: devGroupAddr.countryCode || rawShippingAddr.countryCode || "",
+    zip: devGroupAddr.zip || rawShippingAddr.zip || "",
+  };
   const buyerIdentity = shopify.buyerIdentity?.value || {};
   const cost = shopify.cost?.value || {};
   const appMetafields = shopify.appMetafields?.value || [];

@@ -12,7 +12,9 @@ const DATABASE_URL = process.env.DATABASE_URL;
 let pool = null;
 let useFallback = false;
 
-const __dirnameRoot = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, "$1");
+const __dirnameRoot = path
+  .dirname(new URL(import.meta.url).pathname)
+  .replace(/^\/([A-Za-z]:)/, "$1");
 const FALLBACK_DB_PATH = path.join(__dirnameRoot, "fallback_db.json");
 
 // Helper to initialize fallback JSON DB if not exists
@@ -21,507 +23,667 @@ const PREBUILT_TEMPLATES = [
     id: 1,
     title: "Block PO Box Addresses",
     category: "Address",
-    description: "Prevents shipping to PO Box addresses by checking the address lines for PO Box indicators, ensuring orders are sent to physical locations suitable for standard carrier deliveries.",
-    conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
-    error_message: "We cannot ship to PO Box addresses. Please provide a physical shipping address.",
-    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+    description:
+      "Prevents shipping to PO Box addresses by checking the address lines for PO Box indicators, ensuring orders are sent to physical locations suitable for standard carrier deliveries.",
+    conditions: [
+      { type: "shipping_address_pobox", operator: "is_pobox", value: "" },
+    ],
+    error_message:
+      "We cannot ship to PO Box addresses. Please provide a physical shipping address.",
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1",
   },
   {
     id: 2,
     title: "B2B Only Checkout",
     category: "B2B",
-    description: "Restricts checkout access to recognized business accounts with an active company profile. Guest accounts and standard consumer checkout profiles will be blocked.",
+    description:
+      "Restricts checkout access to recognized business accounts with an active company profile. Guest accounts and standard consumer checkout profiles will be blocked.",
     conditions: [{ type: "b2b_only", operator: "is_not_b2b", value: "" }],
     error_message: "Checkout is restricted to B2B customers only.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 3,
     title: "Login Required to Checkout",
     category: "Customer",
-    description: "Enforces user authentication before proceeding. Unauthenticated guest checkouts are blocked, prompting customers to log in or register an account.",
+    description:
+      "Enforces user authentication before proceeding. Unauthenticated guest checkouts are blocked, prompting customers to log in or register an account.",
     conditions: [{ type: "login_required", operator: "is_guest", value: "" }],
     error_message: "Please log in to your account to complete checkout.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 4,
     title: "Restricted States",
     category: "Address",
-    description: "Blocks checkout for specific state or province codes (e.g. Alaska, Hawaii, or military zones) where shipping is unsupported or incurs excessive carrier rates.",
-    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    description:
+      "Blocks checkout for specific state or province codes (e.g. Alaska, Hawaii, or military zones) where shipping is unsupported or incurs excessive carrier rates.",
+    conditions: [
+      { type: "block_states", operator: "in_states", value: "AK,HI" },
+    ],
     error_message: "We currently do not ship to Alaska or Hawaii.",
-    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1",
   },
   {
     id: 5,
     title: "Block Specific Countries",
     category: "Address",
-    description: "Restricts checkout access for specific countries or regions to comply with trade sanctions, high-risk fraud zones, or regions outside your shipping carrier networks.",
-    conditions: [{ type: "block_countries", operator: "in_countries", value: "KP,IR,SY" }],
+    description:
+      "Restricts checkout access for specific countries or regions to comply with trade sanctions, high-risk fraud zones, or regions outside your shipping carrier networks.",
+    conditions: [
+      { type: "block_countries", operator: "in_countries", value: "KP,IR,SY" },
+    ],
     error_message: "We do not ship to the selected country.",
-    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1",
   },
   {
     id: 6,
     title: "Hazardous Items Shipping Restriction",
     category: "Product",
-    description: "Ensures hazardous or safety-restricted products are not shipped to islands, remote territories, or specific state codes where air transport regulations prohibit them.",
+    description:
+      "Ensures hazardous or safety-restricted products are not shipped to islands, remote territories, or specific state codes where air transport regulations prohibit them.",
     conditions: [
       { type: "has_hazardous_item", operator: "equals", value: "true" },
-      { type: "block_states", operator: "in_states", value: "AK,HI,PR" }
+      { type: "block_states", operator: "in_states", value: "AK,HI,PR" },
     ],
-    error_message: "Hazardous items cannot be shipped to Alaska, Hawaii, or Puerto Rico.",
-    error_target: "$.cart"
+    error_message:
+      "Hazardous items cannot be shipped to Alaska, Hawaii, or Puerto Rico.",
+    error_target: "$.cart",
   },
   {
     id: 7,
     title: "Minimum Order Value limit",
     category: "Cart Value",
-    description: "Enforces a minimum cart subtotal requirement before allowing checkout, helping cover operational costs and logistics margins for small orders.",
-    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "50.00" }],
+    description:
+      "Enforces a minimum cart subtotal requirement before allowing checkout, helping cover operational costs and logistics margins for small orders.",
+    conditions: [
+      { type: "minimum_order_value", operator: "less_than", value: "50.00" },
+    ],
     error_message: "The minimum order value to checkout is $50.00.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 8,
     title: "Maximum Order Value limit",
     category: "Cart Value",
-    description: "Sets an upper threshold limit on the order subtotal to reduce liability risks, prevent high-value fraud, or redirect bulk trade orders to direct sales representatives.",
-    conditions: [{ type: "maximum_order_value", operator: "greater_than", value: "1000.00" }],
-    error_message: "Orders exceeding $1,000.00 must be placed by phone or email.",
-    error_target: "$.cart"
+    description:
+      "Sets an upper threshold limit on the order subtotal to reduce liability risks, prevent high-value fraud, or redirect bulk trade orders to direct sales representatives.",
+    conditions: [
+      {
+        type: "maximum_order_value",
+        operator: "greater_than",
+        value: "1000.00",
+      },
+    ],
+    error_message:
+      "Orders exceeding $1,000.00 must be placed by phone or email.",
+    error_target: "$.cart",
   },
   {
     id: 9,
     title: "Limit Customer Age (18+)",
     category: "Customer",
-    description: "Blocks checkout if the customer's age on file is under 18, ensuring legal compliance for age-restricted products like alcohol, tobacco, or mature content.",
+    description:
+      "Blocks checkout if the customer's age on file is under 18, ensuring legal compliance for age-restricted products like alcohol, tobacco, or mature content.",
     conditions: [{ type: "customer_age", operator: "under_age", value: "18" }],
     error_message: "You must be 18 years or older to purchase these items.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 10,
     title: "Restrict Subscription Items",
     category: "Product",
-    description: "Restricts subscription products to authorized customers with specific tags (e.g., VIP, wholesale), preventing general public signups for exclusive recurring plans.",
+    description:
+      "Restricts subscription products to authorized customers with specific tags (e.g., VIP, wholesale), preventing general public signups for exclusive recurring plans.",
     conditions: [
       { type: "has_subscription", operator: "equals", value: "true" },
-      { type: "customer_tags", operator: "not_contains", value: "vip" }
+      { type: "customer_tags", operator: "not_contains", value: "vip" },
     ],
     error_message: "Subscriptions are exclusive to VIP members.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 11,
     title: "Customer Tags Validation",
     category: "Customer",
-    description: "Restricts order placement to customers possessing specific account tags (like VIP, Wholesale, or Member), protecting exclusive catalog collections.",
-    conditions: [{ type: "customer_tags", operator: "contains", value: "vip,wholesale" }],
-    error_message: "This checkout is reserved for Wholesale or VIP customers only.",
-    error_target: "$.cart"
+    description:
+      "Restricts order placement to customers possessing specific account tags (like VIP, Wholesale, or Member), protecting exclusive catalog collections.",
+    conditions: [
+      { type: "customer_tags", operator: "contains", value: "vip,wholesale" },
+    ],
+    error_message:
+      "This checkout is reserved for Wholesale or VIP customers only.",
+    error_target: "$.cart",
   },
   {
     id: 12,
     title: "Guest Checkout Restriction",
     category: "Customer",
-    description: "Blocks checkout access for guest accounts, ensuring all orders are linked to registered customer profiles for loyalty tracking and communication.",
-    conditions: [{ type: "guest_checkout_restriction", operator: "is_guest", value: "" }],
-    error_message: "Guest checkout is disabled. Please create an account to purchase.",
-    error_target: "$.cart"
+    description:
+      "Blocks checkout access for guest accounts, ensuring all orders are linked to registered customer profiles for loyalty tracking and communication.",
+    conditions: [
+      { type: "guest_checkout_restriction", operator: "is_guest", value: "" },
+    ],
+    error_message:
+      "Guest checkout is disabled. Please create an account to purchase.",
+    error_target: "$.cart",
   },
   {
     id: 13,
     title: "Block Specific ZIP Codes",
     category: "Address",
-    description: "Blocks shipping to specific ZIP/postal codes known for delivery failures, remote access surcharges, or where regional distributor exclusivity applies.",
-    conditions: [{ type: "block_zipcodes", operator: "in_zips", value: "90210,10001" }],
+    description:
+      "Blocks shipping to specific ZIP/postal codes known for delivery failures, remote access surcharges, or where regional distributor exclusivity applies.",
+    conditions: [
+      { type: "block_zipcodes", operator: "in_zips", value: "90210,10001" },
+    ],
     error_message: "We do not offer shipping to your ZIP code.",
-    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1",
   },
   {
     id: 14,
     title: "Regex Address Format Validation",
     category: "Address",
-    description: "Validates the shipping address format against a regular expression pattern to prevent special characters, typos, or gibberish entries that cause shipment failures.",
-    conditions: [{ type: "address_regex", operator: "matches_regex", value: "^[a-zA-Z0-9\\s,.-]+$" }],
+    description:
+      "Validates the shipping address format against a regular expression pattern to prevent special characters, typos, or gibberish entries that cause shipment failures.",
+    conditions: [
+      {
+        type: "address_regex",
+        operator: "matches_regex",
+        value: "^[a-zA-Z0-9\\s,.-]+$",
+      },
+    ],
     error_message: "Please avoid special characters in your shipping address.",
-    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1"
+    error_target: "$.cart.deliveryGroups[0].deliveryAddress.address1",
   },
   {
     id: 15,
     title: "Restricted Collections Validation",
     category: "Product",
-    description: "Checks if cart items belong to restricted collection GIDs, blocking checkout for restricted product categories during shipping blackout periods or regional lockouts.",
-    conditions: [{ type: "restricted_collections", operator: "in_collections", value: "restricted_id" }],
-    error_message: "Items in your cart belong to a restricted collection and cannot be shipped.",
-    error_target: "$.cart"
+    description:
+      "Checks if cart items belong to restricted collection GIDs, blocking checkout for restricted product categories during shipping blackout periods or regional lockouts.",
+    conditions: [
+      {
+        type: "restricted_collections",
+        operator: "in_collections",
+        value: "restricted_id",
+      },
+    ],
+    error_message:
+      "Items in your cart belong to a restricted collection and cannot be shipped.",
+    error_target: "$.cart",
   },
   {
     id: 16,
     title: "Restricted Vendors Validation",
     category: "Product",
-    description: "Blocks purchase of items supplied by specific brand vendors, useful for enforcing distribution agreements, regional supply constraints, or seasonal inventory halts.",
-    conditions: [{ type: "restricted_vendors", operator: "in_vendors", value: "restricted_vendor" }],
+    description:
+      "Blocks purchase of items supplied by specific brand vendors, useful for enforcing distribution agreements, regional supply constraints, or seasonal inventory halts.",
+    conditions: [
+      {
+        type: "restricted_vendors",
+        operator: "in_vendors",
+        value: "restricted_vendor",
+      },
+    ],
     error_message: "We cannot fulfill orders for products from this vendor.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 17,
     title: "Incompatible Product Combinations",
     category: "Product",
-    description: "Prevents incompatible items from being purchased in the same order (e.g., pre-order products mixed with in-stock items, or conflicting fragile/heavy items).",
-    conditions: [{ type: "product_combinations", operator: "cannot_combine", value: "prod_id_A,prod_id_B" }],
-    error_message: "Incompatible items found in your cart. These products cannot be shipped together.",
-    error_target: "$.cart"
+    description:
+      "Prevents incompatible items from being purchased in the same order (e.g., pre-order products mixed with in-stock items, or conflicting fragile/heavy items).",
+    conditions: [
+      {
+        type: "product_combinations",
+        operator: "cannot_combine",
+        value: "prod_id_A,prod_id_B",
+      },
+    ],
+    error_message:
+      "Incompatible items found in your cart. These products cannot be shipped together.",
+    error_target: "$.cart",
   },
   {
     id: 18,
     title: "Cart Item Quantity Limit",
     category: "Cart Value",
-    description: "Limits the maximum number of items (total item count) allowed in the cart to prevent bulk buying, retail arbitrage, or carrier parcel weight limit issues.",
-    conditions: [{ type: "quantity_limit", operator: "greater_than", value: "10" }],
+    description:
+      "Limits the maximum number of items (total item count) allowed in the cart to prevent bulk buying, retail arbitrage, or carrier parcel weight limit issues.",
+    conditions: [
+      { type: "quantity_limit", operator: "greater_than", value: "10" },
+    ],
     error_message: "Maximum quantity of 10 items exceeded per order.",
-    error_target: "$.cart"
+    error_target: "$.cart",
   },
   {
     id: 19,
     title: "Weight Limit Restriction",
     category: "Cart Value",
-    description: "Enforces a maximum threshold on the total cart weight, ensuring order shipments do not exceed standard parcel carrier limits or trigger unexpected freight shipping.",
-    conditions: [{ type: "weight_limit", operator: "greater_than", value: "50" }],
-    error_message: "Order weight exceeds 50kg. Please contact us for a custom shipping quote.",
-    error_target: "$.cart"
+    description:
+      "Enforces a maximum threshold on the total cart weight, ensuring order shipments do not exceed standard parcel carrier limits or trigger unexpected freight shipping.",
+    conditions: [
+      { type: "weight_limit", operator: "greater_than", value: "50" },
+    ],
+    error_message:
+      "Order weight exceeds 50kg. Please contact us for a custom shipping quote.",
+    error_target: "$.cart",
   },
   {
     id: 20,
     title: "SKU Quantity Limit Check",
     category: "Cart Value",
-    description: "Restricts the number of unique SKUs (different products/variants) permitted in the cart to control inventory runs, limit order complexity, or manage pack times.",
+    description:
+      "Restricts the number of unique SKUs (different products/variants) permitted in the cart to control inventory runs, limit order complexity, or manage pack times.",
     conditions: [{ type: "sku_limit", operator: "greater_than", value: "5" }],
-    error_message: "A maximum of 5 unique product SKUs can be purchased per order.",
-    error_target: "$.cart"
+    error_message:
+      "A maximum of 5 unique product SKUs can be purchased per order.",
+    error_target: "$.cart",
   },
   {
     id: 21,
     title: "Block PO Box from Express Shipping",
     category: "Shipping",
-    description: "Hides Express Shipping method at checkout if the shipping address contains a PO Box.",
-    conditions: [{ type: "shipping_address_pobox", operator: "is_pobox", value: "" }],
+    description:
+      "Hides Express Shipping method at checkout if the shipping address contains a PO Box.",
+    conditions: [
+      { type: "shipping_address_pobox", operator: "is_pobox", value: "" },
+    ],
     error_message: "",
     error_target: "Express Shipping",
     rule_type: "delivery",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 22,
     title: "Hide Express Shipping for Remote States",
     category: "Shipping",
-    description: "Hides Express Shipping options for customers in remote states like Alaska (AK) and Hawaii (HI).",
-    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    description:
+      "Hides Express Shipping options for customers in remote states like Alaska (AK) and Hawaii (HI).",
+    conditions: [
+      { type: "block_states", operator: "in_states", value: "AK,HI" },
+    ],
     error_message: "",
     error_target: "Express Shipping",
     rule_type: "delivery",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 23,
     title: "Hide Free Shipping Under Minimum Purchase",
     category: "Shipping",
-    description: "Ensures Free Shipping is hidden if the cart subtotal is less than $75.",
-    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "75.00" }],
+    description:
+      "Ensures Free Shipping is hidden if the cart subtotal is less than $75.",
+    conditions: [
+      { type: "minimum_order_value", operator: "less_than", value: "75.00" },
+    ],
     error_message: "",
     error_target: "Free Shipping",
     rule_type: "delivery",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 24,
     title: "Hide Local Pickup for Non-Local ZIP Codes",
     category: "Local Pickup",
-    description: "Hides the Local Pickup option if the customer's shipping address ZIP/postal code is not within specified local ZIPs (e.g. 90210).",
-    conditions: [{ type: "block_zipcodes", operator: "not_in_zips", value: "90210,90211" }],
+    description:
+      "Hides the Local Pickup option if the customer's shipping address ZIP/postal code is not within specified local ZIPs (e.g. 90210).",
+    conditions: [
+      { type: "block_zipcodes", operator: "not_in_zips", value: "90210,90211" },
+    ],
     error_message: "",
     error_target: "Local Pickup",
     rule_type: "delivery",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 25,
     title: "Disable COD for Remote States",
     category: "Payment",
-    description: "Disables Cash on Delivery (COD) payment option for remote states (e.g. Alaska, Hawaii) to avoid shipping collect risks.",
-    conditions: [{ type: "block_states", operator: "in_states", value: "AK,HI" }],
+    description:
+      "Disables Cash on Delivery (COD) payment option for remote states (e.g. Alaska, Hawaii) to avoid shipping collect risks.",
+    conditions: [
+      { type: "block_states", operator: "in_states", value: "AK,HI" },
+    ],
     error_message: "",
     error_target: "Cash on Delivery (COD)",
     rule_type: "payment",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 26,
     title: "Disable PayPal for Low Cart Value",
     category: "Payment",
-    description: "Disables PayPal payment option if the order total is below $20 to encourage credit card usage on small transactions.",
-    conditions: [{ type: "minimum_order_value", operator: "less_than", value: "20.00" }],
+    description:
+      "Disables PayPal payment option if the order total is below $20 to encourage credit card usage on small transactions.",
+    conditions: [
+      { type: "minimum_order_value", operator: "less_than", value: "20.00" },
+    ],
     error_message: "",
     error_target: "PayPal",
     rule_type: "payment",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 27,
     title: "Disable COD for High Cart Value",
     category: "Payment",
-    description: "Disables Cash on Delivery (COD) payment option for orders exceeding $500 to minimize cash collection risks on delivery.",
-    conditions: [{ type: "maximum_order_value", operator: "greater_than", value: "500.00" }],
+    description:
+      "Disables Cash on Delivery (COD) payment option for orders exceeding $500 to minimize cash collection risks on delivery.",
+    conditions: [
+      {
+        type: "maximum_order_value",
+        operator: "greater_than",
+        value: "500.00",
+      },
+    ],
     error_message: "",
     error_target: "Cash on Delivery (COD)",
     rule_type: "payment",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 28,
     title: "Rename PayPal for VIP Customers",
     category: "Payment",
-    description: "Renames PayPal payment option to 'PayPal (Express VIP Checkout)' for customers tagged with 'vip'.",
+    description:
+      "Renames PayPal payment option to 'PayPal (Express VIP Checkout)' for customers tagged with 'vip'.",
     conditions: [{ type: "customer_tags", operator: "contains", value: "vip" }],
     error_message: "PayPal (Express VIP Checkout)",
     error_target: "PayPal",
     rule_type: "payment",
-    delivery_action: "rename"
+    delivery_action: "rename",
   },
   {
     id: 29,
     title: "Weekend Delivery Surcharge Note",
     category: "Shipping",
-    description: "Renames 'Standard Shipping' to 'Standard Shipping (Includes Weekend Delivery Surcharge)' during checkout validation.",
-    conditions: [{ type: "day_of_week", operator: "in_days", value: "Sat,Sun" }],
+    description:
+      "Renames 'Standard Shipping' to 'Standard Shipping (Includes Weekend Delivery Surcharge)' during checkout validation.",
+    conditions: [
+      { type: "day_of_week", operator: "in_days", value: "Sat,Sun" },
+    ],
     error_message: "Standard Shipping (Includes Weekend Delivery Surcharge)",
     error_target: "Standard Shipping",
     rule_type: "delivery",
-    delivery_action: "rename"
+    delivery_action: "rename",
   },
   {
     id: 30,
     title: "Block Orders with High Weight in Express Shipping",
     category: "Shipping",
-    description: "Hides Express Shipping options if the total cart weight exceeds 20kg.",
-    conditions: [{ type: "weight_limit", operator: "greater_than", value: "20" }],
+    description:
+      "Hides Express Shipping options if the total cart weight exceeds 20kg.",
+    conditions: [
+      { type: "weight_limit", operator: "greater_than", value: "20" },
+    ],
     error_message: "",
     error_target: "Express Shipping",
     rule_type: "delivery",
-    delivery_action: "hide"
+    delivery_action: "hide",
   },
   {
     id: 31,
     title: "Require Terms & Conditions Acceptance",
     category: "Checkbox",
-    description: "Requires customers to check an explicit box confirming they agree to the store's Terms of Service and Privacy Policy before checking out.",
+    description:
+      "Requires customers to check an explicit box confirming they agree to the store's Terms of Service and Privacy Policy before checking out.",
     conditions: [],
-    error_message: "You must accept the Terms of Service to complete your order.",
+    error_message:
+      "You must accept the Terms of Service to complete your order.",
     error_target: "purchase.checkout.block.render",
     guidance_message: "I agree to the Terms of Service and Privacy Policy.",
-    rule_type: "checkbox"
+    rule_type: "checkbox",
   },
   {
     id: 32,
     title: "Age 18+ Legal Declaration",
     category: "Checkbox",
-    description: "Adds a mandatory checkbox for customers to confirm they are at least 18 years of age for age-restricted items.",
+    description:
+      "Adds a mandatory checkbox for customers to confirm they are at least 18 years of age for age-restricted items.",
     conditions: [],
-    error_message: "You must confirm you are 18 years of age or older to proceed.",
+    error_message:
+      "You must confirm you are 18 years of age or older to proceed.",
     error_target: "purchase.checkout.block.render",
     guidance_message: "I confirm I am 18 years of age or older.",
-    rule_type: "checkbox"
+    rule_type: "checkbox",
   },
   {
     id: 33,
     title: "Age 21+ Alcohol & Tobacco Verification",
     category: "Checkbox",
-    description: "Requires buyers to confirm they are 21 years of age or older to purchase regulated items like alcohol or tobacco.",
+    description:
+      "Requires buyers to confirm they are 21 years of age or older to purchase regulated items like alcohol or tobacco.",
     conditions: [],
-    error_message: "You must be 21 or older to complete checkout for these items.",
+    error_message:
+      "You must be 21 or older to complete checkout for these items.",
     error_target: "purchase.checkout.block.render",
     guidance_message: "I verify that I am 21 years of age or older.",
-    rule_type: "checkbox"
+    rule_type: "checkbox",
   },
   {
     id: 34,
     title: "Final Sale & Non-Refundable Acknowledgment",
     category: "Checkbox",
-    description: "Ensures customers acknowledge that items in their cart are final sale and non-refundable prior to placing the order.",
+    description:
+      "Ensures customers acknowledge that items in their cart are final sale and non-refundable prior to placing the order.",
     conditions: [],
-    error_message: "Please confirm your acknowledgment of our final sale policy.",
+    error_message:
+      "Please confirm your acknowledgment of our final sale policy.",
     error_target: "purchase.checkout.block.render",
-    guidance_message: "I understand that clearance and final sale items cannot be returned or exchanged.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I understand that clearance and final sale items cannot be returned or exchanged.",
+    rule_type: "checkbox",
   },
   {
     id: 35,
     title: "Pre-Order Shipping Timeline Consent",
     category: "Checkbox",
-    description: "Requires buyers purchasing pre-order items to confirm they understand the estimated fulfillment timeline.",
+    description:
+      "Requires buyers purchasing pre-order items to confirm they understand the estimated fulfillment timeline.",
     conditions: [],
-    error_message: "Please confirm you understand the pre-order shipping timeline.",
+    error_message:
+      "Please confirm you understand the pre-order shipping timeline.",
     error_target: "purchase.checkout.shipping-option-list.render-after",
-    guidance_message: "I acknowledge that pre-order items ship within 3-4 weeks.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I acknowledge that pre-order items ship within 3-4 weeks.",
+    rule_type: "checkbox",
   },
   {
     id: 36,
     title: "Custom Engraving & Personalization Approval",
     category: "Checkbox",
-    description: "Requires customers ordering custom or engraved products to double-check their custom text and spelling before ordering.",
+    description:
+      "Requires customers ordering custom or engraved products to double-check their custom text and spelling before ordering.",
     conditions: [],
-    error_message: "Please confirm that your personalization options have been reviewed.",
+    error_message:
+      "Please confirm that your personalization options have been reviewed.",
     error_target: "purchase.checkout.block.render",
-    guidance_message: "I have verified that all custom text, spelling, and options selected are accurate.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I have verified that all custom text, spelling, and options selected are accurate.",
+    rule_type: "checkbox",
   },
   {
     id: 37,
     title: "Perishable Food Unattended Delivery Consent",
     category: "Checkbox",
-    description: "Requires agreement that perishable or frozen items will be refrigerated immediately upon carrier delivery.",
+    description:
+      "Requires agreement that perishable or frozen items will be refrigerated immediately upon carrier delivery.",
     conditions: [],
-    error_message: "Please accept the perishable delivery policy before continuing.",
+    error_message:
+      "Please accept the perishable delivery policy before continuing.",
     error_target: "purchase.checkout.delivery-address.render-after",
-    guidance_message: "I agree to unpack and refrigerate perishable items immediately upon delivery.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I agree to unpack and refrigerate perishable items immediately upon delivery.",
+    rule_type: "checkbox",
   },
   {
     id: 38,
     title: "Adult Signature Delivery Notice",
     category: "Checkbox",
-    description: "Informs buyers that an adult signature is required upon delivery for high-value or restricted parcels.",
+    description:
+      "Informs buyers that an adult signature is required upon delivery for high-value or restricted parcels.",
     conditions: [],
-    error_message: "Please confirm you understand the signature delivery requirement.",
+    error_message:
+      "Please confirm you understand the signature delivery requirement.",
     error_target: "purchase.checkout.shipping-option-list.render-after",
-    guidance_message: "I acknowledge that a physical signature will be required at delivery.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I acknowledge that a physical signature will be required at delivery.",
+    rule_type: "checkbox",
   },
   {
     id: 39,
     title: "Freight Shipping Curbside Delivery Notice",
     category: "Checkbox",
-    description: "Requires acknowledgment of curbside delivery policies and heavy item offloading responsibilities.",
+    description:
+      "Requires acknowledgment of curbside delivery policies and heavy item offloading responsibilities.",
     conditions: [],
     error_message: "Please acknowledge the freight curbside delivery terms.",
     error_target: "purchase.checkout.shipping-option-list.render-after",
-    guidance_message: "I understand freight delivery is curbside only and requires offloading assistance.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I understand freight delivery is curbside only and requires offloading assistance.",
+    rule_type: "checkbox",
   },
   {
     id: 40,
     title: "B2B Tax-Exempt Resale Declaration",
     category: "Checkbox",
-    description: "Requires commercial B2B buyers to verify they hold a valid resale or tax-exempt certificate on file.",
+    description:
+      "Requires commercial B2B buyers to verify they hold a valid resale or tax-exempt certificate on file.",
     conditions: [],
     error_message: "Please confirm your tax-exempt business purchasing status.",
     error_target: "purchase.checkout.contact.render-after",
-    guidance_message: "I certify this purchase is for resale or authorized tax-exempt business use.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I certify this purchase is for resale or authorized tax-exempt business use.",
+    rule_type: "checkbox",
   },
   {
     id: 41,
     title: "Digital Downloads Instant Access Waiver",
     category: "Checkbox",
-    description: "Waiver of right of withdrawal for instant digital downloads and software keys upon purchase.",
+    description:
+      "Waiver of right of withdrawal for instant digital downloads and software keys upon purchase.",
     conditions: [],
-    error_message: "Please confirm your agreement for immediate digital delivery.",
+    error_message:
+      "Please confirm your agreement for immediate digital delivery.",
     error_target: "purchase.checkout.payment-method-list.render-before",
-    guidance_message: "I consent to immediate access to digital content and waive right to cancel once downloaded.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I consent to immediate access to digital content and waive right to cancel once downloaded.",
+    rule_type: "checkbox",
   },
   {
     id: 42,
     title: "Transactional SMS Notifications Consent",
     category: "Checkbox",
-    description: "Consents to receiving transactional SMS updates and order status alerts regarding their package.",
+    description:
+      "Consents to receiving transactional SMS updates and order status alerts regarding their package.",
     conditions: [],
     error_message: "Please confirm your agreement for order updates.",
     error_target: "purchase.checkout.contact.render-after",
-    guidance_message: "I agree to receive transactional order status updates via SMS text message.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I agree to receive transactional order status updates via SMS text message.",
+    rule_type: "checkbox",
   },
   {
     id: 43,
     title: "Out-of-Stock Item Substitution Consent",
     category: "Checkbox",
-    description: "Allows store pickers to substitute comparable products if an ordered item is out of stock.",
+    description:
+      "Allows store pickers to substitute comparable products if an ordered item is out of stock.",
     conditions: [],
     error_message: "Please indicate whether item substitutions are permitted.",
     error_target: "purchase.checkout.block.render",
-    guidance_message: "I allow equal-value item substitutions if an ordered product is out of stock.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I allow equal-value item substitutions if an ordered product is out of stock.",
+    rule_type: "checkbox",
   },
   {
     id: 44,
     title: "Customer Assembly Required Disclaimer",
     category: "Checkbox",
-    description: "Ensures customers understand that furniture or equipment items arrive flat-packed and require self-assembly.",
+    description:
+      "Ensures customers understand that furniture or equipment items arrive flat-packed and require self-assembly.",
     conditions: [],
     error_message: "Please confirm you understand assembly is required.",
     error_target: "purchase.checkout.block.render",
-    guidance_message: "I acknowledge that products in this order require customer assembly.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I acknowledge that products in this order require customer assembly.",
+    rule_type: "checkbox",
   },
   {
     id: 45,
     title: "Minimal Eco-Friendly Packaging Consent",
     category: "Checkbox",
-    description: "Consents to consolidated shipping and minimal recyclable packaging to reduce environmental waste.",
+    description:
+      "Consents to consolidated shipping and minimal recyclable packaging to reduce environmental waste.",
     conditions: [],
     error_message: "Please indicate your packaging preference.",
     error_target: "purchase.checkout.block.render",
-    guidance_message: "I opt in to minimal eco-friendly recyclable packaging for my shipment.",
-    rule_type: "checkbox"
+    guidance_message:
+      "I opt in to minimal eco-friendly recyclable packaging for my shipment.",
+    rule_type: "checkbox",
   },
   {
     id: 46,
     title: "Tiered Spend Savings ($100 -> 10% Off, $200 -> 20% Off)",
     category: "Discounts",
-    description: "Applies progressive discount percentages based on customer cart subtotal spend thresholds.",
+    description:
+      "Applies progressive discount percentages based on customer cart subtotal spend thresholds.",
     conditions: [],
     error_message: "Tiered Spend Discount Applied",
     error_target: "$.cart",
     rule_type: "discount",
     discount_type: "tiered",
     discount_target: "order",
-    discount_config: { tiered_brackets: [{ spend_threshold: "100", discount_percent: "10" }, { spend_threshold: "200", discount_percent: "20" }] }
+    discount_config: {
+      tiered_brackets: [
+        { spend_threshold: "100", discount_percent: "10" },
+        { spend_threshold: "200", discount_percent: "20" },
+      ],
+    },
   },
   {
     id: 47,
     title: "Bulk Volume Discount (Buy 3+ Get 15% Off)",
     category: "Discounts",
-    description: "Rewards customers buying multiple units by applying a 15% volume discount when cart item count reaches 3 or more.",
+    description:
+      "Rewards customers buying multiple units by applying a 15% volume discount when cart item count reaches 3 or more.",
     conditions: [],
     error_message: "Volume Savings Applied",
     error_target: "$.cart",
     rule_type: "discount",
     discount_type: "volume",
     discount_target: "line_items",
-    discount_config: { volume_brackets: [{ min_qty: "3", max_qty: "99", discount_percent: "15" }] }
+    discount_config: {
+      volume_brackets: [
+        { min_qty: "3", max_qty: "99", discount_percent: "15" },
+      ],
+    },
   },
   {
     id: 48,
     title: "Buy 1 Get 1 50% Off (Custom BOGO)",
     category: "Discounts",
-    description: "Applies a 50% discount to target items when a customer adds required trigger items to their cart.",
+    description:
+      "Applies a 50% discount to target items when a customer adds required trigger items to their cart.",
     conditions: [],
     error_message: "BOGO Special Applied",
     error_target: "$.cart",
     rule_type: "discount",
     discount_type: "bogo",
     discount_target: "line_items",
-    discount_config: { bogo_config: { buy_qty: 1, get_qty: 1, get_discount_percent: 50 } }
+    discount_config: {
+      bogo_config: { buy_qty: 1, get_qty: 1, get_discount_percent: 50 },
+    },
   },
   {
     id: 49,
     title: "VIP Customer Exclusive 15% Off",
     category: "Discounts",
-    description: "Automatically grants a 15% discount for customers logged in with the VIP account tag.",
+    description:
+      "Automatically grants a 15% discount for customers logged in with the VIP account tag.",
     conditions: [{ type: "customer_tags", operator: "contains", value: "vip" }],
     error_message: "VIP Member Discount",
     error_target: "$.cart",
@@ -529,39 +691,52 @@ const PREBUILT_TEMPLATES = [
     discount_type: "customer_tag",
     discount_target: "order",
     discount_value: "15",
-    discount_config: { required_customer_tags: ["vip"] }
+    discount_config: { required_customer_tags: ["vip"] },
   },
   {
     id: 50,
     title: "Wholesale Volume Tiered Savings",
     category: "Discounts",
-    description: "Applies 20% discount on wholesale orders exceeding 10 total items.",
-    conditions: [{ type: "customer_tags", operator: "contains", value: "wholesale" }],
+    description:
+      "Applies 20% discount on wholesale orders exceeding 10 total items.",
+    conditions: [
+      { type: "customer_tags", operator: "contains", value: "wholesale" },
+    ],
     error_message: "Wholesale Order Discount",
     error_target: "$.cart",
     rule_type: "discount",
     discount_type: "volume",
     discount_target: "order",
-    discount_config: { required_customer_tags: ["wholesale"], volume_brackets: [{ min_qty: "10", max_qty: "999", discount_percent: "20" }] }
+    discount_config: {
+      required_customer_tags: ["wholesale"],
+      volume_brackets: [
+        { min_qty: "10", max_qty: "999", discount_percent: "20" },
+      ],
+    },
   },
   {
     id: 51,
     title: "High Cart Capped Discount (10% Off up to $30)",
     category: "Discounts",
-    description: "Gives 10% off cart subtotal over $75 with a maximum savings limit cap of $30.",
+    description:
+      "Gives 10% off cart subtotal over $75 with a maximum savings limit cap of $30.",
     conditions: [],
     error_message: "Special Order Discount",
     error_target: "$.cart",
     rule_type: "discount",
     discount_type: "tiered",
     discount_target: "order",
-    discount_config: { tiered_brackets: [{ spend_threshold: "75", discount_percent: "10" }], max_discount_cap: "30.00" }
+    discount_config: {
+      tiered_brackets: [{ spend_threshold: "75", discount_percent: "10" }],
+      max_discount_cap: "30.00",
+    },
   },
   {
     id: 52,
     title: "Kit Bundle Component Expansion (Expand Parent Kit)",
     category: "Bundling & Kits",
-    description: "Automatically expands a parent kit bundle item in the cart into individual component line items with native component pricing at checkout.",
+    description:
+      "Automatically expands a parent kit bundle item in the cart into individual component line items with native component pricing at checkout.",
     conditions: [],
     error_message: "Kit Expanded",
     error_target: "$.cart",
@@ -570,16 +745,25 @@ const PREBUILT_TEMPLATES = [
     transform_config: {
       parent_variant_id: "gid://shopify/ProductVariant/SAMPLE_KIT",
       components: [
-        { variant_id: "gid://shopify/ProductVariant/COMPONENT_1", quantity: 1, fixed_price: "29.99" },
-        { variant_id: "gid://shopify/ProductVariant/COMPONENT_2", quantity: 2, fixed_price: "15.00" }
-      ]
-    }
+        {
+          variant_id: "gid://shopify/ProductVariant/COMPONENT_1",
+          quantity: 1,
+          fixed_price: "29.99",
+        },
+        {
+          variant_id: "gid://shopify/ProductVariant/COMPONENT_2",
+          quantity: 2,
+          fixed_price: "15.00",
+        },
+      ],
+    },
   },
   {
     id: 53,
     title: "Native Line-Item Unit Price Override",
     category: "Price Overrides",
-    description: "Overrides product line item unit prices natively in cart and checkout without using coupon discount codes.",
+    description:
+      "Overrides product line item unit prices natively in cart and checkout without using coupon discount codes.",
     conditions: [],
     error_message: "Special Unit Price Applied",
     error_target: "$.cart",
@@ -588,14 +772,15 @@ const PREBUILT_TEMPLATES = [
     transform_config: {
       target_variant_ids: ["gid://shopify/ProductVariant/SAMPLE_OVERRIDE"],
       override_price: "49.99",
-      custom_title: "VIP Contract Pricing"
-    }
+      custom_title: "VIP Contract Pricing",
+    },
   },
   {
     id: 54,
     title: "Automatic Component Product Bundling (Merge Cart Items)",
     category: "Bundling & Kits",
-    description: "Merges separate component items added to cart into a single parent bundle line item with special bundle pricing.",
+    description:
+      "Merges separate component items added to cart into a single parent bundle line item with special bundle pricing.",
     conditions: [],
     error_message: "Products Bundled",
     error_target: "$.cart",
@@ -605,80 +790,117 @@ const PREBUILT_TEMPLATES = [
       parent_variant_id: "gid://shopify/ProductVariant/BUNDLE_PARENT",
       component_variant_ids: [
         "gid://shopify/ProductVariant/COMPONENT_A",
-        "gid://shopify/ProductVariant/COMPONENT_B"
+        "gid://shopify/ProductVariant/COMPONENT_B",
       ],
       bundle_price: "89.99",
-      bundle_title: "Complete Gift Bundle"
-    }
+      bundle_title: "Complete Gift Bundle",
+    },
   },
   {
     id: 55,
     title: "Hazardous Items Warehouse Restriction",
     category: "Fulfillment & Routing",
-    description: "Restricts fulfillment of hazardous products exclusively to the certified Main Logistics Hub warehouse location.",
-    conditions: [{ type: "has_hazardous_item", operator: "equals", value: "true" }],
+    description:
+      "Restricts fulfillment of hazardous products exclusively to the certified Main Logistics Hub warehouse location.",
+    conditions: [
+      { type: "has_hazardous_item", operator: "equals", value: "true" },
+    ],
     error_message: "",
     error_target: "$.cart",
     rule_type: "fulfillment",
     fulfillment_action: "require_location",
-    fulfillment_config: { location_ids: ["gid://shopify/Location/main-warehouse"], location_name: "Main Logistics Hub" }
+    fulfillment_config: {
+      location_ids: ["gid://shopify/Location/main-warehouse"],
+      location_name: "Main Logistics Hub",
+    },
   },
   {
     id: 56,
     title: "East Coast Regional Fulfillment Routing",
     category: "Fulfillment & Routing",
-    description: "Routes orders destined for East Coast states (NY, NJ, MA, PA, FL, GA) to the US-East Fulfillment Center.",
-    conditions: [{ type: "block_states", operator: "in_states", value: "NY,NJ,MA,PA,FL,GA,NC,VA,CT,MD" }],
+    description:
+      "Routes orders destined for East Coast states (NY, NJ, MA, PA, FL, GA) to the US-East Fulfillment Center.",
+    conditions: [
+      {
+        type: "block_states",
+        operator: "in_states",
+        value: "NY,NJ,MA,PA,FL,GA,NC,VA,CT,MD",
+      },
+    ],
     error_message: "",
     error_target: "$.cart",
     rule_type: "fulfillment",
     fulfillment_action: "prefer_location",
-    fulfillment_config: { location_ids: ["gid://shopify/Location/us-east-wh"], location_name: "US-East Fulfillment Center" }
+    fulfillment_config: {
+      location_ids: ["gid://shopify/Location/us-east-wh"],
+      location_name: "US-East Fulfillment Center",
+    },
   },
   {
     id: 57,
     title: "Exclude Retail Stores for International Shipping",
     category: "Fulfillment & Routing",
-    description: "Prevents international orders from shipping out of retail store inventory, restricting fulfillment to central export hubs.",
-    conditions: [{ type: "block_countries", operator: "not_in_countries", value: "US,CA" }],
+    description:
+      "Prevents international orders from shipping out of retail store inventory, restricting fulfillment to central export hubs.",
+    conditions: [
+      { type: "block_countries", operator: "not_in_countries", value: "US,CA" },
+    ],
     error_message: "",
     error_target: "$.cart",
     rule_type: "fulfillment",
     fulfillment_action: "restrict_location",
-    fulfillment_config: { location_ids: ["gid://shopify/Location/retail-store-1"], location_name: "Retail Store Locations" }
+    fulfillment_config: {
+      location_ids: ["gid://shopify/Location/retail-store-1"],
+      location_name: "Retail Store Locations",
+    },
   },
   {
     id: 58,
     title: "Heavy Freight Origin Locking",
     category: "Fulfillment & Routing",
-    description: "Forces heavy cart orders (>30kg) to ship directly from the Regional Freight Depot.",
-    conditions: [{ type: "weight_limit", operator: "greater_than", value: "30" }],
+    description:
+      "Forces heavy cart orders (>30kg) to ship directly from the Regional Freight Depot.",
+    conditions: [
+      { type: "weight_limit", operator: "greater_than", value: "30" },
+    ],
     error_message: "",
     error_target: "$.cart",
     rule_type: "fulfillment",
     fulfillment_action: "require_location",
-    fulfillment_config: { location_ids: ["gid://shopify/Location/freight-depot"], location_name: "Regional Freight Depot" }
+    fulfillment_config: {
+      location_ids: ["gid://shopify/Location/freight-depot"],
+      location_name: "Regional Freight Depot",
+    },
   },
   {
     id: 59,
     title: "B2B Wholesale Central Hub Fulfillment",
     category: "Fulfillment & Routing",
-    description: "Ensures wholesale and B2B orders are routed exclusively to the Central Wholesale Fulfillment Hub.",
-    conditions: [{ type: "customer_tags", operator: "contains", value: "b2b,wholesale" }],
+    description:
+      "Ensures wholesale and B2B orders are routed exclusively to the Central Wholesale Fulfillment Hub.",
+    conditions: [
+      { type: "customer_tags", operator: "contains", value: "b2b,wholesale" },
+    ],
     error_message: "",
     error_target: "$.cart",
     rule_type: "fulfillment",
     fulfillment_action: "require_location",
-    fulfillment_config: { location_ids: ["gid://shopify/Location/wholesale-hub"], location_name: "Central Wholesale Hub" }
+    fulfillment_config: {
+      location_ids: ["gid://shopify/Location/wholesale-hub"],
+      location_name: "Central Wholesale Hub",
+    },
   },
   {
     id: 61,
     title: "Promotional Banner & Store Announcement",
     category: "Custom Banner & Announcement",
-    description: "Displays a prominent promotional banner or general store announcement in checkout with dynamic spend discount callouts.",
+    description:
+      "Displays a prominent promotional banner or general store announcement in checkout with dynamic spend discount callouts.",
     conditions: [],
-    error_message: "Special Offer: Add {remaining} more to get {discount} off your order!",
-    guidance_message: "🎉 Congratulations! You qualified for {discount} off your order!",
+    error_message:
+      "Special Offer: Add {remaining} more to get {discount} off your order!",
+    guidance_message:
+      "🎉 Congratulations! You qualified for {discount} off your order!",
     error_target: "purchase.checkout.block.render",
     rule_type: "banner",
     banner_style: "info",
@@ -689,43 +911,48 @@ const PREBUILT_TEMPLATES = [
       discount_value: "15",
       discount_type: "percentage",
       promo_code: "SAVE15",
-      max_cap: ""
-    }
+      max_cap: "",
+    },
   },
   {
     id: 70,
     title: "Gift Message & Card Personalization",
     category: "Custom Input Fields",
-    description: "Capture a custom gift note or card message from buyers directly during checkout.",
+    description:
+      "Capture a custom gift note or card message from buyers directly during checkout.",
     conditions: [],
     error_message: "Enter your gift note or card message...",
-    guidance_message: "Printed on a physical card and included with your order.",
+    guidance_message:
+      "Printed on a physical card and included with your order.",
     error_target: "purchase.checkout.block.render",
     rule_type: "custom_input",
     attribute_key: "gift_message",
     field_type: "multiline",
     is_required: false,
-    max_length: "200"
+    max_length: "200",
   },
   {
     id: 71,
     title: "Preferred Delivery Date Picker",
     category: "Custom Input Fields",
-    description: "Allow customers to select their preferred delivery date during checkout.",
+    description:
+      "Allow customers to select their preferred delivery date during checkout.",
     conditions: [],
     error_message: "Select your preferred delivery date",
-    guidance_message: "Orders are dispatched to arrive on or before your selected date.",
+    guidance_message:
+      "Orders are dispatched to arrive on or before your selected date.",
     error_target: "purchase.checkout.shipping-option-list.render-before",
     rule_type: "custom_input",
     attribute_key: "delivery_date",
     field_type: "date",
-    is_required: true
+    is_required: true,
   },
   {
     id: 72,
     title: "Delivery Instructions & Gate Notes",
     category: "Custom Input Fields",
-    description: "Collect special delivery instructions, driver notes, or gate access codes.",
+    description:
+      "Collect special delivery instructions, driver notes, or gate access codes.",
     conditions: [],
     error_message: "Gate code, leave at back door, driver notes...",
     guidance_message: "Passes directly to the carrier driver.",
@@ -734,13 +961,14 @@ const PREBUILT_TEMPLATES = [
     attribute_key: "delivery_instructions",
     field_type: "multiline",
     is_required: false,
-    max_length: "150"
+    max_length: "150",
   },
   {
     id: 73,
     title: "Tax ID & Business VAT Registration",
     category: "Custom Input Fields",
-    description: "Require business buyers to enter their Tax ID or VAT Registration number for invoicing.",
+    description:
+      "Require business buyers to enter their Tax ID or VAT Registration number for invoicing.",
     conditions: [],
     error_message: "e.g. VAT12345678",
     guidance_message: "Required for official commercial tax invoicing.",
@@ -748,13 +976,14 @@ const PREBUILT_TEMPLATES = [
     rule_type: "custom_input",
     attribute_key: "tax_id",
     field_type: "text",
-    is_required: true
+    is_required: true,
   },
   {
     id: 74,
     title: "Custom Item Engraving Text",
     category: "Custom Input Fields",
-    description: "Capture custom text for engraved or personalized items in the order.",
+    description:
+      "Capture custom text for engraved or personalized items in the order.",
     conditions: [],
     error_message: "e.g. A & B - 2026",
     guidance_message: "Max 30 characters for custom engraving.",
@@ -763,120 +992,134 @@ const PREBUILT_TEMPLATES = [
     attribute_key: "engraving_text",
     field_type: "text",
     is_required: false,
-    max_length: "30"
+    max_length: "30",
   },
   {
     id: 80,
     title: "Shipping Protection & Order Insurance ($4.99)",
     category: "In-Checkout Upsells",
-    description: "Offer single-click shipping protection covering lost, stolen, or damaged packages.",
+    description:
+      "Offer single-click shipping protection covering lost, stolen, or damaged packages.",
     conditions: [],
     error_message: "$4.99",
-    guidance_message: "Covers lost, stolen, or damaged packages during transit.",
+    guidance_message:
+      "Covers lost, stolen, or damaged packages during transit.",
     error_target: "purchase.checkout.reductions.render-before",
     rule_type: "upsell",
     custom_icon: "shield",
-    variant_gid: ""
+    variant_gid: "",
   },
   {
     id: 81,
     title: "Premium Gift Wrapping & Packaging ($3.99)",
     category: "In-Checkout Upsells",
-    description: "Allow buyers to add signature gift wrapping and custom ribbon packaging to their cart.",
+    description:
+      "Allow buyers to add signature gift wrapping and custom ribbon packaging to their cart.",
     conditions: [],
     error_message: "$3.99",
-    guidance_message: "Includes premium gift box, ribbon, and personalized card.",
+    guidance_message:
+      "Includes premium gift box, ribbon, and personalized card.",
     error_target: "purchase.checkout.block.render",
     rule_type: "upsell",
     custom_icon: "gift",
-    variant_gid: ""
+    variant_gid: "",
   },
   {
     id: 82,
     title: "Priority Express Order Dispatch ($9.99)",
     category: "In-Checkout Upsells",
-    description: "Offer VIP order processing to bump fulfillment to the top of the queue.",
+    description:
+      "Offer VIP order processing to bump fulfillment to the top of the queue.",
     conditions: [],
     error_message: "$9.99",
     guidance_message: "Bumps your order to priority fulfillment queue.",
     error_target: "purchase.checkout.shipping-option-list.render-before",
     rule_type: "upsell",
     custom_icon: "truck",
-    variant_gid: ""
+    variant_gid: "",
   },
   {
     id: 83,
     title: "Extended Hardware Protection Warranty ($14.99)",
     category: "In-Checkout Upsells",
-    description: "Add a 2-year extended warranty plan covering accidental drops and hardware defects.",
+    description:
+      "Add a 2-year extended warranty plan covering accidental drops and hardware defects.",
     conditions: [],
     error_message: "$14.99",
     guidance_message: "2-Year full replacement warranty for accidental damage.",
     error_target: "purchase.checkout.reductions.render-after",
     rule_type: "upsell",
     custom_icon: "shield",
-    variant_gid: ""
+    variant_gid: "",
   },
   {
     id: 90,
     title: "21+ Age Verification Gate & DOB Check",
     category: "Conditional Interactivity",
-    description: "Require buyers to verify their date of birth (21+) before purchasing age-restricted products.",
+    description:
+      "Require buyers to verify their date of birth (21+) before purchasing age-restricted products.",
     conditions: [],
     error_message: "Age Verification Required (21+)",
-    guidance_message: "You must verify your date of birth to confirm you are at least 21 years old before purchasing regulated items.",
+    guidance_message:
+      "You must verify your date of birth to confirm you are at least 21 years old before purchasing regulated items.",
     error_target: "purchase.checkout.actions.render-before",
     rule_type: "interactive_modal",
     field_type: "age_gate",
     is_required: true,
-    custom_icon: "Age (21+)"
+    custom_icon: "Age (21+)",
   },
   {
     id: 91,
     title: "Terms & Conditions Legal Waiver Modal",
     category: "Conditional Interactivity",
-    description: "Present full legal terms & liability waiver overlay requiring explicit buyer acknowledgment.",
+    description:
+      "Present full legal terms & liability waiver overlay requiring explicit buyer acknowledgment.",
     conditions: [],
     error_message: "Terms & Conditions Legal Waiver",
-    guidance_message: "By proceeding, you agree to our full Terms of Service, Return Policy, and Limitation of Liability waiver.",
+    guidance_message:
+      "By proceeding, you agree to our full Terms of Service, Return Policy, and Limitation of Liability waiver.",
     error_target: "purchase.checkout.actions.render-before",
     rule_type: "interactive_modal",
     field_type: "terms_ack",
     is_required: true,
-    custom_icon: "Terms & Waiver"
+    custom_icon: "Terms & Waiver",
   },
   {
     id: 92,
     title: "Freight Delivery & PO Box Address Validation Modal",
     category: "Conditional Interactivity",
-    description: "Display PO Box warning modal requiring buyer confirmation of residential street address.",
+    description:
+      "Display PO Box warning modal requiring buyer confirmation of residential street address.",
     conditions: [],
     error_message: "PO Box & Freight Shipping Address Warning",
-    guidance_message: "Freight and oversized items cannot be delivered to PO Box addresses. Please confirm a physical street address.",
+    guidance_message:
+      "Freight and oversized items cannot be delivered to PO Box addresses. Please confirm a physical street address.",
     error_target: "purchase.checkout.delivery-address.render-after",
     rule_type: "interactive_modal",
     field_type: "address_confirm",
     is_required: true,
-    custom_icon: "Address"
+    custom_icon: "Address",
   },
   {
     id: 93,
     title: "Hazmat Shipping Compliance Acknowledgment Modal",
     category: "Conditional Interactivity",
-    description: "Require acknowledgment of hazardous material shipping guidelines and safety handling.",
+    description:
+      "Require acknowledgment of hazardous material shipping guidelines and safety handling.",
     conditions: [],
     error_message: "Hazmat Material Handling & Safety Compliance",
-    guidance_message: "Your order contains regulated or hazardous items requiring ground shipping and adult signature upon delivery.",
+    guidance_message:
+      "Your order contains regulated or hazardous items requiring ground shipping and adult signature upon delivery.",
     error_target: "purchase.checkout.actions.render-before",
     rule_type: "interactive_modal",
     field_type: "terms_ack",
     is_required: true,
-    custom_icon: "Hazmat Compliance"
-  }
+    custom_icon: "Hazmat Compliance",
+  },
 ];
 
 // Map over PREBUILT_TEMPLATES to ensure all have rule_type set
-PREBUILT_TEMPLATES.forEach(t => {
+PREBUILT_TEMPLATES.forEach((t) => {
   if (!t.rule_type) t.rule_type = "validation";
 });
 
@@ -889,30 +1132,39 @@ function initFallbackDB() {
       rule_versions: [],
       rule_analytics: [],
       subscriptions_log: [],
+      rule_templates: PREBUILT_TEMPLATES,
     };
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
     fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(initialData, null, 2));
   } else {
     // Update templates and ensure subscriptions_log inside existing fallback DB
     try {
-      const existingData = JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
-      existingData.rule_templates = PREBUILT_TEMPLATES;
+      const existingData = JSON.parse(
+        fs.readFileSync(FALLBACK_DB_PATH, "utf8"),
+      );
+      if (!existingData.shops) existingData.shops = [];
+      if (!existingData.rules) existingData.rules = [];
+      if (!existingData.rule_versions) existingData.rule_versions = [];
+      if (!existingData.rule_analytics) existingData.rule_analytics = [];
       if (Array.isArray(existingData.rules)) {
-        existingData.rules = existingData.rules.filter(r => 
-          r.rule_type !== "compliance_notice" &&
-          r.rule_type !== "shipping_threshold" &&
-          r.title !== "Holiday Promotion Announcement Banner" &&
-          r.title !== "Age & Hazmat Regulatory Compliance Notice" &&
-          r.title !== "Free Shipping Threshold Progress Bar ($100)"
+        existingData.rules = existingData.rules.filter(
+          (r) =>
+            r.rule_type !== "compliance_notice" &&
+            r.rule_type !== "shipping_threshold" &&
+            r.title !== "Holiday Promotion Announcement Banner" &&
+            r.title !== "Age & Hazmat Regulatory Compliance Notice" &&
+            r.title !== "Free Shipping Threshold Progress Bar ($100)",
         );
       }
       if (Array.isArray(existingData.rule_versions)) {
-        existingData.rule_versions = existingData.rule_versions.filter(v => 
-          v.rule_type !== "compliance_notice" &&
-          v.rule_type !== "shipping_threshold"
+        existingData.rule_versions = existingData.rule_versions.filter(
+          (v) =>
+            v.rule_type !== "compliance_notice" &&
+            v.rule_type !== "shipping_threshold",
         );
       }
       if (!existingData.subscriptions_log) existingData.subscriptions_log = [];
+      existingData.rule_templates = PREBUILT_TEMPLATES;
       fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(existingData, null, 2));
     } catch (e) {
       console.error("Failed to update fallback_db.json templates:", e.message);
@@ -933,18 +1185,26 @@ function writeFallbackDB(data) {
 // Initialize PostgreSQL Pool
 if (DATABASE_URL) {
   try {
-    const useSsl = DATABASE_URL.includes("localhost") || DATABASE_URL.includes("127.0.0.1") ? false : { rejectUnauthorized: false };
+    const useSsl =
+      DATABASE_URL.includes("localhost") || DATABASE_URL.includes("127.0.0.1")
+        ? false
+        : { rejectUnauthorized: false };
     pool = new pg.Pool({
       connectionString: DATABASE_URL,
-      ssl: useSsl
+      ssl: useSsl,
     });
     console.log("PostgreSQL Pool Initialized.");
   } catch (err) {
-    console.warn("Failed to initialize PostgreSQL pool, falling back to JSON storage:", err.message);
+    console.warn(
+      "Failed to initialize PostgreSQL pool, falling back to JSON storage:",
+      err.message,
+    );
     useFallback = true;
   }
 } else {
-  console.log("No DATABASE_URL found. Utilizing Local persistent JSON DB storage.");
+  console.log(
+    "No DATABASE_URL found. Utilizing Local persistent JSON DB storage.",
+  );
   useFallback = true;
 }
 
@@ -952,7 +1212,9 @@ if (DATABASE_URL) {
 export async function syncTemplatesToPostgres() {
   if (!pool || useFallback) return;
   try {
-    console.log("[DB Sync] Ensuring rule_templates table and sync status in PostgreSQL...");
+    console.log(
+      "[DB Sync] Ensuring rule_templates table and sync status in PostgreSQL...",
+    );
     await pool.query(`
       CREATE TABLE IF NOT EXISTS rule_templates (
         id SERIAL PRIMARY KEY,
@@ -974,7 +1236,7 @@ export async function syncTemplatesToPostgres() {
     for (const tmpl of PREBUILT_TEMPLATES) {
       const checkRes = await pool.query(
         "SELECT id FROM rule_templates WHERE title = $1 OR id = $2",
-        [tmpl.title, tmpl.id]
+        [tmpl.title, tmpl.id],
       );
 
       if (checkRes.rows && checkRes.rows.length > 0) {
@@ -1000,8 +1262,8 @@ export async function syncTemplatesToPostgres() {
             tmpl.rule_type || "validation",
             tmpl.delivery_action || null,
             tmpl.guidance_message || null,
-            checkRes.rows[0].id
-          ]
+            checkRes.rows[0].id,
+          ],
         );
       } else {
         await pool.query(
@@ -1017,24 +1279,26 @@ export async function syncTemplatesToPostgres() {
             tmpl.error_target || "$.cart",
             tmpl.rule_type || "validation",
             tmpl.delivery_action || null,
-            tmpl.guidance_message || null
-          ]
+            tmpl.guidance_message || null,
+          ],
         );
       }
     }
 
     // Purge removed compliance_notice & shipping_threshold rule types and templates
     await pool.query(
-      `DELETE FROM rule_templates WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR id IN (60, 62) OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`
+      `DELETE FROM rule_templates WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR id IN (60, 62) OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`,
     );
     await pool.query(
-      `DELETE FROM rules WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`
+      `DELETE FROM rules WHERE rule_type IN ('compliance_notice', 'shipping_threshold') OR title IN ('Age & Hazmat Regulatory Compliance Notice', 'Free Shipping Threshold Progress Bar ($100)')`,
     );
     await pool.query(
-      `DELETE FROM rule_versions WHERE rule_type IN ('compliance_notice', 'shipping_threshold')`
+      `DELETE FROM rule_versions WHERE rule_type IN ('compliance_notice', 'shipping_threshold')`,
     );
 
-    console.log(`[DB Sync] Successfully synced all ${PREBUILT_TEMPLATES.length} templates to PostgreSQL!`);
+    console.log(
+      `[DB Sync] Successfully synced all ${PREBUILT_TEMPLATES.length} templates to PostgreSQL!`,
+    );
   } catch (err) {
     console.error("[DB Sync] Template sync error:", err.message);
   }
@@ -1043,7 +1307,9 @@ export async function syncTemplatesToPostgres() {
 // Auto-create all required database tables in PostgreSQL if they do not exist
 async function initPostgresTables(client) {
   try {
-    console.log("[DB Init] Ensuring all PostgreSQL database tables exist...");
+    console.log(
+      "[DB Init] Ensuring all PostgreSQL database tables exist and migrations applied...",
+    );
     await client.query(`
       CREATE TABLE IF NOT EXISTS shops (
         id SERIAL PRIMARY KEY,
@@ -1096,18 +1362,20 @@ async function initPostgresTables(client) {
         schedule_end TIMESTAMP,
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
-        discount_type VARCHAR(50) DEFAULT NULL,
-        discount_target VARCHAR(50) DEFAULT 'order',
-        discount_value NUMERIC(10, 2) DEFAULT NULL,
-        discount_config JSONB DEFAULT '{}',
-        warning_banner BOOLEAN DEFAULT FALSE,
-        custom_icon VARCHAR(50) DEFAULT NULL,
-        banner_style VARCHAR(50) DEFAULT NULL,
-        guidance_message VARCHAR(500) DEFAULT NULL,
-        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS schedule_start TIMESTAMP DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS schedule_end TIMESTAMP DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
 
       CREATE TABLE IF NOT EXISTS rule_versions (
         id SERIAL PRIMARY KEY,
@@ -1122,6 +1390,11 @@ async function initPostgresTables(client) {
         error_target VARCHAR(255) DEFAULT '$.cart',
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(255) DEFAULT NULL,
+        banner_style VARCHAR(255) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         discount_type VARCHAR(50) DEFAULT NULL,
         discount_target VARCHAR(50) DEFAULT 'order',
         discount_value NUMERIC(10, 2) DEFAULT NULL,
@@ -1134,33 +1407,6 @@ async function initPostgresTables(client) {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      -- Migration: Ensure columns exist on existing databases
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_target VARCHAR(50) DEFAULT 'order';
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
-      ALTER TABLE rules ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
-
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_target VARCHAR(50) DEFAULT 'order';
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10, 2) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS banner_style VARCHAR(50) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
-      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS display_in_checkout BOOLEAN DEFAULT TRUE;
-
       CREATE TABLE IF NOT EXISTS rule_analytics (
         id SERIAL PRIMARY KEY,
         shop VARCHAR(255) NOT NULL,
@@ -1170,6 +1416,9 @@ async function initPostgresTables(client) {
         cart_id VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rule_analytics ADD COLUMN IF NOT EXISTS cart_value NUMERIC(10, 2) DEFAULT 0.00;
+      ALTER TABLE rule_analytics ADD COLUMN IF NOT EXISTS cart_id VARCHAR(255) DEFAULT NULL;
 
       CREATE TABLE IF NOT EXISTS rule_templates (
         id SERIAL PRIMARY KEY,
@@ -1183,10 +1432,19 @@ async function initPostgresTables(client) {
         delivery_action VARCHAR(50) DEFAULT NULL,
         guidance_message VARCHAR(500) DEFAULT NULL
       );
+
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
     `);
-    console.log("[DB Init] All PostgreSQL tables created/verified successfully!");
+    console.log(
+      "[DB Init] All PostgreSQL tables created/verified successfully!",
+    );
   } catch (e) {
-    console.error("[DB Init] Failed to initialize PostgreSQL tables:", e.message);
+    console.error(
+      "[DB Init] Failed to initialize PostgreSQL tables:",
+      e.message,
+    );
   }
 }
 
@@ -1194,7 +1452,10 @@ async function initPostgresTables(client) {
 if (pool && !useFallback) {
   pool.connect(async (err, client, release) => {
     if (err) {
-      console.warn("PostgreSQL connection test failed, using JSON fallback DB instead:", err.message);
+      console.warn(
+        "PostgreSQL connection test failed, using JSON fallback DB instead:",
+        err.message,
+      );
       useFallback = true;
     } else {
       console.log("Successfully connected to PostgreSQL Database.");
@@ -1214,8 +1475,24 @@ export async function dbQuery(text, params = []) {
     } catch (err) {
       console.error("Database query error:", err.message);
       // Only fallback to JSON DB if it is a genuine connection error, not a query logic/syntax error
-      const connectionErrorCodes = ["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "57P01", "57P02", "57P03", "08000", "08003", "08006", "08001", "08004"];
-      if (err.code && (connectionErrorCodes.includes(err.code) || err.message.includes("connection"))) {
+      const connectionErrorCodes = [
+        "ECONNREFUSED",
+        "ETIMEDOUT",
+        "ENOTFOUND",
+        "57P01",
+        "57P02",
+        "57P03",
+        "08000",
+        "08003",
+        "08006",
+        "08001",
+        "08004",
+      ];
+      if (
+        err.code &&
+        (connectionErrorCodes.includes(err.code) ||
+          err.message.includes("connection"))
+      ) {
         console.warn("Reverting to fallback DB due to connection failure.");
         useFallback = true;
       } else {
@@ -1229,7 +1506,9 @@ export async function dbQuery(text, params = []) {
   const lowerText = text.trim().toLowerCase();
 
   if (lowerText.startsWith("select shop from shops where uninstalled")) {
-    const activeShops = db.shops ? db.shops.filter(s => !s.uninstalled).map(s => ({ shop: s.shop })) : [];
+    const activeShops = db.shops
+      ? db.shops.filter((s) => !s.uninstalled).map((s) => ({ shop: s.shop }))
+      : [];
     return { rows: activeShops };
   }
 
@@ -1238,30 +1517,55 @@ export async function dbQuery(text, params = []) {
   }
 
   // Count active rules for analytics
-  if (lowerText.includes("count(*)") && lowerText.includes("rules") && lowerText.includes("active") && !lowerText.includes("rule_analytics")) {
+  if (
+    lowerText.includes("count(*)") &&
+    lowerText.includes("rules") &&
+    lowerText.includes("active") &&
+    !lowerText.includes("rule_analytics")
+  ) {
     const shop = params[0];
-    const count = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status === "active").length;
+    const count = db.rules.filter(
+      (r) =>
+        (r.shop === shop || r.target_shop === shop) && r.status === "active",
+    ).length;
     return { rows: [{ count }] };
   }
 
   // Count expired active rules for scheduled worker
-  if (lowerText.includes("select distinct shop from rules") && lowerText.includes("schedule_end")) {
+  if (
+    lowerText.includes("select distinct shop from rules") &&
+    lowerText.includes("schedule_end")
+  ) {
     const now = new Date();
     const expiredShops = db.rules
-      .filter(r => r.status === "active" && r.schedule_end && new Date(r.schedule_end) < now)
-      .map(r => ({ shop: r.shop }));
-    const uniqueShops = [...new Set(expiredShops.map(s => s.shop))].map(shop => ({ shop }));
+      .filter(
+        (r) =>
+          r.status === "active" &&
+          r.schedule_end &&
+          new Date(r.schedule_end) < now,
+      )
+      .map((r) => ({ shop: r.shop }));
+    const uniqueShops = [...new Set(expiredShops.map((s) => s.shop))].map(
+      (shop) => ({ shop }),
+    );
     return { rows: uniqueShops };
   }
 
   if (lowerText.startsWith("select * from rules")) {
     const shop = params[0];
-    let filteredRules = db.rules.filter(r => (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
+    let filteredRules = db.rules.filter(
+      (r) =>
+        (r.shop === shop || r.target_shop === shop) && r.status !== "deleted",
+    );
 
     // If the query specifies active status, filter by active status and date schedule
-    if (lowerText.includes("status = 'active'") || lowerText.includes("status = $2") || lowerText.includes("status='active'")) {
+    if (
+      lowerText.includes("status = 'active'") ||
+      lowerText.includes("status = $2") ||
+      lowerText.includes("status='active'")
+    ) {
       const now = new Date();
-      filteredRules = filteredRules.filter(r => {
+      filteredRules = filteredRules.filter((r) => {
         if (r.status !== "active") return false;
         if (r.schedule_start && new Date(r.schedule_start) > now) return false;
         if (r.schedule_end && new Date(r.schedule_end) < now) return false;
@@ -1271,8 +1575,8 @@ export async function dbQuery(text, params = []) {
 
     // Order by status (active first), priority desc, id desc
     filteredRules.sort((a, b) => {
-      if (a.status === 'active' && b.status !== 'active') return -1;
-      if (a.status !== 'active' && b.status === 'active') return 1;
+      if (a.status === "active" && b.status !== "active") return -1;
+      if (a.status !== "active" && b.status === "active") return 1;
       if (b.priority !== a.priority) return b.priority - a.priority;
       return b.id - a.id;
     });
@@ -1282,14 +1586,27 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from rules where id = $1")) {
     const id = parseInt(params[0]);
     const shop = params[1];
-    const rule = db.rules.find(r => r.id === id && (r.shop === shop || r.target_shop === shop) && r.status !== 'deleted');
+    const rule = db.rules.find(
+      (r) =>
+        r.id === id &&
+        (r.shop === shop || r.target_shop === shop) &&
+        r.status !== "deleted",
+    );
     return { rows: rule ? [rule] : [] };
   }
 
   if (lowerText.startsWith("insert into rules")) {
     let shop = params[0];
     let target_shop = null;
-    let title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end;
+    let title,
+      status,
+      priority,
+      conditions_operator,
+      conditions,
+      error_message,
+      error_target,
+      schedule_start,
+      schedule_end;
     let rule_type = "validation";
     let delivery_action = null;
     let warning_banner = false;
@@ -1299,11 +1616,56 @@ export async function dbQuery(text, params = []) {
     let display_in_checkout = true;
 
     if (params.length === 18) {
-      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout] = params;
+      [
+        shop,
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        rule_type,
+        delivery_action,
+        warning_banner,
+        custom_icon,
+        banner_style,
+        guidance_message,
+        display_in_checkout,
+      ] = params;
     } else if (params.length === 13) {
-      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action] = params;
+      [
+        shop,
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        rule_type,
+        delivery_action,
+      ] = params;
     } else if (params.length === 11) {
-      [shop, target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end] = params;
+      [
+        shop,
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+      ] = params;
       rule_type = "validation";
       delivery_action = null;
     } else {
@@ -1319,14 +1681,15 @@ export async function dbQuery(text, params = []) {
     }
 
     const newRule = {
-      id: db.rules.length > 0 ? Math.max(...db.rules.map(r => r.id)) + 1 : 1,
+      id: db.rules.length > 0 ? Math.max(...db.rules.map((r) => r.id)) + 1 : 1,
       shop,
       target_shop: target_shop || null,
       title,
       status,
       priority: parseInt(priority) || 0,
       conditions_operator,
-      conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+      conditions:
+        typeof conditions === "string" ? JSON.parse(conditions) : conditions,
       error_message,
       error_target,
       schedule_start,
@@ -1339,18 +1702,44 @@ export async function dbQuery(text, params = []) {
       guidance_message: guidance_message || null,
       display_in_checkout: display_in_checkout !== false,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
     db.rules.push(newRule);
     writeFallbackDB(db);
     return { rows: [newRule] };
   }
 
-  if (lowerText.startsWith("update rules set title = $1") || lowerText.startsWith("update rules set target_shop = $1") || lowerText.includes("update rules set")) {
+  if (
+    lowerText.startsWith("update rules set title = $1") ||
+    lowerText.startsWith("update rules set target_shop = $1") ||
+    lowerText.includes("update rules set")
+  ) {
     let updated;
     if (params.length === 19) {
-      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout, id, shop] = params;
-      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      const [
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        rule_type,
+        delivery_action,
+        warning_banner,
+        custom_icon,
+        banner_style,
+        guidance_message,
+        display_in_checkout,
+        id,
+        shop,
+      ] = params;
+      const ruleIdx = db.rules.findIndex(
+        (r) => r.id === parseInt(id) && r.shop === shop,
+      );
       if (ruleIdx !== -1) {
         updated = {
           ...db.rules[ruleIdx],
@@ -1359,7 +1748,10 @@ export async function dbQuery(text, params = []) {
           status,
           priority: parseInt(priority) || 0,
           conditions_operator,
-          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          conditions:
+            typeof conditions === "string"
+              ? JSON.parse(conditions)
+              : conditions,
           error_message,
           error_target,
           schedule_start,
@@ -1371,14 +1763,31 @@ export async function dbQuery(text, params = []) {
           banner_style: banner_style || null,
           guidance_message: guidance_message || null,
           display_in_checkout: display_in_checkout !== false,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         db.rules[ruleIdx] = updated;
         writeFallbackDB(db);
       }
     } else if (params.length === 14) {
-      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, rule_type, delivery_action, id, shop] = params;
-      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      const [
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        rule_type,
+        delivery_action,
+        id,
+        shop,
+      ] = params;
+      const ruleIdx = db.rules.findIndex(
+        (r) => r.id === parseInt(id) && r.shop === shop,
+      );
       if (ruleIdx !== -1) {
         updated = {
           ...db.rules[ruleIdx],
@@ -1387,21 +1796,39 @@ export async function dbQuery(text, params = []) {
           status,
           priority: parseInt(priority) || 0,
           conditions_operator,
-          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          conditions:
+            typeof conditions === "string"
+              ? JSON.parse(conditions)
+              : conditions,
           error_message,
           error_target,
           schedule_start,
           schedule_end,
           rule_type: rule_type || "validation",
           delivery_action: delivery_action || null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         db.rules[ruleIdx] = updated;
         writeFallbackDB(db);
       }
     } else if (lowerText.includes("target_shop = $1") && params.length === 12) {
-      const [target_shop, title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
-      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      const [
+        target_shop,
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        id,
+        shop,
+      ] = params;
+      const ruleIdx = db.rules.findIndex(
+        (r) => r.id === parseInt(id) && r.shop === shop,
+      );
       if (ruleIdx !== -1) {
         updated = {
           ...db.rules[ruleIdx],
@@ -1410,19 +1837,36 @@ export async function dbQuery(text, params = []) {
           status,
           priority: parseInt(priority) || 0,
           conditions_operator,
-          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          conditions:
+            typeof conditions === "string"
+              ? JSON.parse(conditions)
+              : conditions,
           error_message,
           error_target,
           schedule_start,
           schedule_end,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         db.rules[ruleIdx] = updated;
         writeFallbackDB(db);
       }
     } else {
-      const [title, status, priority, conditions_operator, conditions, error_message, error_target, schedule_start, schedule_end, id, shop] = params;
-      const ruleIdx = db.rules.findIndex(r => r.id === parseInt(id) && r.shop === shop);
+      const [
+        title,
+        status,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        schedule_start,
+        schedule_end,
+        id,
+        shop,
+      ] = params;
+      const ruleIdx = db.rules.findIndex(
+        (r) => r.id === parseInt(id) && r.shop === shop,
+      );
       if (ruleIdx !== -1) {
         updated = {
           ...db.rules[ruleIdx],
@@ -1430,12 +1874,15 @@ export async function dbQuery(text, params = []) {
           status,
           priority: parseInt(priority) || 0,
           conditions_operator,
-          conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+          conditions:
+            typeof conditions === "string"
+              ? JSON.parse(conditions)
+              : conditions,
           error_message,
           error_target,
           schedule_start,
           schedule_end,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
         db.rules[ruleIdx] = updated;
         writeFallbackDB(db);
@@ -1447,9 +1894,9 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("update rules set status = 'deleted'")) {
     const id = parseInt(params[0]);
     const shop = params[1];
-    const ruleIdx = db.rules.findIndex(r => r.id === id && r.shop === shop);
+    const ruleIdx = db.rules.findIndex((r) => r.id === id && r.shop === shop);
     if (ruleIdx !== -1) {
-      db.rules[ruleIdx].status = 'deleted';
+      db.rules[ruleIdx].status = "deleted";
       db.rules[ruleIdx].updated_at = new Date().toISOString();
       const updated = db.rules[ruleIdx];
       writeFallbackDB(db);
@@ -1461,7 +1908,7 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("delete from rules where id = $1")) {
     const id = parseInt(params[0]);
     const shop = params[1];
-    const index = db.rules.findIndex(r => r.id === id && r.shop === shop);
+    const index = db.rules.findIndex((r) => r.id === id && r.shop === shop);
     if (index !== -1) {
       const deleted = db.rules.splice(index, 1)[0];
       writeFallbackDB(db);
@@ -1474,8 +1921,12 @@ export async function dbQuery(text, params = []) {
     const [status, ids, shop] = params;
     const parsedIds = Array.isArray(ids) ? ids.map(Number) : [];
     let updatedCount = 0;
-    db.rules = db.rules.map(r => {
-      if (parsedIds.includes(r.id) && r.shop === shop && r.status !== 'deleted') {
+    db.rules = db.rules.map((r) => {
+      if (
+        parsedIds.includes(r.id) &&
+        r.shop === shop &&
+        r.status !== "deleted"
+      ) {
         updatedCount++;
         return { ...r, status, updated_at: new Date().toISOString() };
       }
@@ -1489,13 +1940,23 @@ export async function dbQuery(text, params = []) {
     const [ids, shop] = params;
     const parsedIds = Array.isArray(ids) ? ids.map(Number) : [];
     const beforeCount = db.rules.length;
-    db.rules = db.rules.filter(r => !(parsedIds.includes(r.id) && r.shop === shop));
+    db.rules = db.rules.filter(
+      (r) => !(parsedIds.includes(r.id) && r.shop === shop),
+    );
     writeFallbackDB(db);
     return { rowCount: beforeCount - db.rules.length };
   }
 
   if (lowerText.startsWith("insert into rule_versions")) {
-    let rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target;
+    let rule_id,
+      version,
+      target_shop,
+      title,
+      priority,
+      conditions_operator,
+      conditions,
+      error_message,
+      error_target;
     let rule_type = "validation";
     let delivery_action = null;
     let warning_banner = false;
@@ -1505,9 +1966,38 @@ export async function dbQuery(text, params = []) {
     let display_in_checkout = true;
 
     if (params.length === 16) {
-      [rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, warning_banner, custom_icon, banner_style, guidance_message, display_in_checkout] = params;
+      [
+        rule_id,
+        version,
+        target_shop,
+        title,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        rule_type,
+        delivery_action,
+        warning_banner,
+        custom_icon,
+        banner_style,
+        guidance_message,
+        display_in_checkout,
+      ] = params;
     } else if (params.length === 11) {
-      [rule_id, version, target_shop, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action] = params;
+      [
+        rule_id,
+        version,
+        target_shop,
+        title,
+        priority,
+        conditions_operator,
+        conditions,
+        error_message,
+        error_target,
+        rule_type,
+        delivery_action,
+      ] = params;
     } else {
       const hasTargetShop = params.length === 9;
       rule_id = params[0];
@@ -1523,14 +2013,18 @@ export async function dbQuery(text, params = []) {
     }
 
     const newVersion = {
-      id: db.rule_versions.length > 0 ? Math.max(...db.rule_versions.map(v => v.id)) + 1 : 1,
+      id:
+        db.rule_versions.length > 0
+          ? Math.max(...db.rule_versions.map((v) => v.id)) + 1
+          : 1,
       rule_id: parseInt(rule_id),
       version: parseInt(version),
       target_shop: target_shop || null,
       title,
       priority: parseInt(priority) || 0,
       conditions_operator,
-      conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+      conditions:
+        typeof conditions === "string" ? JSON.parse(conditions) : conditions,
       error_message,
       error_target,
       rule_type: rule_type || "validation",
@@ -1540,7 +2034,7 @@ export async function dbQuery(text, params = []) {
       banner_style: banner_style || null,
       guidance_message: guidance_message || null,
       display_in_checkout: display_in_checkout !== false,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     };
     db.rule_versions.push(newVersion);
     writeFallbackDB(db);
@@ -1549,14 +2043,15 @@ export async function dbQuery(text, params = []) {
 
   if (lowerText.includes("select max(version)")) {
     const rule_id = parseInt(params[0]);
-    const versions = db.rule_versions.filter(v => v.rule_id === rule_id);
-    const maxVal = versions.length > 0 ? Math.max(...versions.map(v => v.version)) : 0;
+    const versions = db.rule_versions.filter((v) => v.rule_id === rule_id);
+    const maxVal =
+      versions.length > 0 ? Math.max(...versions.map((v) => v.version)) : 0;
     return { rows: [{ max: maxVal }] };
   }
 
   if (lowerText.startsWith("select * from rule_versions where rule_id = $1")) {
     const rule_id = parseInt(params[0]);
-    const versions = db.rule_versions.filter(v => v.rule_id === rule_id);
+    const versions = db.rule_versions.filter((v) => v.rule_id === rule_id);
     versions.sort((a, b) => b.version - a.version);
     return { rows: versions };
   }
@@ -1564,13 +2059,16 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("insert into rule_analytics")) {
     const [shop, rule_id, event_type, cart_value, cart_id, created_at] = params;
     const newAnalytics = {
-      id: db.rule_analytics.length > 0 ? Math.max(...db.rule_analytics.map(a => a.id)) + 1 : 1,
+      id:
+        db.rule_analytics.length > 0
+          ? Math.max(...db.rule_analytics.map((a) => a.id)) + 1
+          : 1,
       shop,
       rule_id: rule_id ? parseInt(rule_id) : null,
       event_type,
-      cart_value: parseFloat(cart_value) || 0.00,
+      cart_value: parseFloat(cart_value) || 0.0,
       cart_id,
-      created_at: created_at || new Date().toISOString()
+      created_at: created_at || new Date().toISOString(),
     };
     db.rule_analytics.push(newAnalytics);
     writeFallbackDB(db);
@@ -1584,16 +2082,42 @@ export async function dbQuery(text, params = []) {
     if (lowerText.includes("cart_id = $2")) {
       const cartId = params[1];
       if (lowerText.includes("event_type = 'check'")) {
-        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && a.event_type === 'check'));
+        db.rule_analytics = db.rule_analytics.filter(
+          (a) =>
+            !(
+              a.shop === shop &&
+              a.cart_id === cartId &&
+              a.event_type === "check"
+            ),
+        );
       } else if (lowerText.includes("event_type = 'block'")) {
-        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && a.event_type === 'block'));
-      } else if (lowerText.includes("event_type in ('check', 'block')") || lowerText.includes("event_type in ('check', 'block')")) {
-        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId && (a.event_type === 'check' || a.event_type === 'block')));
+        db.rule_analytics = db.rule_analytics.filter(
+          (a) =>
+            !(
+              a.shop === shop &&
+              a.cart_id === cartId &&
+              a.event_type === "block"
+            ),
+        );
+      } else if (
+        lowerText.includes("event_type in ('check', 'block')") ||
+        lowerText.includes("event_type in ('check', 'block')")
+      ) {
+        db.rule_analytics = db.rule_analytics.filter(
+          (a) =>
+            !(
+              a.shop === shop &&
+              a.cart_id === cartId &&
+              (a.event_type === "check" || a.event_type === "block")
+            ),
+        );
       } else {
-        db.rule_analytics = db.rule_analytics.filter(a => !(a.shop === shop && a.cart_id === cartId));
+        db.rule_analytics = db.rule_analytics.filter(
+          (a) => !(a.shop === shop && a.cart_id === cartId),
+        );
       }
     } else {
-      db.rule_analytics = db.rule_analytics.filter(a => a.shop !== shop);
+      db.rule_analytics = db.rule_analytics.filter((a) => a.shop !== shop);
     }
 
     writeFallbackDB(db);
@@ -1601,19 +2125,36 @@ export async function dbQuery(text, params = []) {
   }
 
   // Analytics: GROUP BY event_type with COUNT and SUM
-  if (lowerText.includes("rule_analytics") && lowerText.includes("group by event_type")) {
+  if (
+    lowerText.includes("rule_analytics") &&
+    lowerText.includes("group by event_type")
+  ) {
     const shop = params[0];
-    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
-    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
-    const shopAnalytics = db.rule_analytics.filter(a => {
+    const retentionDays = params[1]
+      ? parseInt(params[1])
+      : lowerText.includes("7 days")
+      ? 7
+      : lowerText.includes("30 days")
+      ? 30
+      : lowerText.includes("90 days")
+      ? 90
+      : null;
+    const cutoff = retentionDays
+      ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+      : null;
+    const shopAnalytics = db.rule_analytics.filter((a) => {
       if (a.shop !== shop) return false;
       if (cutoff && new Date(a.created_at) < cutoff) return false;
       return true;
     });
     const grouped = {};
-    shopAnalytics.forEach(a => {
+    shopAnalytics.forEach((a) => {
       if (!grouped[a.event_type]) {
-        grouped[a.event_type] = { event_type: a.event_type, count: 0, total_value: 0 };
+        grouped[a.event_type] = {
+          event_type: a.event_type,
+          count: 0,
+          total_value: 0,
+        };
       }
       grouped[a.event_type].count++;
       grouped[a.event_type].total_value += parseFloat(a.cart_value) || 0;
@@ -1622,17 +2163,21 @@ export async function dbQuery(text, params = []) {
   }
 
   // Analytics: Chart data — grouped by date and event_type
-  if (lowerText.includes("rule_analytics") && lowerText.includes("group by") && lowerText.includes("date")) {
+  if (
+    lowerText.includes("rule_analytics") &&
+    lowerText.includes("group by") &&
+    lowerText.includes("date")
+  ) {
     const shop = params[0];
     const chartDays = params[1] ? parseInt(params[1]) : 7;
     const cutoffDate = new Date(Date.now() - chartDays * 24 * 60 * 60 * 1000);
-    const shopAnalytics = db.rule_analytics.filter(a => {
+    const shopAnalytics = db.rule_analytics.filter((a) => {
       if (a.shop !== shop) return false;
       const createdAt = new Date(a.created_at);
       return createdAt >= cutoffDate;
     });
     const grouped = {};
-    shopAnalytics.forEach(a => {
+    shopAnalytics.forEach((a) => {
       const dateStr = new Date(a.created_at).toISOString().split("T")[0];
       const key = `${dateStr}_${a.event_type}`;
       if (!grouped[key]) {
@@ -1646,25 +2191,42 @@ export async function dbQuery(text, params = []) {
   }
 
   // Analytics: Rules breakdown — JOIN rules, GROUP BY title, block or check events
-  if (lowerText.includes("rule_analytics") && lowerText.includes("join rules") && lowerText.includes("group by")) {
+  if (
+    lowerText.includes("rule_analytics") &&
+    lowerText.includes("join rules") &&
+    lowerText.includes("group by")
+  ) {
     const shop = params[0];
-    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
-    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
+    const retentionDays = params[1]
+      ? parseInt(params[1])
+      : lowerText.includes("7 days")
+      ? 7
+      : lowerText.includes("30 days")
+      ? 30
+      : lowerText.includes("90 days")
+      ? 90
+      : null;
+    const cutoff = retentionDays
+      ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+      : null;
     let eventTypes = ["block"];
-    if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
+    if (
+      lowerText.includes("in ('block', 'check')") ||
+      lowerText.includes("in ('check', 'block')")
+    ) {
       eventTypes = ["block", "check"];
     } else if (lowerText.includes("event_type = 'check'")) {
       eventTypes = ["check"];
     }
-    const filteredEvents = db.rule_analytics.filter(a => {
+    const filteredEvents = db.rule_analytics.filter((a) => {
       if (a.shop !== shop) return false;
       if (!eventTypes.includes(a.event_type) || !a.rule_id) return false;
       if (cutoff && new Date(a.created_at) < cutoff) return false;
       return true;
     });
     const grouped = {};
-    filteredEvents.forEach(a => {
-      const rule = db.rules.find(r => r.id === a.rule_id);
+    filteredEvents.forEach((a) => {
+      const rule = db.rules.find((r) => r.id === a.rule_id);
       const title = rule ? rule.title : "Unknown Rule";
       if (!grouped[title]) {
         grouped[title] = { title, count: 0 };
@@ -1677,50 +2239,98 @@ export async function dbQuery(text, params = []) {
   }
 
   // Analytics: Recent checkout activity — LEFT JOIN rules, ordered by date DESC
-  if (lowerText.includes("rule_analytics") && lowerText.includes("left join") && lowerText.includes("order by a.created_at desc")) {
+  if (
+    lowerText.includes("rule_analytics") &&
+    lowerText.includes("left join") &&
+    lowerText.includes("order by a.created_at desc")
+  ) {
     const shop = params[0];
-    const retentionDays = params[1] ? parseInt(params[1]) : (lowerText.includes("7 days") ? 7 : lowerText.includes("30 days") ? 30 : lowerText.includes("90 days") ? 90 : null);
-    const cutoff = retentionDays ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000) : null;
+    const retentionDays = params[1]
+      ? parseInt(params[1])
+      : lowerText.includes("7 days")
+      ? 7
+      : lowerText.includes("30 days")
+      ? 30
+      : lowerText.includes("90 days")
+      ? 90
+      : null;
+    const cutoff = retentionDays
+      ? new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+      : null;
     let eventTypes = ["block"];
-    if (lowerText.includes("in ('block', 'check')") || lowerText.includes("in ('check', 'block')")) {
+    if (
+      lowerText.includes("in ('block', 'check')") ||
+      lowerText.includes("in ('check', 'block')")
+    ) {
       eventTypes = ["block", "check"];
     }
-    const filteredEvents = db.rule_analytics.filter(a => {
+    const filteredEvents = db.rule_analytics.filter((a) => {
       if (a.shop !== shop) return false;
       if (!eventTypes.includes(a.event_type)) return false;
       if (cutoff && new Date(a.created_at) < cutoff) return false;
       return true;
     });
-    filteredEvents.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const rows = filteredEvents.slice(0, 10).map(a => {
-      const rule = a.rule_id ? db.rules.find(r => r.id === a.rule_id) : null;
+    filteredEvents.sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    );
+    const rows = filteredEvents.slice(0, 10).map((a) => {
+      const rule = a.rule_id ? db.rules.find((r) => r.id === a.rule_id) : null;
       return {
         id: a.id,
         rule_title: rule ? rule.title : "Unknown/Deleted Rule",
         cart_value: a.cart_value,
         event_type: a.event_type,
-        created_at: a.created_at
+        created_at: a.created_at,
       };
     });
     return { rows };
   }
 
   // Analytics: Deduplication check — SELECT id FROM rule_analytics WHERE shop AND cart_id
-  if (lowerText.includes("rule_analytics") && lowerText.includes("cart_id") && lowerText.includes("limit 1")) {
+  if (
+    lowerText.includes("rule_analytics") &&
+    lowerText.includes("cart_id") &&
+    lowerText.includes("limit 1")
+  ) {
     const shop = params[0];
     const cartId = params[1];
     let match;
-    if (lowerText.includes("event_type = 'block'") && lowerText.includes("rule_id = $3")) {
+    if (
+      lowerText.includes("event_type = 'block'") &&
+      lowerText.includes("rule_id = $3")
+    ) {
       const ruleId = parseInt(params[2]);
-      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'block' && a.rule_id === ruleId);
+      match = db.rule_analytics.find(
+        (a) =>
+          a.shop === shop &&
+          a.cart_id === cartId &&
+          a.event_type === "block" &&
+          a.rule_id === ruleId,
+      );
     } else if (lowerText.includes("event_type = 'allow'")) {
-      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'allow');
+      match = db.rule_analytics.find(
+        (a) =>
+          a.shop === shop && a.cart_id === cartId && a.event_type === "allow",
+      );
     } else if (lowerText.includes("event_type = 'check'")) {
-      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && a.event_type === 'check');
-    } else if (lowerText.includes("event_type in ('check', 'allow')") || lowerText.includes("event_type in ('check', 'allow')")) {
-      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId && (a.event_type === 'check' || a.event_type === 'allow'));
+      match = db.rule_analytics.find(
+        (a) =>
+          a.shop === shop && a.cart_id === cartId && a.event_type === "check",
+      );
+    } else if (
+      lowerText.includes("event_type in ('check', 'allow')") ||
+      lowerText.includes("event_type in ('check', 'allow')")
+    ) {
+      match = db.rule_analytics.find(
+        (a) =>
+          a.shop === shop &&
+          a.cart_id === cartId &&
+          (a.event_type === "check" || a.event_type === "allow"),
+      );
     } else {
-      match = db.rule_analytics.find(a => a.shop === shop && a.cart_id === cartId);
+      match = db.rule_analytics.find(
+        (a) => a.shop === shop && a.cart_id === cartId,
+      );
     }
     return { rows: match ? [{ id: match.id }] : [] };
   }
@@ -1728,21 +2338,24 @@ export async function dbQuery(text, params = []) {
   // Analytics: Generic count query
   if (lowerText.includes("count(*)") && lowerText.includes("rule_analytics")) {
     const shop = params[0];
-    const count = db.rule_analytics.filter(a => a.shop === shop).length;
+    const count = db.rule_analytics.filter((a) => a.shop === shop).length;
     return { rows: [{ count }] };
   }
 
   // Analytics: Generic select fallback
   if (lowerText.includes("select") && lowerText.includes("rule_analytics")) {
     const shop = params[0];
-    const shopAnalytics = db.rule_analytics.filter(a => a.shop === shop);
+    const shopAnalytics = db.rule_analytics.filter((a) => a.shop === shop);
     return { rows: shopAnalytics };
   }
 
-  if (lowerText.includes("insert into shops") || lowerText.includes("conflict (shop)")) {
+  if (
+    lowerText.includes("insert into shops") ||
+    lowerText.includes("conflict (shop)")
+  ) {
     const shop = params[0];
     if (!db.shops) db.shops = [];
-    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const shopIdx = db.shops.findIndex((s) => s.shop === shop);
     const now = new Date().toISOString();
     if (shopIdx !== -1) {
       db.shops[shopIdx] = {
@@ -1750,20 +2363,21 @@ export async function dbQuery(text, params = []) {
         uninstalled: false,
         installed_at: now,
         uninstalled_at: null,
-        updated_at: now
+        updated_at: now,
       };
       writeFallbackDB(db);
       return { rows: [db.shops[shopIdx]] };
     } else {
       const newShop = {
-        id: db.shops.length > 0 ? Math.max(...db.shops.map(s => s.id)) + 1 : 1,
+        id:
+          db.shops.length > 0 ? Math.max(...db.shops.map((s) => s.id)) + 1 : 1,
         shop,
         uninstalled: false,
         onboarded: false,
         installed_at: now,
         uninstalled_at: null,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       };
       db.shops.push(newShop);
       writeFallbackDB(db);
@@ -1771,16 +2385,19 @@ export async function dbQuery(text, params = []) {
     }
   }
 
-  if (lowerText.startsWith("update shops") && lowerText.includes("uninstalled = true")) {
+  if (
+    lowerText.startsWith("update shops") &&
+    lowerText.includes("uninstalled = true")
+  ) {
     const shop = params[0];
     if (!db.shops) db.shops = [];
-    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const shopIdx = db.shops.findIndex((s) => s.shop === shop);
     if (shopIdx !== -1) {
       db.shops[shopIdx] = {
         ...db.shops[shopIdx],
         uninstalled: true,
         uninstalled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
       writeFallbackDB(db);
       return { rows: [db.shops[shopIdx]] };
@@ -1790,20 +2407,21 @@ export async function dbQuery(text, params = []) {
 
   if (lowerText.startsWith("select onboarded from shops")) {
     const shop = params[0];
-    const match = db.shops ? db.shops.find(s => s.shop === shop) : null;
+    const match = db.shops ? db.shops.find((s) => s.shop === shop) : null;
     return { rows: [{ onboarded: match ? !!match.onboarded : false }] };
   }
 
   if (lowerText.includes("update shops set onboarded")) {
-    const onboardedVal = params[0] === true || params[0] === 'true' || params[0] === 1;
+    const onboardedVal =
+      params[0] === true || params[0] === "true" || params[0] === 1;
     const shop = params[1];
     if (!db.shops) db.shops = [];
-    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const shopIdx = db.shops.findIndex((s) => s.shop === shop);
     if (shopIdx !== -1) {
       db.shops[shopIdx] = {
         ...db.shops[shopIdx],
         onboarded: onboardedVal,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
       writeFallbackDB(db);
       return { rows: [db.shops[shopIdx]] };
@@ -1811,47 +2429,77 @@ export async function dbQuery(text, params = []) {
     return { rows: [] };
   }
 
-  if (lowerText.startsWith("select * from shops where shop = $1") || lowerText.includes("from shops where shop = $1") || lowerText.includes("from shops where shop=$1")) {
+  if (
+    lowerText.startsWith("select * from shops where shop = $1") ||
+    lowerText.includes("from shops where shop = $1") ||
+    lowerText.includes("from shops where shop=$1")
+  ) {
     const shop = params[0];
     if (!db.shops) db.shops = [];
-    const match = db.shops.find(s => s.shop === shop);
+    const match = db.shops.find((s) => s.shop === shop);
     if (match) {
-      return { rows: [{ plan_name: 'Free', subscription_id: null, subscription_status: 'ACTIVE', ...match }] };
+      return {
+        rows: [
+          {
+            plan_name: "Free",
+            subscription_id: null,
+            subscription_status: "ACTIVE",
+            ...match,
+          },
+        ],
+      };
     } else {
-      return { rows: [{ shop, plan_name: 'Free', subscription_id: null, subscription_status: 'ACTIVE', onboarded: false }] };
+      return {
+        rows: [
+          {
+            shop,
+            plan_name: "Free",
+            subscription_id: null,
+            subscription_status: "ACTIVE",
+            onboarded: false,
+          },
+        ],
+      };
     }
   }
 
   if (lowerText.includes("update shops set plan_name")) {
-    const [plan_name, subscription_id, subscription_status, trial_ends_at, shop] = params;
+    const [
+      plan_name,
+      subscription_id,
+      subscription_status,
+      trial_ends_at,
+      shop,
+    ] = params;
     if (!db.shops) db.shops = [];
-    const shopIdx = db.shops.findIndex(s => s.shop === shop);
+    const shopIdx = db.shops.findIndex((s) => s.shop === shop);
     const now = new Date().toISOString();
     let updated;
     if (shopIdx !== -1) {
       db.shops[shopIdx] = {
         ...db.shops[shopIdx],
-        plan_name: plan_name || 'Free',
+        plan_name: plan_name || "Free",
         subscription_id: subscription_id || null,
-        subscription_status: subscription_status || 'ACTIVE',
+        subscription_status: subscription_status || "ACTIVE",
         trial_ends_at: trial_ends_at || null,
         billing_updated_at: now,
-        updated_at: now
+        updated_at: now,
       };
       updated = db.shops[shopIdx];
     } else {
       updated = {
-        id: db.shops.length > 0 ? Math.max(...db.shops.map(s => s.id)) + 1 : 1,
+        id:
+          db.shops.length > 0 ? Math.max(...db.shops.map((s) => s.id)) + 1 : 1,
         shop,
         uninstalled: false,
         onboarded: false,
-        plan_name: plan_name || 'Free',
+        plan_name: plan_name || "Free",
         subscription_id: subscription_id || null,
-        subscription_status: subscription_status || 'ACTIVE',
+        subscription_status: subscription_status || "ACTIVE",
         trial_ends_at: trial_ends_at || null,
         billing_updated_at: now,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       };
       db.shops.push(updated);
     }
@@ -1863,13 +2511,16 @@ export async function dbQuery(text, params = []) {
     const [shop, subscription_id, plan_name, price, status] = params;
     if (!db.subscriptions_log) db.subscriptions_log = [];
     const newLog = {
-      id: db.subscriptions_log.length > 0 ? Math.max(...db.subscriptions_log.map(l => l.id)) + 1 : 1,
+      id:
+        db.subscriptions_log.length > 0
+          ? Math.max(...db.subscriptions_log.map((l) => l.id)) + 1
+          : 1,
       shop,
       subscription_id,
       plan_name,
-      price: parseFloat(price) || 0.00,
+      price: parseFloat(price) || 0.0,
       status,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     };
     db.subscriptions_log.push(newLog);
     writeFallbackDB(db);
@@ -1879,7 +2530,7 @@ export async function dbQuery(text, params = []) {
   if (lowerText.startsWith("select * from subscriptions_log")) {
     const shop = params[0];
     if (!db.subscriptions_log) db.subscriptions_log = [];
-    const logs = db.subscriptions_log.filter(l => l.shop === shop);
+    const logs = db.subscriptions_log.filter((l) => l.shop === shop);
     logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return { rows: logs };
   }
