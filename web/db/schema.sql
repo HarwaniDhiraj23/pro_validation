@@ -316,4 +316,17 @@ VALUES
  '[{"type": "weight_limit", "operator": "greater_than", "value": "30"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/freight-depot"], "location_name": "Regional Freight Depot"}', NULL),
 
 ('B2B Wholesale Central Hub Fulfillment', 'Fulfillment & Routing', 'Ensures wholesale and B2B orders are routed exclusively to the Central Wholesale Fulfillment Hub.',
- '[{"type": "customer_tags", "operator": "contains", "value": "b2b,wholesale"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/wholesale-hub"], "location_name": "Central Wholesale Hub"}', NULL);
+ '[{"type": "customer_tags", "operator": "contains", "value": "b2b,wholesale"}]', '', '$.cart', 'fulfillment', NULL, NULL, 'order', NULL, '{}', 'require_location', '{"location_ids": ["gid://shopify/Location/wholesale-hub"], "location_name": "Central Wholesale Hub"}', NULL),
+
+('Holiday & Seasonal Shipping Cutoff Notice', 'Announcements & Notices', 'Displays holiday shipping deadlines and cutoff dates to ensure customers place orders in time for guaranteed delivery.',
+ '[]', 'Holiday Shipping Notice: Order by Dec 20 for guaranteed delivery before Christmas.', 'purchase.checkout.block.render', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'Order by Dec 20 for guaranteed delivery before Christmas.'),
+
+('Warehouse Maintenance & Shipping Delay Alert', 'Announcements & Notices', 'Alerts buyers about potential order processing or shipping dispatch delays during peak seasons or maintenance windows.',
+ '[]', 'Fulfillment Update: High order volumes may cause 1-2 business day shipping delays.', 'purchase.checkout.shipping-option-list.render-before', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'High order volumes may cause 1-2 business day shipping delays.'),
+
+('Terms of Service & Store Policy Compliance Disclaimer', 'Announcements & Notices', 'Displays standard legal disclaimers and store policy notices near the payment section during checkout.',
+ '[]', 'Compliance Notice: By placing your order, you agree to our Terms of Service and Store Return Policies.', 'purchase.checkout.payment-method-list.render-before', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'By placing your order, you agree to our Terms of Service and Store Return Policies.'),
+
+('VIP Member Perks & Promo Announcement', 'Announcements & Notices', 'Highlights exclusive member perks, seasonal sales, or promotional offer announcements to checkout buyers.',
+ '[]', 'VIP Exclusive Announcement: Thank you for shopping with us! VIP members receive priority processing on all orders.', 'purchase.checkout.block.render', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'Thank you for shopping with us! VIP members receive priority processing on all orders.');
+

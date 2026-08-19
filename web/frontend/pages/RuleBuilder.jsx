@@ -657,7 +657,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
               if (discConfig.max_discount_cap) setMaxDiscountCap(String(discConfig.max_discount_cap || ""));
               if (discConfig.offer_type) setBannerOfferType(discConfig.offer_type);
               if (discConfig.min_amount) setBannerMinAmount(String(discConfig.min_amount));
-              if (discConfig.discount_value) setBannerDiscountVal(String(discConfig.discount_value));
+              if (discConfig.discount_value) setBannerDiscountValue(String(discConfig.discount_value));
               if (discConfig.discount_type) setBannerDiscountType(discConfig.discount_type);
               if (discConfig.promo_code !== undefined) setBannerPromoCode(discConfig.promo_code);
               if (discConfig.max_cap !== undefined) setBannerMaxCap(String(discConfig.max_cap || ""));
@@ -984,17 +984,17 @@ export default function RuleBuilder({ ruleId, navigate }) {
       }
     } else if (ruleType !== "checkbox" && ruleType !== "discount") {
       if (!errorMessage.trim()) {
-        shopify.toast.show("Error message is required", { isError: true });
+        shopify.toast.show("Announcement message body is required", { isError: true });
         return;
       }
     }
-    if (ruleType !== "checkbox" && ruleType !== "discount" && conditions.length === 0) {
+    if (ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && conditions.length === 0) {
       shopify.toast.show("At least one condition must be specified", { isError: true });
       return;
     }
 
     // Validate conditions
-    if (ruleType !== "discount") {
+    if (ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement") {
       for (let i = 0; i < conditions.length; i++) {
         const cond = conditions[i];
         if (cond.type !== "shipping_address_pobox" &&
@@ -1073,7 +1073,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
       } : ruleType === "banner" ? {
         offer_type: bannerOfferType,
         min_amount: bannerMinAmount,
-        discount_value: bannerDiscountVal,
+        discount_value: bannerDiscountValue,
         discount_type: bannerDiscountType,
         promo_code: bannerPromoCode,
         max_cap: bannerMaxCap
@@ -1146,6 +1146,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
     { label: "Discount Allocator", value: "discount" },
     { label: "Cart Transform & Native Bundling", value: "cart_transform" },
     { label: "Fulfillment Constraints & Order Routing", value: "fulfillment" },
+    { label: "Announcements & Notices", value: "Announcements & Notices" },
     { label: "Custom Banner & Announcement", value: "banner" },
     { label: "Custom Input Fields", value: "custom_input" },
     { label: "In-Checkout Upsell & Cross-sell", value: "upsell" },
@@ -1282,12 +1283,12 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setErrorTarget("$.cart");
                         setErrorMessage("");
                         setConditions([]);
-                      } else if (val === "banner") {
+                      } else if (val === "Announcements & Notices" || val === "announcement" || val === "banner") {
                         setErrorTarget("purchase.checkout.block.render");
-                        setErrorMessage("Special Announcement: Free shipping on selected products!");
-                        setGuidanceMessage("Applies automatically at checkout.");
+                        setErrorMessage("Store Announcement: Order by Dec 20 for holiday shipping.");
+                        setGuidanceMessage("Applies to all checkout orders.");
                         setBannerStyle("info");
-                        setCustomIcon("info");
+                        setCustomIcon("calendar");
                         setConditions([]);
                       } else if (val === "custom_input") {
                         setErrorTarget("purchase.checkout.block.render");
@@ -1846,7 +1847,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && ruleType !== "upsell" && ruleType !== "interactive_modal" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && ruleType !== "upsell" && ruleType !== "interactive_modal" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2157,14 +2158,14 @@ export default function RuleBuilder({ ruleId, navigate }) {
                               value={bannerDiscountType}
                               onChange={(newType) => {
                                 const minAmt = parseFloat(bannerMinAmount) || 0;
-                                const currentVal = parseFloat(bannerDiscountVal) || 0;
+                                const currentVal = parseFloat(bannerDiscountValue) || 0;
                                 if (minAmt > 0 && currentVal > 0) {
                                   if (newType === "percentage" && bannerDiscountType === "fixed_amount") {
                                     const calculatedPct = Math.min(100, Math.round((currentVal / minAmt) * 100));
-                                    setBannerDiscountVal(String(calculatedPct));
+                                    setBannerDiscountValue(String(calculatedPct));
                                   } else if (newType === "fixed_amount" && bannerDiscountType === "percentage") {
                                     const calculatedFixed = Math.round((currentVal / 100) * minAmt * 100) / 100;
-                                    setBannerDiscountVal(String(calculatedFixed));
+                                    setBannerDiscountValue(String(calculatedFixed));
                                   }
                                 }
                                 setBannerDiscountType(newType);
@@ -2177,8 +2178,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
                               label={bannerDiscountType === "percentage" ? "Discount Percentage (%) *" : "Discount Amount ($) *"}
                               type="number"
                               placeholder={bannerDiscountType === "percentage" ? "15" : "10"}
-                              value={bannerDiscountVal}
-                              onChange={setBannerDiscountVal}
+                              value={bannerDiscountValue}
+                              onChange={setBannerDiscountValue}
                               autoComplete="off"
                             />
                           </div>
@@ -2541,7 +2542,87 @@ export default function RuleBuilder({ ruleId, navigate }) {
                   </FormLayout>
                 </Box>
               </Card>
-            ) : (ruleType === "discount" || ruleType === "cart_transform") ? null : (
+            ) : (ruleType === "Announcements & Notices" || ruleType === "announcement") ? (
+              <Card title="Announcements & Notices Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Banner status="info" title="Broadcast Announcement Notice">
+                      Announcements & Notices render high-visibility broadcast banners across your checkout funnel without needing validation conditions.
+                    </Banner>
+
+                    <TextField
+                      label="Announcement Title / Heading *"
+                      placeholder="e.g. Holiday Shipping Schedule Notice"
+                      value={title}
+                      onChange={setTitle}
+                      autoComplete="off"
+                      helpText="Main heading text displayed on the announcement banner."
+                    />
+
+                    <TextField
+                      label="Announcement Message Body *"
+                      placeholder="e.g. Order by Dec 20 for guaranteed delivery before Christmas."
+                      value={errorMessage}
+                      onChange={setErrorMessage}
+                      multiline={2}
+                      autoComplete="off"
+                      helpText="Main announcement message body text shown to checkout buyers."
+                    />
+
+                    <HorizontalStack gap="4">
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Banner Tone / Style *"
+                          options={[
+                            { label: "Information (Info / Blue)", value: "info" },
+                            { label: "Success (Completed / Green)", value: "success" },
+                            { label: "Warning (Alert / Orange)", value: "warning" },
+                            { label: "Critical (Error / Red)", value: "critical" }
+                          ]}
+                          value={bannerStyle}
+                          onChange={setBannerStyle}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <Select
+                          label="Banner Icon *"
+                          options={[
+                            { label: "Calendar (📅)", value: "calendar" },
+                            { label: "Delivery Truck (🚚)", value: "delivery" },
+                            { label: "Security Lock (🔒)", value: "lock" },
+                            { label: "Gift Icon (🎁)", value: "gift" },
+                            { label: "Information (ℹ️)", value: "info" },
+                            { label: "Success Check (✅)", value: "success" },
+                            { label: "Warning Alert (⚠️)", value: "warning" },
+                            { label: "Critical Alert (🚨)", value: "critical" },
+                            { label: "No Icon", value: "none" }
+                          ]}
+                          value={customIcon}
+                          onChange={setCustomIcon}
+                        />
+                      </div>
+                    </HorizontalStack>
+
+                    <Select
+                      label="Placement Target *"
+                      options={[
+                        { label: "Checkout Editor (Dynamic Block Target)", value: "purchase.checkout.block.render" },
+                        { label: "Order Summary - Above Discount Code", value: "purchase.checkout.reductions.render-before" },
+                        { label: "Order Summary - Below Discount Code", value: "purchase.checkout.reductions.render-after" },
+                        { label: "Contact Information (After)", value: "purchase.checkout.contact.render-after" },
+                        { label: "Delivery Address (After)", value: "purchase.checkout.delivery-address.render-after" },
+                        { label: "Shipping Methods (Before)", value: "purchase.checkout.shipping-option-list.render-before" },
+                        { label: "Payment Methods (Before)", value: "purchase.checkout.payment-method-list.render-before" },
+                        { label: "Checkout Footer (After)", value: "purchase.checkout.footer.render-after" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
+                      helpText="Specifies where the announcement banner will be injected in the checkout layout."
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : (ruleType === "discount" || ruleType === "cart_transform" || ruleType === "Announcements & Notices" || ruleType === "announcement") ? null : (
               <Card>
                 <Box padding="5">
                   <VerticalStack gap="4">

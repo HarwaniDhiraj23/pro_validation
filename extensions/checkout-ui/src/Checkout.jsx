@@ -114,7 +114,7 @@ function Extension() {
     (rule) =>
       rule.status === "active" &&
       rule.display_in_checkout !== false &&
-      rule.rule_type === "banner" &&
+      (rule.rule_type === "banner" || rule.rule_type === "Announcements & Notices" || rule.rule_type === "announcement") &&
       (rule.error_target === currentTarget || (!rule.error_target || rule.error_target === "$.cart") && isBlockTarget) &&
       (!rule.conditions || !Array.isArray(rule.conditions) || rule.conditions.length === 0 || evaluateRule(rule, cartState))
   );
@@ -331,6 +331,16 @@ function Extension() {
       </s-stack>
     );
   });
+
+  const renderedBanners = triggeredBanners.map((b) => (
+    <s-banner key={b.id} tone={b.tone} heading={b.heading}>
+      {b.guidance && (
+        <div style={{ marginTop: "4px", fontSize: "13px", color: "#374151" }}>
+          {b.guidance}
+        </div>
+      )}
+    </s-banner>
+  ));
 
   const renderedUpsells = matchingUpsellRules.map((rule) => (
     <CheckoutUpsell key={rule.id} rule={rule} cartState={cartState} />

@@ -72,6 +72,7 @@ export function BannerNotice({ rule, cartState = {} }) {
     }
   } else {
     heading = rule.title || rule.error_message || "Announcement";
+    bodyText = (rule.error_message && rule.error_message !== rule.title) ? rule.error_message : "";
   }
 
   // Prepend custom emoji icons

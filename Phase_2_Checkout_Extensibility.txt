@@ -38,10 +38,6 @@ the checkout funnel.
   Offer complementary add-on products or warranties directly within the checkout
   summary or order steps.
 
-- Trust Badges & Custom Content:
-  Render security seals, policy guarantees, custom refund info, or buyer verification
-  notices.
-
 - Conditional Interactivity & Modals:
   Trigger popups/modals for age verification, terms & conditions acknowledgment,
   or custom address validations.

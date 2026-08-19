@@ -211,6 +211,10 @@ export default function RulesList({ navigate }) {
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=fulfillment&fixed=true"); }
               },
               {
+                content: "Announcements & Notices",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=Announcements+%26+Notices&fixed=true"); }
+              },
+              {
                 content: "Custom Banner & Announcement",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=banner&fixed=true"); }
               },
@@ -598,6 +602,7 @@ export default function RulesList({ navigate }) {
                 <option value="payment">Payment Customization</option>
                 <option value="discount">Discount Allocator</option>
                 <option value="fulfillment">Fulfillment Constraints</option>
+                <option value="Announcements & Notices">Announcements & Notices</option>
               </select>
             </div>
           </div>

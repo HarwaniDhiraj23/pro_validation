@@ -891,6 +891,62 @@ const PREBUILT_TEMPLATES = [
     },
   },
   {
+    id: 60,
+    title: "Holiday & Seasonal Shipping Cutoff Notice",
+    category: "Announcements & Notices",
+    description:
+      "Displays holiday shipping deadlines and cutoff dates to ensure customers place orders in time for guaranteed delivery.",
+    conditions: [],
+    error_message: "Holiday Shipping Notice: Order by Dec 20 for guaranteed delivery before Christmas.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "Order by Dec 20 for guaranteed delivery before Christmas.",
+    rule_type: "Announcements & Notices",
+    custom_icon: "calendar",
+    banner_style: "info"
+  },
+  {
+    id: 61,
+    title: "Warehouse Maintenance & Shipping Delay Alert",
+    category: "Announcements & Notices",
+    description:
+      "Alerts buyers about potential order processing or shipping dispatch delays during peak seasons or maintenance windows.",
+    conditions: [],
+    error_message: "Fulfillment Update: High order volumes may cause 1-2 business day shipping delays.",
+    error_target: "purchase.checkout.shipping-option-list.render-before",
+    guidance_message: "High order volumes may cause 1-2 business day shipping delays.",
+    rule_type: "Announcements & Notices",
+    custom_icon: "delivery",
+    banner_style: "warning"
+  },
+  {
+    id: 62,
+    title: "Terms of Service & Store Policy Compliance Disclaimer",
+    category: "Announcements & Notices",
+    description:
+      "Displays standard legal disclaimers and store policy notices near the payment section during checkout.",
+    conditions: [],
+    error_message: "Compliance Notice: By placing your order, you agree to our Terms of Service and Store Return Policies.",
+    error_target: "purchase.checkout.payment-method-list.render-before",
+    guidance_message: "By placing your order, you agree to our Terms of Service and Store Return Policies.",
+    rule_type: "Announcements & Notices",
+    custom_icon: "lock",
+    banner_style: "info"
+  },
+  {
+    id: 63,
+    title: "VIP Member Perks & Promo Announcement",
+    category: "Announcements & Notices",
+    description:
+      "Highlights exclusive member perks, seasonal sales, or promotional offer announcements to checkout buyers.",
+    conditions: [],
+    error_message: "VIP Exclusive Announcement: Thank you for shopping with us! VIP members receive priority processing on all orders.",
+    error_target: "purchase.checkout.block.render",
+    guidance_message: "Thank you for shopping with us! VIP members receive priority processing on all orders.",
+    rule_type: "Announcements & Notices",
+    custom_icon: "gift",
+    banner_style: "success"
+  },
+  {
     id: 61,
     title: "Promotional Banner & Store Announcement",
     category: "Custom Banner & Announcement",
