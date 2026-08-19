@@ -574,6 +574,11 @@ export default function RuleBuilder({ ruleId, navigate }) {
   const [upsellPrice, setUpsellPrice] = useState("$4.99");
   const [upsellImageUrl, setUpsellImageUrl] = useState("");
 
+  // Post-Purchase Survey state
+  const [surveyType, setSurveyType] = useState("attribution");
+  const [surveyOptionsText, setSurveyOptionsText] = useState("TikTok, Instagram, Google Search, YouTube, Friend or Family, Podcast / Influencer, Other");
+  const [allowCustomText, setAllowCustomText] = useState(true);
+
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
   const [browseType, setBrowseType] = useState("");
   const [browseIdx, setBrowseIdx] = useState(null);
@@ -662,6 +667,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
               if (discConfig.promo_code !== undefined) setBannerPromoCode(discConfig.promo_code);
               if (discConfig.max_cap !== undefined) setBannerMaxCap(String(discConfig.max_cap || ""));
             }
+            if (data.rule_type === "survey" || data.category === "Post-Purchase Surveys") {
+              setRuleType("survey");
+              let sType = data.survey_type || (discConfig && discConfig.survey_type);
+              let opts = data.options || (discConfig && discConfig.options);
+              let custText = data.allow_custom_text !== undefined ? data.allow_custom_text : (discConfig && discConfig.allow_custom_text);
+              if (sType) setSurveyType(sType);
+              if (opts) {
+                if (Array.isArray(opts)) setSurveyOptionsText(opts.join(", "));
+                else setSurveyOptionsText(String(opts));
+              }
+              if (custText !== undefined) setAllowCustomText(custText !== false);
+            }
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
             setErrorTarget(data.error_target || "$.cart");
@@ -727,6 +744,18 @@ export default function RuleBuilder({ ruleId, navigate }) {
               if (Array.isArray(templateDiscConfig.volume_brackets)) setVolumeBrackets(templateDiscConfig.volume_brackets);
               if (templateDiscConfig.bogo_config) setBogoConfig(templateDiscConfig.bogo_config);
               if (templateDiscConfig.max_discount_cap) setMaxDiscountCap(String(templateDiscConfig.max_discount_cap || ""));
+            }
+            if (data.rule_type === "survey" || data.category === "Post-Purchase Surveys") {
+              setRuleType("survey");
+              let sType = data.survey_type || (templateDiscConfig && templateDiscConfig.survey_type);
+              let opts = data.options || (templateDiscConfig && templateDiscConfig.options);
+              let custText = data.allow_custom_text !== undefined ? data.allow_custom_text : (templateDiscConfig && templateDiscConfig.allow_custom_text);
+              if (sType) setSurveyType(sType);
+              if (opts) {
+                if (Array.isArray(opts)) setSurveyOptionsText(opts.join(", "));
+                else setSurveyOptionsText(String(opts));
+              }
+              if (custText !== undefined) setAllowCustomText(custText !== false);
             }
             setConditionsOperator(data.conditions_operator || "AND");
             setErrorMessage(data.error_message);
@@ -988,13 +1017,13 @@ export default function RuleBuilder({ ruleId, navigate }) {
         return;
       }
     }
-    if (ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && conditions.length === 0) {
+    if (ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && ruleType !== "survey" && conditions.length === 0) {
       shopify.toast.show("At least one condition must be specified", { isError: true });
       return;
     }
 
     // Validate conditions
-    if (ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement") {
+    if (ruleType !== "discount" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && ruleType !== "survey") {
       for (let i = 0; i < conditions.length; i++) {
         const cond = conditions[i];
         if (cond.type !== "shipping_address_pobox" &&
@@ -1077,6 +1106,10 @@ export default function RuleBuilder({ ruleId, navigate }) {
         discount_type: bannerDiscountType,
         promo_code: bannerPromoCode,
         max_cap: bannerMaxCap
+      } : ruleType === "survey" ? {
+        survey_type: surveyType,
+        options: surveyType === "attribution" ? surveyOptionsText.split(",").map(s => s.trim()).filter(Boolean) : [],
+        allow_custom_text: allowCustomText
       } : {},
       fulfillment_action: ruleType === "fulfillment" ? fulfillmentAction : null,
       fulfillment_config: ruleType === "fulfillment" ? {
@@ -1150,7 +1183,8 @@ export default function RuleBuilder({ ruleId, navigate }) {
     { label: "Custom Banner & Announcement", value: "banner" },
     { label: "Custom Input Fields", value: "custom_input" },
     { label: "In-Checkout Upsell & Cross-sell", value: "upsell" },
-    { label: "Conditional Interactivity & Modals", value: "interactive_modal" }
+    { label: "Conditional Interactivity & Modals", value: "interactive_modal" },
+    { label: "Post-Purchase Survey (Attribution / NPS / Rating / Feedback)", value: "survey" }
   ];
 
   const restrictedConditionTypes = planConfig?.restrictedConditionTypes || [
@@ -1313,6 +1347,12 @@ export default function RuleBuilder({ ruleId, navigate }) {
                         setIsRequired(true);
                         setErrorMessage("Age Verification Required");
                         setGuidanceMessage("You must verify your date of birth (21+) to purchase regulated items in your cart.");
+                        setConditions([]);
+                      } else if (val === "survey") {
+                        setErrorTarget("purchase.thank-you.block.render");
+                        setTitle("How Did You Hear About Us? (Post-Purchase Attribution)");
+                        setErrorMessage("How did you hear about us?");
+                        setGuidanceMessage("Help us understand which marketing channel brought you to our store.");
                         setConditions([]);
                       } else {
                         setErrorTarget("$.cart");
@@ -1847,7 +1887,7 @@ export default function RuleBuilder({ ruleId, navigate }) {
             )}
 
             {/* Conditions Section */}
-            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && ruleType !== "upsell" && ruleType !== "interactive_modal" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && (
+            {ruleType !== "checkbox" && ruleType !== "discount" && ruleType !== "cart_transform" && ruleType !== "banner" && ruleType !== "custom_input" && ruleType !== "upsell" && ruleType !== "interactive_modal" && ruleType !== "Announcements & Notices" && ruleType !== "announcement" && ruleType !== "survey" && (
               <Card title="Conditions Configuration">
                 <Box padding="5">
                   <VerticalStack gap="4">
@@ -2618,6 +2658,86 @@ export default function RuleBuilder({ ruleId, navigate }) {
                       value={errorTarget}
                       onChange={setErrorTarget}
                       helpText="Specifies where the announcement banner will be injected in the checkout layout."
+                    />
+                  </FormLayout>
+                </Box>
+              </Card>
+            ) : ruleType === "survey" ? (
+              <Card title="Post-Purchase Survey Configuration">
+                <Box padding="5">
+                  <FormLayout>
+                    <Select
+                      label="Survey Format / Type *"
+                      options={[
+                        { label: "Attribution Survey (HDYHAU Single-Choice Pills)", value: "attribution" },
+                        { label: "Net Promoter Score (NPS 0-10 Scale)", value: "nps" },
+                        { label: "CSAT & Experience Rating (1-5 Stars)", value: "rating" },
+                        { label: "Product & Store Feedback Form", value: "feedback" }
+                      ]}
+                      value={surveyType}
+                      onChange={(val) => {
+                        setSurveyType(val);
+                        if (val === "attribution") {
+                          setErrorMessage("How did you hear about us?");
+                          setGuidanceMessage("Help us understand which marketing channel brought you to our store.");
+                        } else if (val === "nps") {
+                          setErrorMessage("How likely are you to recommend our store to a friend or colleague?");
+                          setGuidanceMessage("0 = Extremely Unlikely | 10 = Extremely Likely");
+                        } else if (val === "rating") {
+                          setErrorMessage("How was your overall shopping experience today?");
+                          setGuidanceMessage("Rate your checkout & shopping experience.");
+                        } else if (val === "feedback") {
+                          setErrorMessage("What could we improve to make your experience even better?");
+                          setGuidanceMessage("Share your feedback or feature suggestions with our team.");
+                        }
+                      }}
+                      helpText="Select the display format rendered on the post-payment or Thank You page."
+                    />
+
+                    <TextField
+                      label="Buyer Question Prompt *"
+                      value={errorMessage}
+                      onChange={setErrorMessage}
+                      autoComplete="off"
+                      placeholder="e.g. How did you hear about us?"
+                      helpText="The main prompt question displayed to the customer."
+                    />
+
+                    <TextField
+                      label="Subtext / Guidance (Optional)"
+                      value={guidanceMessage}
+                      onChange={setGuidanceMessage}
+                      autoComplete="off"
+                      placeholder="e.g. Select the option that best describes your experience"
+                    />
+
+                    {surveyType === "attribution" && (
+                      <TextField
+                        label="Attribution Options (Comma-Separated) *"
+                        value={surveyOptionsText}
+                        onChange={setSurveyOptionsText}
+                        multiline={2}
+                        autoComplete="off"
+                        helpText="Options provided for single-choice selection. (e.g. TikTok, Instagram, Search, YouTube, Other)"
+                      />
+                    )}
+
+                    <Checkbox
+                      label="Allow Custom Write-In / Follow-up Feedback Text"
+                      checked={allowCustomText}
+                      onChange={setAllowCustomText}
+                      helpText="Enables buyers to type open-ended comments alongside their choice or rating."
+                    />
+
+                    <Select
+                      label="Placement Target Surface *"
+                      options={[
+                        { label: "Thank You / Order Status Page Block Target", value: "purchase.thank-you.block.render" },
+                        { label: "Thank You Page - Below Customer Information", value: "purchase.thank-you.customer-information.render-after" },
+                        { label: "Post-Purchase Extension Render Target", value: "purchase.post-purchase.render" }
+                      ]}
+                      value={errorTarget}
+                      onChange={setErrorTarget}
                     />
                   </FormLayout>
                 </Box>

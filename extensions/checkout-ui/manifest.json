@@ -11,5 +11,7 @@
   "purchase.checkout.reductions.render-after": {},
   "purchase.checkout.cart-line-item.render-after": {},
   "purchase.checkout.reductions.render-before": {},
-  "purchase.checkout.footer.render-after": {}
+  "purchase.checkout.footer.render-after": {},
+  "purchase.thank-you.block.render": {},
+  "purchase.thank-you.customer-information.render-after": {}
 }

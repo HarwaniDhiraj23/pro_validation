@@ -20,6 +20,7 @@ import templatesRouter from "./routes/templates.js";
 import analyticsRouter from "./routes/analytics.js";
 import recommendationsRouter from "./routes/recommendations.js";
 import billingRouter from "./routes/billing.js";
+import surveysRouter from "./routes/surveys.js";
 import { dbQuery } from "./db/connection.js";
 
 const PORT = parseInt(
@@ -33,6 +34,25 @@ const STATIC_PATH =
     : `${process.cwd()}/frontend/`;
 
 const app = express();
+
+// Webhook endpoint MUST come BEFORE express.json() so shopify.processWebhooks receives the raw unparsed body stream
+app.post(
+  shopify.config.webhooks.path,
+  shopify.processWebhooks({ webhookHandlers: { ...PrivacyWebhookHandlers, ...CheckoutWebhookHandlers } })
+);
+
+app.use(express.json());
+
+// Public extension endpoints (unauthenticated for Post-Purchase UI extensions)
+app.use("/api/public/survey-responses", (req, res, next) => {
+  req.url = "/public/survey-responses";
+  return surveysRouter(req, res, next);
+});
+
+app.use("/api/public/surveys", (req, res, next) => {
+  req.url = "/public/surveys";
+  return surveysRouter(req, res, next);
+});
 
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
@@ -58,10 +78,6 @@ app.get(
     next();
   },
   shopify.redirectToShopifyOrAppRoot()
-);
-app.post(
-  shopify.config.webhooks.path,
-  shopify.processWebhooks({ webhookHandlers: { ...PrivacyWebhookHandlers, ...CheckoutWebhookHandlers } })
 );
 
 // If you are adding routes outside of the /api path, remember to
@@ -90,13 +106,12 @@ app.use("/api/*", async (req, res, next) => {
   next();
 });
 
-app.use(express.json());
-
 app.use("/api/rules", rulesRouter);
 app.use("/api/templates", templatesRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/surveys", surveysRouter);
 
 app.get("/api/store/variants", async (_req, res) => {
   try {

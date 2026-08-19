@@ -164,24 +164,22 @@ export default function RulesList({ navigate }) {
       title="Validation Rules"
       subtitle="Configure rules that prevent checkout based on cart attributes."
       backAction={{ content: "Dashboard", onAction: () => navigate("/") }}
-      primaryAction={{
-        content: "Pre-built Rules",
-        onAction: () => navigate("/templates")
-      }}
-      secondaryActions={
-        <Popover
-          active={createPopoverActive}
-          activator={
-            <Button onClick={toggleCreatePopover} disclosure>
-              ＋ Create Rule
-            </Button>
-          }
-          onClose={toggleCreatePopover}
-          autofocusTarget="first-node"
-        >
-          <ActionList
-            actionRole="menuitem"
-            items={[
+      primaryAction={
+        <HorizontalStack gap="2">
+          <Button onClick={() => navigate("/surveys")}>Post-Purchase Surveys</Button>
+          <Popover
+            active={createPopoverActive}
+            activator={
+              <Button onClick={toggleCreatePopover} disclosure>
+                ＋ Create Rule
+              </Button>
+            }
+            onClose={toggleCreatePopover}
+            autofocusTarget="first-node"
+          >
+            <ActionList
+              actionRole="menuitem"
+              items={[
               {
                 content: "Checkout Validation Rule",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=validation"); }
@@ -229,11 +227,17 @@ export default function RulesList({ navigate }) {
               {
                 content: "Conditional Interactivity & Modals",
                 onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=interactive_modal&fixed=true"); }
+              },
+              {
+                content: "Post-Purchase Surveys (Attribution / NPS / Rating)",
+                onAction: () => { toggleCreatePopover(); navigate("/rules/new?type=survey&fixed=true"); }
               }
             ]}
           />
         </Popover>
-      }
+        <Button primary onClick={() => navigate("/templates")}>Pre-built Rules</Button>
+      </HorizontalStack>
+    }
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -601,8 +605,14 @@ export default function RulesList({ navigate }) {
                 <option value="delivery">Delivery Customization</option>
                 <option value="payment">Payment Customization</option>
                 <option value="discount">Discount Allocator</option>
+                <option value="cart_transform">Cart Transform & Bundling</option>
                 <option value="fulfillment">Fulfillment Constraints</option>
                 <option value="Announcements & Notices">Announcements & Notices</option>
+                <option value="banner">Custom Banner & Announcement</option>
+                <option value="custom_input">Custom Input Fields</option>
+                <option value="upsell">In-Checkout Upsell & Cross-sell</option>
+                <option value="interactive_modal">Conditional Interactivity & Modals</option>
+                <option value="survey">Post-Purchase Surveys</option>
               </select>
             </div>
           </div>

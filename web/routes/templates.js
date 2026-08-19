@@ -98,10 +98,20 @@ router.post("/:id/apply", async (req, res) => {
       template = templateResult.rows[0];
     }
 
+    let discConfig = template.discount_config || {};
+    if (typeof discConfig === "string") {
+      try { discConfig = JSON.parse(discConfig); } catch(e){}
+    }
+    if (template.survey_type && !discConfig.survey_type) {
+      discConfig.survey_type = template.survey_type;
+      discConfig.options = template.options || discConfig.options;
+      discConfig.allow_custom_text = template.allow_custom_text !== false;
+    }
+
     // Create a new rule from template
     const ruleRes = await dbQuery(
-      `INSERT INTO rules (shop, title, status, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, fulfillment_action, fulfillment_config)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      `INSERT INTO rules (shop, title, status, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         shop,
         template.title,
@@ -113,6 +123,10 @@ router.post("/:id/apply", async (req, res) => {
         template.error_target || "$.cart",
         template.rule_type || "validation",
         template.delivery_action || null,
+        template.discount_type || null,
+        template.discount_target || "order",
+        template.discount_value ? String(template.discount_value) : null,
+        JSON.stringify(discConfig),
         template.fulfillment_action || null,
         JSON.stringify(template.fulfillment_config || {})
       ]
@@ -121,8 +135,8 @@ router.post("/:id/apply", async (req, res) => {
 
     // Create version 1
     await dbQuery(
-      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, fulfillment_action, fulfillment_config)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      `INSERT INTO rule_versions (rule_id, version, title, priority, conditions_operator, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         newRule.id,
         1,
@@ -134,8 +148,12 @@ router.post("/:id/apply", async (req, res) => {
         newRule.error_target,
         newRule.rule_type || "validation",
         newRule.delivery_action || null,
+        newRule.discount_type || null,
+        newRule.discount_target || "order",
+        newRule.discount_value ? String(newRule.discount_value) : null,
+        JSON.stringify(discConfig),
         newRule.fulfillment_action || null,
-        JSON.stringify(template.fulfillment_config || {})
+        JSON.stringify(newRule.fulfillment_config || {})
       ]
     );
 

@@ -328,5 +328,48 @@ VALUES
  '[]', 'Compliance Notice: By placing your order, you agree to our Terms of Service and Store Return Policies.', 'purchase.checkout.payment-method-list.render-before', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'By placing your order, you agree to our Terms of Service and Store Return Policies.'),
 
 ('VIP Member Perks & Promo Announcement', 'Announcements & Notices', 'Highlights exclusive member perks, seasonal sales, or promotional offer announcements to checkout buyers.',
- '[]', 'VIP Exclusive Announcement: Thank you for shopping with us! VIP members receive priority processing on all orders.', 'purchase.checkout.block.render', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'Thank you for shopping with us! VIP members receive priority processing on all orders.');
+ '[]', 'VIP Exclusive Announcement: Thank you for shopping with us! VIP members receive priority processing on all orders.', 'purchase.checkout.block.render', 'Announcements & Notices', NULL, NULL, 'order', NULL, '{}', NULL, '{}', 'Thank you for shopping with us! VIP members receive priority processing on all orders.'),
+
+('How Did You Hear About Us? (Post-Purchase Attribution)', 'Post-Purchase Surveys', 'Collect buyer acquisition insights directly after checkout to optimize marketing spend across channels.',
+ '[]', 'How did you hear about us?', 'purchase.post-purchase.render', 'survey', NULL, NULL, 'order', NULL, '{"survey_type": "attribution", "options": ["TikTok", "Instagram", "Google Search", "YouTube", "Friend or Family", "Podcast / Influencer", "Other"], "allow_custom_text": true}', NULL, '{}', 'How did you hear about us?'),
+
+('Net Promoter Score (NPS 0-10 Rating & Feedback)', 'Post-Purchase Surveys', 'Measure customer loyalty and satisfaction on a 0-10 scale with follow-up feedback.',
+ '[]', 'How likely are you to recommend our store to a friend or colleague?', 'purchase.post-purchase.render', 'survey', NULL, NULL, 'order', NULL, '{"survey_type": "nps", "allow_custom_text": true}', NULL, '{}', 'How likely are you to recommend us?'),
+
+('Checkout & Shopping Experience Rating (1-5 Stars)', 'Post-Purchase Surveys', 'Gauge buyer satisfaction with the purchasing process and cart experience.',
+ '[]', 'How was your overall shopping experience today?', 'purchase.thank-you.block.render', 'survey', NULL, NULL, 'order', NULL, '{"survey_type": "rating", "allow_custom_text": true}', NULL, '{}', 'Rate your checkout experience'),
+
+('Post-Purchase Product & Store Feedback Form', 'Post-Purchase Surveys', 'Gather qualitative buyer feedback and suggestions immediately post-checkout.',
+ '[]', 'What could we improve to make your experience even better?', 'purchase.thank-you.block.render', 'survey', NULL, NULL, 'order', NULL, '{"survey_type": "feedback", "allow_custom_text": true}', NULL, '{}', 'Share your feedback');
+
+-- Create surveys table
+CREATE TABLE IF NOT EXISTS surveys (
+  id SERIAL PRIMARY KEY,
+  shop VARCHAR(255) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'active',
+  survey_type VARCHAR(50) NOT NULL,
+  question_text VARCHAR(500) NOT NULL,
+  description VARCHAR(500) DEFAULT NULL,
+  options JSONB DEFAULT '[]',
+  allow_custom_text BOOLEAN DEFAULT TRUE,
+  conditions JSONB DEFAULT '[]',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create survey_responses table
+CREATE TABLE IF NOT EXISTS survey_responses (
+  id SERIAL PRIMARY KEY,
+  shop VARCHAR(255) NOT NULL,
+  survey_id INTEGER REFERENCES surveys(id) ON DELETE CASCADE,
+  order_id VARCHAR(255) DEFAULT NULL,
+  customer_id VARCHAR(255) DEFAULT NULL,
+  customer_email VARCHAR(255) DEFAULT NULL,
+  survey_type VARCHAR(50) NOT NULL,
+  answer_value VARCHAR(255) NOT NULL,
+  custom_feedback TEXT DEFAULT NULL,
+  submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 

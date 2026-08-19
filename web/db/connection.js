@@ -1172,6 +1172,59 @@ const PREBUILT_TEMPLATES = [
     is_required: true,
     custom_icon: "Hazmat Compliance",
   },
+  {
+    id: 100,
+    title: "How Did You Hear About Us? (Post-Purchase Attribution)",
+    category: "Post-Purchase Surveys",
+    description:
+      "Collect buyer acquisition insights directly after checkout to optimize marketing spend across channels.",
+    conditions: [],
+    error_message: "How did you hear about us?",
+    error_target: "purchase.post-purchase.render",
+    rule_type: "survey",
+    survey_type: "attribution",
+    options: ["TikTok", "Instagram", "Google Search", "YouTube", "Friend or Family", "Podcast / Influencer", "Other"],
+    allow_custom_text: true,
+  },
+  {
+    id: 101,
+    title: "Net Promoter Score (NPS 0-10 Rating & Feedback)",
+    category: "Post-Purchase Surveys",
+    description:
+      "Measure customer loyalty and satisfaction on a 0-10 scale with follow-up feedback.",
+    conditions: [],
+    error_message: "How likely are you to recommend our store to a friend or colleague?",
+    error_target: "purchase.post-purchase.render",
+    rule_type: "survey",
+    survey_type: "nps",
+    allow_custom_text: true,
+  },
+  {
+    id: 102,
+    title: "Checkout & Shopping Experience Rating (1-5 Stars)",
+    category: "Post-Purchase Surveys",
+    description:
+      "Gauge buyer satisfaction with the purchasing process and cart experience.",
+    conditions: [],
+    error_message: "How was your overall shopping experience today?",
+    error_target: "purchase.thank-you.block.render",
+    rule_type: "survey",
+    survey_type: "rating",
+    allow_custom_text: true,
+  },
+  {
+    id: 103,
+    title: "Post-Purchase Product & Store Feedback Form",
+    category: "Post-Purchase Surveys",
+    description:
+      "Gather qualitative buyer feedback and suggestions immediately post-checkout.",
+    conditions: [],
+    error_message: "What could we improve to make your experience even better?",
+    error_target: "purchase.thank-you.block.render",
+    rule_type: "survey",
+    survey_type: "feedback",
+    allow_custom_text: true,
+  },
 ];
 
 // Map over PREBUILT_TEMPLATES to ensure all have rule_type set
@@ -1188,6 +1241,8 @@ function initFallbackDB() {
       rule_versions: [],
       rule_analytics: [],
       subscriptions_log: [],
+      surveys: [],
+      survey_responses: [],
       rule_templates: PREBUILT_TEMPLATES,
     };
     fs.mkdirSync(path.dirname(FALLBACK_DB_PATH), { recursive: true });
@@ -1202,6 +1257,8 @@ function initFallbackDB() {
       if (!existingData.rules) existingData.rules = [];
       if (!existingData.rule_versions) existingData.rule_versions = [];
       if (!existingData.rule_analytics) existingData.rule_analytics = [];
+      if (!existingData.surveys) existingData.surveys = [];
+      if (!existingData.survey_responses) existingData.survey_responses = [];
       if (Array.isArray(existingData.rules)) {
         existingData.rules = existingData.rules.filter(
           (r) =>
@@ -1282,10 +1339,22 @@ export async function syncTemplatesToPostgres() {
         error_target VARCHAR(255) DEFAULT '$.cart',
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        discount_type VARCHAR(50) DEFAULT NULL,
+        discount_target VARCHAR(255) DEFAULT 'order',
+        discount_value VARCHAR(100) DEFAULT NULL,
+        discount_config JSONB DEFAULT '{}',
+        fulfillment_action VARCHAR(50) DEFAULT NULL,
+        fulfillment_config JSONB DEFAULT '{}',
         guidance_message VARCHAR(500) DEFAULT NULL
       );
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_target VARCHAR(255) DEFAULT 'order';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_value VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS fulfillment_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS fulfillment_config JSONB DEFAULT '{}';
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
     `);
 
@@ -1294,6 +1363,9 @@ export async function syncTemplatesToPostgres() {
         "SELECT id FROM rule_templates WHERE title = $1 OR id = $2",
         [tmpl.title, tmpl.id],
       );
+
+      const discountConfigJson = typeof tmpl.discount_config === "string" ? tmpl.discount_config : JSON.stringify(tmpl.discount_config || {});
+      const fulfillmentConfigJson = typeof tmpl.fulfillment_config === "string" ? tmpl.fulfillment_config : JSON.stringify(tmpl.fulfillment_config || {});
 
       if (checkRes.rows && checkRes.rows.length > 0) {
         await pool.query(
@@ -1306,8 +1378,14 @@ export async function syncTemplatesToPostgres() {
              error_target = $6,
              rule_type = $7,
              delivery_action = $8,
-             guidance_message = $9 
-           WHERE id = $10 OR title = $1`,
+             discount_type = $9,
+             discount_target = $10,
+             discount_value = $11,
+             discount_config = $12,
+             fulfillment_action = $13,
+             fulfillment_config = $14,
+             guidance_message = $15
+           WHERE id = $16 OR title = $1`,
           [
             tmpl.title,
             tmpl.category,
@@ -1317,14 +1395,20 @@ export async function syncTemplatesToPostgres() {
             tmpl.error_target || "$.cart",
             tmpl.rule_type || "validation",
             tmpl.delivery_action || null,
+            tmpl.discount_type || null,
+            tmpl.discount_target || "order",
+            tmpl.discount_value ? String(tmpl.discount_value) : null,
+            discountConfigJson,
+            tmpl.fulfillment_action || null,
+            fulfillmentConfigJson,
             tmpl.guidance_message || null,
             checkRes.rows[0].id,
           ],
         );
       } else {
         await pool.query(
-          `INSERT INTO rule_templates (id, title, category, description, conditions, error_message, error_target, rule_type, delivery_action, guidance_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          `INSERT INTO rule_templates (id, title, category, description, conditions, error_message, error_target, rule_type, delivery_action, discount_type, discount_target, discount_value, discount_config, fulfillment_action, fulfillment_config, guidance_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
           [
             tmpl.id,
             tmpl.title,
@@ -1335,6 +1419,12 @@ export async function syncTemplatesToPostgres() {
             tmpl.error_target || "$.cart",
             tmpl.rule_type || "validation",
             tmpl.delivery_action || null,
+            tmpl.discount_type || null,
+            tmpl.discount_target || "order",
+            tmpl.discount_value ? String(tmpl.discount_value) : null,
+            discountConfigJson,
+            tmpl.fulfillment_action || null,
+            fulfillmentConfigJson,
             tmpl.guidance_message || null,
           ],
         );
@@ -1418,6 +1508,17 @@ async function initPostgresTables(client) {
         schedule_end TIMESTAMP,
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        discount_type VARCHAR(50) DEFAULT NULL,
+        discount_target VARCHAR(255) DEFAULT 'order',
+        discount_value VARCHAR(100) DEFAULT NULL,
+        discount_config JSONB DEFAULT '{}',
+        fulfillment_action VARCHAR(50) DEFAULT NULL,
+        fulfillment_config JSONB DEFAULT '{}',
+        warning_banner BOOLEAN DEFAULT FALSE,
+        custom_icon VARCHAR(255) DEFAULT NULL,
+        banner_style VARCHAR(255) DEFAULT NULL,
+        guidance_message VARCHAR(500) DEFAULT NULL,
+        display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -1427,6 +1528,12 @@ async function initPostgresTables(client) {
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS schedule_end TIMESTAMP DEFAULT NULL;
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_target VARCHAR(255) DEFAULT 'order';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_value VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS fulfillment_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rules ADD COLUMN IF NOT EXISTS fulfillment_config JSONB DEFAULT '{}';
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS warning_banner BOOLEAN DEFAULT FALSE;
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS custom_icon VARCHAR(255) DEFAULT NULL;
       ALTER TABLE rules ADD COLUMN IF NOT EXISTS banner_style VARCHAR(255) DEFAULT NULL;
@@ -1447,16 +1554,26 @@ async function initPostgresTables(client) {
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
         discount_type VARCHAR(50) DEFAULT NULL,
-        discount_target VARCHAR(50) DEFAULT 'order',
-        discount_value NUMERIC(10, 2) DEFAULT NULL,
+        discount_target VARCHAR(255) DEFAULT 'order',
+        discount_value VARCHAR(100) DEFAULT NULL,
         discount_config JSONB DEFAULT '{}',
+        fulfillment_action VARCHAR(50) DEFAULT NULL,
+        fulfillment_config JSONB DEFAULT '{}',
         warning_banner BOOLEAN DEFAULT FALSE,
-        custom_icon VARCHAR(50) DEFAULT NULL,
-        banner_style VARCHAR(50) DEFAULT NULL,
+        custom_icon VARCHAR(255) DEFAULT NULL,
+        banner_style VARCHAR(255) DEFAULT NULL,
         guidance_message VARCHAR(500) DEFAULT NULL,
         display_in_checkout BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS target_shop VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_target VARCHAR(255) DEFAULT 'order';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_value VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS fulfillment_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_versions ADD COLUMN IF NOT EXISTS fulfillment_config JSONB DEFAULT '{}';
 
       CREATE TABLE IF NOT EXISTS rule_analytics (
         id SERIAL PRIMARY KEY,
@@ -1481,12 +1598,52 @@ async function initPostgresTables(client) {
         error_target VARCHAR(255) DEFAULT '$.cart',
         rule_type VARCHAR(50) DEFAULT 'validation',
         delivery_action VARCHAR(50) DEFAULT NULL,
+        discount_type VARCHAR(50) DEFAULT NULL,
+        discount_target VARCHAR(255) DEFAULT 'order',
+        discount_value VARCHAR(100) DEFAULT NULL,
+        discount_config JSONB DEFAULT '{}',
+        fulfillment_action VARCHAR(50) DEFAULT NULL,
+        fulfillment_config JSONB DEFAULT '{}',
         guidance_message VARCHAR(500) DEFAULT NULL
       );
 
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS rule_type VARCHAR(50) DEFAULT 'validation';
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS delivery_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_type VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_target VARCHAR(255) DEFAULT 'order';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_value VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS discount_config JSONB DEFAULT '{}';
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS fulfillment_action VARCHAR(50) DEFAULT NULL;
+      ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS fulfillment_config JSONB DEFAULT '{}';
       ALTER TABLE rule_templates ADD COLUMN IF NOT EXISTS guidance_message VARCHAR(500) DEFAULT NULL;
+
+      CREATE TABLE IF NOT EXISTS surveys (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        survey_type VARCHAR(50) NOT NULL,
+        question_text VARCHAR(500) NOT NULL,
+        description VARCHAR(500) DEFAULT NULL,
+        options JSONB DEFAULT '[]',
+        allow_custom_text BOOLEAN DEFAULT TRUE,
+        conditions JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS survey_responses (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) NOT NULL,
+        survey_id INTEGER REFERENCES surveys(id) ON DELETE CASCADE,
+        order_id VARCHAR(255) DEFAULT NULL,
+        customer_id VARCHAR(255) DEFAULT NULL,
+        customer_email VARCHAR(255) DEFAULT NULL,
+        survey_type VARCHAR(50) NOT NULL,
+        answer_value VARCHAR(255) NOT NULL,
+        custom_feedback TEXT DEFAULT NULL,
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
     `);
     console.log(
       "[DB Init] All PostgreSQL tables created/verified successfully!",
@@ -2584,6 +2741,100 @@ export async function dbQuery(text, params = []) {
     const logs = db.subscriptions_log.filter((l) => l.shop === shop);
     logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return { rows: logs };
+  }
+
+  // ── SURVEYS FALLBACK HANDLERS ──
+  if (lowerText.startsWith("select * from surveys")) {
+    const shop = params[0];
+    if (!db.surveys) db.surveys = [];
+    let result = db.surveys.filter((s) => s.shop === shop);
+    if (lowerText.includes("status = 'active'")) {
+      result = result.filter((s) => s.status === "active");
+    }
+    result.sort((a, b) => b.id - a.id);
+    return { rows: result };
+  }
+
+  if (lowerText.startsWith("insert into surveys")) {
+    const [shop, title, status, survey_type, question_text, description, options, allow_custom_text, conditions] = params;
+    if (!db.surveys) db.surveys = [];
+    const newSurvey = {
+      id: db.surveys.length > 0 ? Math.max(...db.surveys.map((s) => s.id)) + 1 : 1,
+      shop,
+      title,
+      status: status || "active",
+      survey_type,
+      question_text,
+      description: description || null,
+      options: typeof options === "string" ? JSON.parse(options) : options || [],
+      allow_custom_text: allow_custom_text !== false,
+      conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    db.surveys.push(newSurvey);
+    writeFallbackDB(db);
+    return { rows: [newSurvey] };
+  }
+
+  if (lowerText.startsWith("update surveys")) {
+    const [title, status, survey_type, question_text, description, options, allow_custom_text, conditions, id, shop] = params;
+    if (!db.surveys) db.surveys = [];
+    const index = db.surveys.findIndex((s) => Number(s.id) === Number(id) && s.shop === shop);
+    if (index !== -1) {
+      db.surveys[index] = {
+        ...db.surveys[index],
+        title,
+        status,
+        survey_type,
+        question_text,
+        description,
+        options: typeof options === "string" ? JSON.parse(options) : options,
+        allow_custom_text,
+        conditions: typeof conditions === "string" ? JSON.parse(conditions) : conditions,
+        updated_at: new Date().toISOString(),
+      };
+      writeFallbackDB(db);
+      return { rows: [db.surveys[index]] };
+    }
+    return { rows: [] };
+  }
+
+  if (lowerText.startsWith("delete from surveys")) {
+    const [id, shop] = params;
+    if (!db.surveys) db.surveys = [];
+    db.surveys = db.surveys.filter((s) => !(Number(s.id) === Number(id) && s.shop === shop));
+    writeFallbackDB(db);
+    return { rows: [], rowCount: 1 };
+  }
+
+  // ── SURVEY RESPONSES FALLBACK HANDLERS ──
+  if (lowerText.startsWith("select * from survey_responses")) {
+    const shop = params[0];
+    if (!db.survey_responses) db.survey_responses = [];
+    const responses = db.survey_responses.filter((r) => r.shop === shop);
+    responses.sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+    return { rows: responses };
+  }
+
+  if (lowerText.startsWith("insert into survey_responses")) {
+    const [shop, survey_id, order_id, customer_id, customer_email, survey_type, answer_value, custom_feedback] = params;
+    if (!db.survey_responses) db.survey_responses = [];
+    const newResponse = {
+      id: db.survey_responses.length > 0 ? Math.max(...db.survey_responses.map((r) => r.id)) + 1 : 1,
+      shop,
+      survey_id: survey_id ? Number(survey_id) : null,
+      order_id: order_id || null,
+      customer_id: customer_id || null,
+      customer_email: customer_email || null,
+      survey_type,
+      answer_value: String(answer_value),
+      custom_feedback: custom_feedback || null,
+      submitted_at: new Date().toISOString(),
+    };
+    db.survey_responses.push(newResponse);
+    writeFallbackDB(db);
+    return { rows: [newResponse] };
   }
 
   return { rows: [], rowCount: 0 };

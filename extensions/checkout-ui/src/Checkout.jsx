@@ -5,6 +5,7 @@ import { CustomInputField } from "./components/CustomInputField.jsx";
 import { CheckoutUpsell } from "./components/CheckoutUpsell.jsx";
 import { InteractiveModal } from "./components/InteractiveModal.jsx";
 import { BannerNotice } from "./components/BannerNotice.jsx";
+import { PostPurchaseSurveyContainer } from "./components/PostPurchaseSurveyContainer.jsx";
 
 // 1. Export the extension
 export default async () => {
@@ -34,8 +35,9 @@ function Extension() {
   const cartState = { lines, shippingAddress, buyerIdentity, cost };
   const currentTarget = shopify.extension.target;
   const isBlockTarget = currentTarget === "purchase.checkout.block.render";
+  const isPostPurchaseOrThankYou = currentTarget === "purchase.thank-you.block.render" || currentTarget === "purchase.thank-you.customer-information.render-after" || isBlockTarget;
 
-  // 3. Load synced validation, delivery, and payment rules from the Shop metafields
+  // 3. Load synced validation, delivery, payment, and survey rules from the Shop metafields
   const rulesMetafield = appMetafields.find(
     (m) =>
       m.target?.type === "shop" &&
@@ -54,8 +56,15 @@ function Extension() {
       m.metafield?.namespace === "cart-validation" &&
       m.metafield?.key === "payment-rules"
   );
+  const surveyRulesMetafield = appMetafields.find(
+    (m) =>
+      m.target?.type === "shop" &&
+      m.metafield?.namespace === "cart-validation" &&
+      m.metafield?.key === "survey-rules"
+  );
 
   let activeRules = [];
+  let activeSurveyRules = [];
   try {
     if (rulesMetafield?.metafield?.value) {
       activeRules = activeRules.concat(JSON.parse(rulesMetafield.metafield.value));
@@ -66,9 +75,42 @@ function Extension() {
     if (paymentRulesMetafield?.metafield?.value) {
       activeRules = activeRules.concat(JSON.parse(paymentRulesMetafield.metafield.value));
     }
+    if (surveyRulesMetafield?.metafield?.value) {
+      activeSurveyRules = JSON.parse(surveyRulesMetafield.metafield.value);
+    }
+    const surveyRulesFromRules = activeRules.filter((r) => r.rule_type === "survey" && r.status === "active");
+    if (surveyRulesFromRules.length > 0) {
+      activeSurveyRules = [...activeSurveyRules, ...surveyRulesFromRules];
+    }
   } catch (e) {
     console.error("[Checkout UI] Error parsing rules:", e);
   }
+
+  console.log(`[Checkout UI Ext] Target: "${currentTarget}", isPostPurchaseOrThankYou: ${isPostPurchaseOrThankYou}`);
+  console.log(`[Checkout UI Ext] Metafield survey-rules raw value:`, surveyRulesMetafield?.metafield?.value);
+  console.log(`[Checkout UI Ext] Parsed activeSurveyRules from Metafield:`, activeSurveyRules);
+
+  const [fetchedSurveys, setFetchedSurveys] = useState([]);
+
+  useEffect(() => {
+    const shop = shopify.shop?.myshopifyDomain || "";
+    console.log(`[Checkout UI Ext] Fetching /api/public/surveys for shop: "${shop}"...`);
+    fetch(`/api/public/surveys?shop=${encodeURIComponent(shop)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log(`[Checkout UI Ext] Received /api/public/surveys response:`, data);
+        if (data.success && data.surveys && data.surveys.length > 0) {
+          console.log(`[Checkout UI Ext] Loaded ${data.surveys.length} survey rules via public API.`);
+          setFetchedSurveys(data.surveys);
+        } else {
+          console.warn(`[Checkout UI Ext] Public surveys API returned 0 surveys or success=false.`);
+        }
+      })
+      .catch((e) => console.error("[Checkout UI Ext] Error fetching public surveys:", e));
+  }, []);
+
+  const effectiveSurveyRules = fetchedSurveys.length > 0 ? fetchedSurveys : activeSurveyRules;
+  console.log(`[Checkout UI Ext] Final effectiveSurveyRules ready to render (${effectiveSurveyRules.length}):`, effectiveSurveyRules);
 
   // Filter checkbox rules matching this target
   const matchingCheckboxRules = activeRules.filter(
@@ -358,12 +400,13 @@ function Extension() {
     <BannerNotice key={rule.id} rule={rule} cartState={cartState} />
   ));
 
-  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0 && renderedCustomInputs.length === 0 && renderedUpsells.length === 0 && renderedModals.length === 0) {
+  if (renderedCheckboxes.length === 0 && renderedBanners.length === 0 && renderedCustomBanners.length === 0 && renderedCustomInputs.length === 0 && renderedUpsells.length === 0 && renderedModals.length === 0 && effectiveSurveyRules.length === 0) {
     return null;
   }
 
   return (
     <s-stack gap="base">
+      <PostPurchaseSurveyContainer surveyRules={effectiveSurveyRules} cartState={cartState} />
       {renderedCustomBanners}
       {renderedModals}
       {renderedUpsells}

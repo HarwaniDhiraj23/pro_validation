@@ -4,7 +4,7 @@ export const PLANS = {
     price: 0.00,
     trialDays: 0,
     maxActiveRules: 1,
-    allowedRuleTypes: ["validation", "Announcements & Notices", "announcement"],
+    allowedRuleTypes: ["validation", "survey", "Announcements & Notices", "announcement"],
     maxVersionsPerRule: 1,
     allowScheduling: false,
     allowBehaviorCustomization: false,
@@ -20,7 +20,7 @@ export const PLANS = {
     price: 9.00,
     trialDays: 7,
     maxActiveRules: 5,
-    allowedRuleTypes: ["validation", "delivery", "Announcements & Notices", "announcement"],
+    allowedRuleTypes: ["validation", "delivery", "survey", "Announcements & Notices", "announcement"],
     maxVersionsPerRule: 3,
     allowScheduling: false,
     allowBehaviorCustomization: true,
@@ -36,7 +36,7 @@ export const PLANS = {
     price: 29.00,
     trialDays: 7,
     maxActiveRules: 20,
-    allowedRuleTypes: ["validation", "delivery", "payment", "checkbox", "Announcements & Notices", "announcement"],
+    allowedRuleTypes: ["validation", "delivery", "payment", "checkbox", "survey", "Announcements & Notices", "announcement"],
     maxVersionsPerRule: 10,
     allowScheduling: true,
     allowBehaviorCustomization: true,
@@ -48,7 +48,7 @@ export const PLANS = {
     price: 79.00,
     trialDays: 14,
     maxActiveRules: Infinity,
-    allowedRuleTypes: ["validation", "delivery", "payment", "checkbox", "Announcements & Notices", "announcement"],
+    allowedRuleTypes: ["validation", "delivery", "payment", "checkbox", "survey", "Announcements & Notices", "announcement"],
     maxVersionsPerRule: Infinity,
     allowScheduling: true,
     allowBehaviorCustomization: true,
@@ -73,6 +73,7 @@ export function getPlanConfig(planName) {
 export function getRequiredPlanForRuleType(ruleType) {
   if (ruleType === "delivery") return "Basic";
   if (ruleType === "payment" || ruleType === "checkbox") return "Growth";
+  if (ruleType === "survey") return "Free";
   return "Free";
 }
 
@@ -92,6 +93,7 @@ export function getRequiredPlanForRuleCount(count) {
 export function getRequiredPlanForTemplate(tmpl) {
   if (tmpl.rule_type === "delivery") return "Basic";
   if (tmpl.rule_type === "payment" || tmpl.rule_type === "checkbox") return "Growth";
+  if (tmpl.rule_type === "survey") return "Free";
 
   const conditions = Array.isArray(tmpl.conditions)
     ? tmpl.conditions
@@ -118,10 +120,15 @@ export function getRequiredPlanForTemplate(tmpl) {
  * Validates rule creation or activation against shop plan limits
  */
 export function validateRulePlanLimits(planName, currentActiveCount, ruleData, isNewActivation = false) {
+  // Pro plan has unlimited access to everything
+  if (planName === "Pro") {
+    return { valid: true };
+  }
+
   const plan = getPlanConfig(planName);
 
   // 1. Active rules count limit check
-  const isUnlimited = !plan.maxActiveRules || plan.maxActiveRules === Infinity || plan.maxActiveRules >= 999999 || planName === "Pro";
+  const isUnlimited = !plan.maxActiveRules || plan.maxActiveRules === Infinity || plan.maxActiveRules >= 999999;
   if (isNewActivation && !isUnlimited) {
     if (currentActiveCount >= plan.maxActiveRules) {
       const requiredPlan = getRequiredPlanForRuleCount(currentActiveCount + 1);
@@ -143,7 +150,7 @@ export function validateRulePlanLimits(planName, currentActiveCount, ruleData, i
     return {
       valid: false,
       error: "RULE_TYPE_NOT_ALLOWED",
-      message: `${ruleType.toUpperCase()} customization rules are not available on the ${plan.name} plan. Upgrade to ${requiredPlan} or higher to unlock this feature.`,
+      message: `${ruleType.toUpperCase()} customization rules require the ${requiredPlan} plan or higher. Please upgrade to unlock this feature.`,
       requiredPlan
     };
   }
@@ -191,6 +198,10 @@ export function validateRulePlanLimits(planName, currentActiveCount, ruleData, i
  * Validates versioning creation against plan limits
  */
 export function validateVersioningLimit(planName, currentVersionCount) {
+  if (planName === "Pro") {
+    return { valid: true };
+  }
+
   const plan = getPlanConfig(planName);
 
   if (currentVersionCount >= plan.maxVersionsPerRule) {

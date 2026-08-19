@@ -897,6 +897,77 @@ async function syncFulfillmentRulesToShopify(session) {
   }
 }
 
+// Helper to sync active survey rules to Shopify
+export async function syncSurveyRulesToShopify(session) {
+  const shop = session.shop;
+  console.log(`Syncing survey rules for ${shop} to Shopify...`);
+
+  try {
+    const rulesResult = await dbQuery(
+      `SELECT * FROM rules 
+       WHERE (shop = $1 OR target_shop = $1) 
+         AND status = 'active'
+         AND rule_type = 'survey'
+         AND (schedule_start IS NULL OR schedule_start <= CURRENT_TIMESTAMP)
+         AND (schedule_end IS NULL OR schedule_end >= CURRENT_TIMESTAMP)
+       ORDER BY priority DESC, id DESC`,
+      [shop]
+    );
+    const activeRules = rulesResult.rows || [];
+
+    const surveysResult = await dbQuery(
+      `SELECT * FROM surveys WHERE shop = $1 AND status = 'active' ORDER BY id DESC`,
+      [shop]
+    );
+    const activeSurveys = surveysResult.rows || [];
+
+    const combinedSurveys = [...activeSurveys, ...activeRules];
+    const rulesJson = JSON.stringify(combinedSurveys);
+
+    const client = new shopify.api.clients.Graphql({ session });
+    const shopQuery = `query { shop { id } }`;
+    const shopRes = await client.request(shopQuery);
+    const shopId = shopRes.data?.shop?.id;
+
+    if (shopId) {
+      const setMetafieldMutation = `
+        mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      const setRes = await client.request(setMetafieldMutation, {
+        variables: {
+          metafields: [
+            {
+              ownerId: shopId,
+              namespace: "cart-validation",
+              key: "survey-rules",
+              type: "json",
+              value: rulesJson
+            }
+          ]
+        }
+      });
+      const errors = setRes.data?.metafieldsSet?.userErrors || [];
+      if (errors.length > 0) {
+        console.error("[Survey Sync] Metafield set errors:", errors);
+      } else {
+        console.log(`Successfully synced ${combinedSurveys.length} survey rules to Shopify metafield.`);
+      }
+    }
+  } catch (error) {
+    console.warn(`[Shopify Sync] Could not sync survey rules for ${shop}:`, formatShopifyError(error));
+  }
+}
+
 // Helper to sync multiple shops affected by a rule change
 async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetShopAfter) {
   const shopsToSync = new Set();
@@ -928,6 +999,7 @@ async function syncRulesForAffectedShops(creatorShop, targetShopBefore, targetSh
         await syncDeliveryRulesToShopify(session);
         await syncPaymentRulesToShopify(session);
         await syncFulfillmentRulesToShopify(session);
+        await syncSurveyRulesToShopify(session);
       } else {
         console.warn(`[Sync propagation] No offline session found for shop: ${shop}`);
       }
@@ -1180,6 +1252,8 @@ router.get("/", async (req, res) => {
         await syncDeliveryRulesToShopify(res.locals.shopify.session);
       } else if (ruleType === "payment") {
         await syncPaymentRulesToShopify(res.locals.shopify.session);
+      } else if (ruleType === "survey") {
+        await syncSurveyRulesToShopify(res.locals.shopify.session);
       } else {
         await syncRulesToShopify(res.locals.shopify.session);
       }
