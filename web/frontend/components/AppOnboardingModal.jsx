@@ -56,10 +56,10 @@ export function AppOnboardingModal() {
       onClose={() => { }} // Cannot close by clicking outside or close button
       title={
         step === 1
-          ? "Welcome to Pro Validation!"
+          ? "Welcome to RuleForge!"
           : step === 2
             ? "You are currently on the Free Plan"
-            : "Let's set up Pro Validation"
+            : "Let's set up RuleForge"
       }
       size={step === 1 ? "large" : "medium"}
     >
@@ -77,7 +77,7 @@ export function AppOnboardingModal() {
             {/* Header */}
             <div style={{ textAlign: "center", marginBottom: "20px" }}>
               <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#1a1a1a", marginBottom: "8px", lineHeight: "1.2" }}>
-                Pro Validation has four features to boost your store. Choose the ones to enable
+                RuleForge has four features to boost your store. Choose the ones to enable
               </h1>
               <p style={{ fontSize: "14px", color: "#6d7175" }}>
                 You can change, add or disable these widgets in your panel later.
@@ -391,11 +391,11 @@ export function AppOnboardingModal() {
             </div>
 
             <h1 style={{ fontSize: "22px", fontWeight: "800", color: "#1a1a1a", marginBottom: "8px" }}>
-              Welcome to Pro Validation!
+              Welcome to RuleForge!
             </h1>
 
             <p style={{ fontSize: "15px", color: "#6d7175", marginBottom: "20px", maxWidth: "420px", marginLeft: "auto", marginRight: "auto", lineHeight: "1.5" }}>
-              Let's set up Pro Validation rules. It will take under 1 minute.
+              Let's set up RuleForge rules. It will take under 1 minute.
             </p>
 
             {/* Terms Checkbox */}
@@ -413,7 +413,7 @@ export function AppOnboardingModal() {
               <Checkbox
                 label={
                   <span style={{ fontSize: "14px", color: "#202223", userSelect: "none" }}>
-                    I've read Pro Validation's{" "}
+                    I've read RuleForge's{" "}
                     <a href="https://example.com/terms" target="_blank" rel="noopener noreferrer" style={{ color: "#008060", textDecoration: "underline" }} onClick={(e) => e.stopPropagation()}>
                       Terms of service
                     </a>{" "}
